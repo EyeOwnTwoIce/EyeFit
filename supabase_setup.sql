@@ -67,13 +67,18 @@ create policy "sesiones_delete_own" on public.sesiones
   for delete using (auth.uid() = user_id);
 
 -- ═══ Trigger: updated_at automático en rutinas ═══
+-- Nota: se fija search_path = '' (mejora de seguridad recomendada por Supabase lint).
+-- now() es una función de pg_catalog, que siempre está disponible aunque search_path esté vacío.
 create or replace function public.set_updated_at()
-returns trigger as $$
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
 begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
+$$;
 
 drop trigger if exists trg_routinas_updated_at on public.routinas;
 create trigger trg_routinas_updated_at

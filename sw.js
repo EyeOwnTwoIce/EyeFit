@@ -1,10 +1,13 @@
 /* EyeFit Service Worker — caching for offline use */
-const CACHE = 'eyefit-v1';
+const CACHE = 'eyefit-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
   './xlsx.full.min.js',
-  './rutina.xlsx'
+  './rutina.xlsx',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-180.png'
 ];
 
 self.addEventListener('install', event => {
@@ -25,8 +28,13 @@ self.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
-  // Imágenes del dataset de ejercicios (raw.githubusercontent.com)
-  if (request.url.includes('raw.githubusercontent.com/hasaneyldrm/exercises-dataset')) {
+  const url = new URL(request.url);
+
+  // No interceptar Supabase (auth + datos) — siempre en red
+  if (url.origin.includes('supabase.co')) return;
+
+  // No interceptar peticiones a la API del dataset (datos) cuando haya red
+  if (url.hostname === 'raw.githubusercontent.com') {
     event.respondWith(
       caches.open(CACHE).then(cache =>
         cache.match(request).then(cached => {

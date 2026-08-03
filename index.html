@@ -13,9 +13,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" id="manifest-link">
 
-<!-- App icon (inline SVG data-uri) -->
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%230A0A0A'/%3E%3Ctext x='90' y='122' font-size='70' font-weight='900' fill='%23C8FF00' text-anchor='middle' font-family='Arial'%3EE%3C/text%3E%3C/svg%3E">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%230A0A0A'/%3E%3Ctext x='90' y='122' font-size='70' font-weight='900' fill='%23C8FF00' text-anchor='middle' font-family='Arial'%3EE%3C/text%3E%3C/svg%3E">
+<!-- App icons -->
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
 
 <style>
   :root{
@@ -43,7 +43,6 @@
     padding-top:calc(14px + env(safe-area-inset-top));
   }
   header h1{ font-size:19px; font-weight:800; letter-spacing:-0.3px; margin:0; }
-  header .sub{ color:var(--muted); font-size:11px; margin-top:3px; line-height:1.4; }
   .accent{ color:var(--accent); }
 
   /* ===== Bottom tab bar ===== */
@@ -81,13 +80,17 @@
   .week-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:5px; margin-bottom:14px; }
   .week-cell{
     border-radius:10px; padding:8px 2px; text-align:center; border:1px solid var(--border);
-    background:var(--surface); cursor:pointer; transition:all .15s;
+    background:var(--surface); cursor:pointer; transition:all .15s; position:relative;
   }
   .week-cell .d{ color:var(--muted); font-size:8.5px; margin-bottom:3px; font-weight:700; text-transform:uppercase; }
   .week-cell .l{ font-weight:700; font-size:8.5px; line-height:1.2; }
   .week-cell.active{ background:var(--accent); border-color:var(--accent); }
   .week-cell.active .d{ color:#000; }
   .week-cell.active .l{ color:#000; }
+  .week-cell .today-badge{
+    position:absolute; top:-5px; right:-5px; background:var(--danger); color:#fff;
+    font-size:6.5px; font-weight:800; padding:2px 5px; border-radius:6px; letter-spacing:.5px;
+  }
 
   /* ===== Day cards ===== */
   .day-card{ background:var(--surface); border-radius:14px; margin-bottom:14px; overflow:hidden; border:2px solid var(--border); }
@@ -120,22 +123,31 @@
     background:none; border:1px solid var(--border); color:var(--accent); border-radius:6px;
     font-size:10px; padding:4px 9px; margin-top:7px; cursor:pointer; font-weight:600;
   }
-  .ex-instr{ display:none; color:#bbb; font-size:11px; line-height:1.6; margin-top:8px; padding:8px 10px; background:var(--surface2); border-radius:8px; }
+  .ex-instr{ display:none; color:#ccc; font-size:11px; line-height:1.6; margin-top:8px; padding:10px 12px; background:var(--surface2); border-radius:8px; }
   .ex-instr.show{ display:block; }
+
+  /* Instrucciones en formato listado */
+  .instr-list{ padding-left:18px; margin:2px 0; }
+  .instr-list li{ margin-bottom:4px; }
+  .instr-list li::marker{ color:var(--accent); font-weight:800; }
+  .instr-plain{ margin:2px 0; }
 
   /* ===== Workout / Session ===== */
   .session-header{ text-align:center; padding:16px 14px; }
   .session-day{ font-size:17px; font-weight:800; }
-  .session-chrono{
-    font-size:44px; font-weight:800; letter-spacing:2px; font-variant-numeric:tabular-nums;
-    color:var(--accent); margin:10px 0 4px;
+
+  /* Barra de progreso de sesión */
+  .session-progress{
+    position:sticky; top:0; z-index:30; background:var(--bg);
+    padding:10px 14px 8px; margin:-16px -14px 0; border-bottom:1px solid var(--border);
   }
-  .chrono-btns{ display:flex; gap:6px; justify-content:center; margin-bottom:6px; }
-  .chrono-btns button{
-    background:var(--surface2); border:1px solid var(--border); color:var(--text);
-    border-radius:8px; padding:7px 14px; font-size:11px; font-weight:700; cursor:pointer;
+  .session-progress .sp-label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:10px; color:var(--muted); margin-bottom:5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
   }
-  .chrono-btns button:active{ transform:scale(.96); }
+  .session-progress .sp-pct{ color:var(--accent); font-size:14px; font-weight:800; }
+  .session-progress .sp-bar{ height:7px; border-radius:4px; background:var(--surface2); overflow:hidden; }
+  .session-progress .sp-fill{ height:100%; background:linear-gradient(90deg,var(--accent),#a8d400); border-radius:4px; transition:width .3s ease; }
 
   .rest-banner{
     background:var(--surface); border:1px solid var(--accent); border-radius:14px;
@@ -145,13 +157,14 @@
   @keyframes restpulse{ from{ box-shadow:0 0 0 0 rgba(200,255,0,.15);} to{ box-shadow:0 0 20px 4px rgba(200,255,0,.25);} }
   .rest-label{ color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:1px; font-weight:700; }
   .rest-time{ font-size:38px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums; margin:4px 0; }
-  .rest-btns{ display:flex; gap:6px; justify-content:center; }
+  .rest-btns{ display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
   .rest-btns button{
-    padding:7px 16px; border-radius:8px; font-size:11px; font-weight:700; border:none; cursor:pointer;
+    padding:7px 13px; border-radius:8px; font-size:11px; font-weight:700; border:none; cursor:pointer;
   }
   .rest-btns .skip{ background:var(--surface2); color:var(--text); border:1px solid var(--border); }
   .rest-btns .pause{ background:var(--accent); color:#000; }
   .rest-btns .pause.paused{ background:var(--orange); color:#000; }
+  .rest-btns .adj{ background:var(--surface2); color:var(--accent); border:1px solid var(--border); }
 
   /* ===== Active exercise card ===== */
   .active-ex{
@@ -162,7 +175,13 @@
   .active-ex-name{ font-weight:800; font-size:13px; }
   .active-ex-count{ font-size:11px; font-weight:700; }
   .active-ex-body{ padding:13px 15px; }
-  .active-ex-img{ width:100%; max-height:180px; object-fit:cover; border-radius:10px; margin-bottom:10px; background:var(--surface2); }
+  .active-ex-img{ width:100%; max-height:200px; object-fit:cover; border-radius:10px; margin-bottom:10px; background:var(--surface2); }
+  .active-ex-img.big{ max-height:240px; }
+  .variant-btn{
+    background:none; border:1px dashed var(--accent); color:var(--accent); border-radius:8px;
+    font-size:11px; font-weight:700; padding:7px 12px; width:100%; margin-bottom:10px; cursor:pointer;
+  }
+  .variant-btn:active{ background:rgba(200,255,0,.1); }
 
   .sets-grid{ display:flex; flex-direction:column; gap:7px; margin-top:9px; }
   .set-row{
@@ -177,7 +196,11 @@
     display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;
   }
   .stepper:active{ background:var(--accent); color:#000; }
-  .set-value{ font-size:13px; font-weight:700; min-width:38px; text-align:center; font-variant-numeric:tabular-nums; }
+  .set-value{
+    font-size:14px; font-weight:800; min-width:38px; text-align:center; font-variant-numeric:tabular-nums;
+    cursor:pointer; padding:2px 6px; border-radius:6px; color:var(--text);
+  }
+  .set-value:active{ background:rgba(200,255,0,.15); }
   .set-label{ color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.4px; }
   .set-done{
     width:32px; height:32px; border-radius:9px; border:1.5px solid var(--border);
@@ -235,25 +258,76 @@
   .btn-outline{ background:transparent; color:var(--text); border:1px solid var(--border); }
   .btn-danger{ background:var(--danger); color:#fff; }
 
-  /* ===== PIN overlay ===== */
-  #pinOverlay{
-    position:fixed; inset:0; background:rgba(0,0,0,.96); z-index:200;
+  /* ===== Auth (login) overlay ===== */
+  #authOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.97); z-index:250;
     display:none; flex-direction:column; align-items:center; justify-content:center;
-    max-width:393px; margin:0 auto;
+    max-width:393px; margin:0 auto; padding:24px;
   }
-  #pinOverlay.show{ display:flex; }
-  .pin-title{ font-size:17px; font-weight:800; margin-bottom:20px; }
-  .pin-dots{ display:flex; gap:12px; margin-bottom:24px; }
-  .pin-dot{ width:14px; height:14px; border-radius:50%; border:2px solid var(--border); background:transparent; }
-  .pin-dot.filled{ background:var(--accent); border-color:var(--accent); }
-  .pin-pad{ display:grid; grid-template-columns:repeat(3,72px); gap:14px; }
-  .pin-key{
-    width:66px; height:66px; border-radius:50%; border:none; background:var(--surface2);
-    color:var(--text); font-size:22px; font-weight:800; cursor:pointer;
+  #authOverlay.show{ display:flex; }
+  .auth-card{ width:100%; max-width:320px; }
+  .auth-logo{ text-align:center; font-size:44px; margin-bottom:4px; }
+  .auth-title{ text-align:center; font-size:22px; font-weight:800; margin-bottom:2px; }
+  .auth-sub{ text-align:center; color:var(--muted); font-size:11px; margin-bottom:18px; }
+  .auth-tabs{ display:flex; gap:6px; margin-bottom:14px; background:var(--surface2); border-radius:10px; padding:4px; }
+  .auth-tabs button{
+    flex:1; border:none; background:none; color:var(--muted); font-size:12px; font-weight:700;
+    padding:8px; border-radius:8px; cursor:pointer;
   }
-  .pin-key:active{ background:var(--surface); transform:scale(.94); }
-  .pin-key.blank{ visibility:hidden; }
-  .pin-error{ color:var(--danger); font-size:11px; margin-top:16px; min-height:16px; }
+  .auth-tabs button.active{ background:var(--accent); color:#000; }
+  .auth-input{
+    width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:12px 14px; font-size:15px; margin-bottom:10px; outline:none;
+  }
+  .auth-input:focus{ border-color:var(--accent); }
+  .auth-input::placeholder{ color:var(--muted); }
+  .auth-btn{ width:100%; background:var(--accent); color:#000; border:none; border-radius:10px; padding:13px; font-size:14px; font-weight:800; cursor:pointer; margin-top:2px; }
+  .auth-btn:active{ opacity:.85; }
+  .auth-btn:disabled{ opacity:.5; }
+  .auth-error{ color:var(--danger); font-size:11.5px; min-height:16px; margin-top:10px; text-align:center; }
+  .auth-offline{
+    margin-top:18px; text-align:center; font-size:11px; color:var(--muted); text-decoration:underline;
+    background:none; border:none; cursor:pointer;
+  }
+  .auth-info{ margin-top:14px; text-align:center; font-size:10px; color:var(--muted); line-height:1.6; }
+
+  /* ===== Num pad overlay ===== */
+  #numOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.96); z-index:240;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    max-width:393px; margin:0 auto; padding:24px;
+  }
+  #numOverlay.show{ display:flex; }
+  .num-label{ color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:1px; font-weight:700; margin-bottom:12px; }
+  .num-input{
+    width:180px; background:transparent; border:none; border-bottom:2px solid var(--accent);
+    color:var(--accent); font-size:44px; font-weight:800; text-align:center; outline:none;
+    font-variant-numeric:tabular-nums; padding:0 0 4px; margin-bottom:24px;
+  }
+  .num-input::placeholder{ color:#333; }
+  .num-btns{ display:flex; gap:10px; }
+  .num-btns button{ padding:11px 26px; border-radius:10px; font-size:13px; font-weight:800; border:none; cursor:pointer; }
+  .num-cancel{ background:var(--surface2); color:var(--text); }
+  .num-ok{ background:var(--accent); color:#000; }
+
+  /* ===== Variants overlay ===== */
+  #varOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.96); z-index:245;
+    display:none; flex-direction:column; max-width:393px; margin:0 auto; padding:24px; overflow-y:auto;
+  }
+  #varOverlay.show{ display:flex; }
+  .var-title{ font-size:17px; font-weight:800; margin-bottom:4px; }
+  .var-sub{ color:var(--muted); font-size:11px; margin-bottom:16px; }
+  .var-item{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:14px 15px; margin-bottom:9px; cursor:pointer; display:flex; align-items:center; gap:10px;
+  }
+  .var-item:active{ border-color:var(--accent); }
+  .var-item .vi-ic{ font-size:22px; }
+  .var-item .vi-name{ font-weight:700; font-size:13px; }
+  .var-item .vi-part{ color:var(--muted); font-size:10px; margin-top:2px; }
+  .var-empty{ color:var(--muted); font-size:12px; text-align:center; padding:20px 0; }
+  .var-close{ margin-top:auto; background:var(--surface2); color:var(--text); border:none; border-radius:10px; padding:12px; font-size:13px; font-weight:700; cursor:pointer; }
 
   /* ===== Install banner ===== */
   .install-banner{
@@ -266,9 +340,10 @@
   .install-banner.show{ display:flex; }
   .install-banner button{ background:#000; color:var(--accent); border:none; border-radius:6px; padding:6px 10px; font-size:11px; font-weight:700; }
 
-  .offline-dot{ display:inline-flex; align-items:center; gap:4px; font-size:10px; color:var(--muted); }
-  .offline-dot .d{ width:6px; height:6px; border-radius:50%; background:#4CAF50; }
-  .offline-dot.off .d{ background:var(--danger); }
+  .sync-status{ display:flex; align-items:center; gap:5px; font-size:10px; color:var(--muted); }
+  .sync-status .dot{ width:6px; height:6px; border-radius:50%; background:#4CAF50; }
+  .sync-status.pending .dot{ background:var(--orange); }
+  .sync-status.off .dot{ background:var(--danger); }
 
   .toast{
     position:fixed; bottom:calc(80px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
@@ -300,10 +375,6 @@
 
   <header>
     <h1>👁️ EyeFit</h1>
-    <div class="sub">
-      Entrenamiento <span class="accent">Lunes-Viernes</span> · Libreta privada offline
-      <span class="offline-dot" id="netStatus"><span class="d"></span><span id="netText">En línea</span></span>
-    </div>
   </header>
 
   <main id="main"></main>
@@ -311,7 +382,7 @@
   <!-- Bottom tab bar -->
   <nav class="tabbar" id="tabbar">
     <button class="tabbtn" data-tab="rutina"><span class="ic">📅</span>Rutina</button>
-    <button class="tabbtn" data-tab="sesion"><span class="ic">🏋️</span>Sesión</button>
+    <button class="tabbtn" data-tab="sesion"><span class="ic">🏋️</span>Entrenar</button>
     <button class="tabbtn" data-tab="historial"><span class="ic">📈</span>Historial</button>
     <button class="tabbtn" data-tab="ajustes"><span class="ic">⚙️</span>Ajustes</button>
   </nav>
@@ -323,57 +394,79 @@
 
   <div class="toast" id="toast"></div>
 
-  <!-- PIN overlay -->
-  <div id="pinOverlay">
-    <div class="pin-title" id="pinTitle">Código PIN</div>
-    <div class="pin-dots" id="pinDots"></div>
-    <div class="pin-pad" id="pinPad"></div>
-    <div class="pin-error" id="pinError"></div>
-  </div>
-
   <input type="file" id="fileInput" accept=".xlsx,.xls">
 </div>
 
+<!-- Auth overlay (login web seguro, sustituye al PIN) -->
+<div id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">👁️</div>
+    <div class="auth-title">EyeFit</div>
+    <div class="auth-sub">Tu entrenamiento, sincronizado en la nube</div>
+    <div class="auth-tabs">
+      <button data-auth-tab="login" class="active">Acceder</button>
+      <button data-auth-tab="register">Registrarse</button>
+    </div>
+    <input type="email" class="auth-input" id="authEmail" placeholder="Email" autocomplete="email" autocapitalize="off" spellcheck="false">
+    <input type="password" class="auth-input" id="authPass" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="current-password">
+    <button class="auth-btn" id="authSubmit">Acceder</button>
+    <div class="auth-error" id="authError"></div>
+    <button class="auth-offline" id="authSkip">Continuar sin conexión (solo este dispositivo)</button>
+    <div class="auth-info">🔒 Protegido con cifrado de última generación (bcrypt + JWT)<br>Tu historial se sincroniza entre dispositivos</div>
+  </div>
+</div>
+
+<!-- Num pad overlay -->
+<div id="numOverlay">
+  <div class="num-label" id="numLabel">Peso (kg)</div>
+  <input type="number" class="num-input" id="numInput" inputmode="decimal" step="0.5" min="0">
+  <div class="num-btns">
+    <button class="num-cancel" id="numCancel">Cancelar</button>
+    <button class="num-ok" id="numOk">OK</button>
+  </div>
+</div>
+
+<!-- Variants overlay -->
+<div id="varOverlay">
+  <div class="var-title">↔️ Ejercicios alternativos</div>
+  <div class="var-sub">Cambia este ejercicio por una variante del mismo grupo muscular</div>
+  <div id="varList"></div>
+  <button class="var-close" id="varClose">Cancelar</button>
+</div>
+
 <script src="xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ════════════════════════════════════════════════════════════════
-   EyeFit — App privada de entrenamiento (iPhone 15 / PWA / offline)
+   EyeFit — App de entrenamiento (PWA / sincronización en la nube)
    ════════════════════════════════════════════════════════════════ */
+
+/* ---------- Supabase ---------- */
+const SUPABASE_URL = "https://vkaxxphminfinufitcyp.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_9mIRx8rfkAtHv9w57cbCKw_P_btyOou";
+let sbClient = null;
+let authUser = null;
+try{
+  if(window.supabase) sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}catch(e){}
 
 /* ---------- PWA: Manifest embebido ---------- */
 const manifest = {
   name: "EyeFit",
   short_name: "EyeFit",
+  description: "Entrenamiento Lunes-Viernes sincronizado en la nube",
   start_url: "./",
   display: "standalone",
   background_color: "#0A0A0A",
   theme_color: "#0A0A0A",
   icons: [
-    { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%230A0A0A'/%3E%3Ctext x='256' y='345' font-size='200' font-weight='900' fill='%23C8FF00' text-anchor='middle' font-family='Arial'%3EE%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }
+    { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    { src: "icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
   ]
 };
 const manifestBlob = new Blob([JSON.stringify(manifest)], {type:"application/json"});
 document.getElementById("manifest-link").setAttribute("href", URL.createObjectURL(manifestBlob));
-
-/* ---------- Estado de red ---------- */
-function updateNetStatus(){
-  const dot = document.getElementById("netStatus");
-  const txt = document.getElementById("netText");
-  if(navigator.onLine){ dot.classList.remove("off"); txt.textContent = "En línea"; }
-  else { dot.classList.add("off"); txt.textContent = "Sin conexión (modo offline)"; }
-}
-window.addEventListener("online", updateNetStatus);
-window.addEventListener("offline", updateNetStatus);
-updateNetStatus();
-
-/* Mostrar banner de instalación (solo iOS Safari) */
-(function(){
-  const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  if(isIOS && !isStandalone){
-    setTimeout(()=> document.getElementById("installBanner").classList.add("show"), 1500);
-  }
-})();
 
 /* ================================================================
    DATOS
@@ -386,6 +479,11 @@ const DAY_COLORS = {
 };
 const DAY_ORDER = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
 const DAY_SHORT = { Lunes:"LUN", Martes:"MAR", Miércoles:"MIÉ", Jueves:"JUE", Viernes:"VIE" };
+const WEEKDAY_NAMES = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+
+function getTodayName(){
+  return WEEKDAY_NAMES[new Date().getDay()];
+}
 
 /* Rutina por defecto (fallback si no hay xlsx cargado) — misma estructura que rutina.xlsx */
 const DEFAULT_ROUTINE = [
@@ -464,8 +562,9 @@ const K = {
   routine: "eyefit_routine_v1",     // rutina cargada (xlsx o fallback)
   history: "eyefit_history_v1",     // sesiones completadas
   sets:    "eyefit_sets_v1",        // progreso de la sesión actual
-  pin:     "eyefit_pin_v1",         // PIN (opcional)
+  session: "eyefit_session_v1",     // sesión activa persistente
   dataset: "eyefit_dataset_v1",     // índice de ejercicios (nombre → info)
+  pending: "eyefit_pending_v1",     // cola offline: {sessions:[], routine:null}
 };
 
 function lsGet(key, def){ try{ return JSON.parse(localStorage.getItem(key)) ?? def; }catch(e){ return def; } }
@@ -477,6 +576,13 @@ function setRoutine(r){ lsSet(K.routine, r); }
 
 function getHistory(){ return lsGet(K.history, []); }
 function saveHistory(h){ lsSet(K.history, h); }
+
+/* Cola offline */
+function getPending(){
+  const p = lsGet(K.pending, null);
+  return p && typeof p === "object" ? { sessions:Array.isArray(p.sessions)?p.sessions:[], routine:p.routine || null } : { sessions:[], routine:null };
+}
+function setPending(p){ lsSet(K.pending, { sessions:p.sessions || [], routine:p.routine || null }); }
 
 /* ================================================================
    CARGA DE LA RUTINA DESDE XLSX
@@ -503,7 +609,6 @@ function parseRoutineSheet(data){
         mapped[target] = (target === "orden" || target === "series" || target === "reps") ? parseInt(v, 10) || 0 : v;
       }
     }
-    // También normalizar claves ya correctas
     for(const key of Object.keys(row)){
       if(HEADER_MAP[key]){
         const target = HEADER_MAP[key];
@@ -531,13 +636,11 @@ function parseRoutineSheet(data){
       notas: String(mapped.notas || "").trim()
     });
   }
-  // Ordenar por día y orden
   routine.sort((a,b) => {
     const di = (DAY_ORDER.indexOf(a.dia) - DAY_ORDER.indexOf(b.dia));
     if(di !== 0) return di;
     return (a.orden || 0) - (b.orden || 0);
   });
-  // Reasignar orden por día
   const orderByDay = {};
   for(const ex of routine){
     if(!(ex.dia in orderByDay)) orderByDay[ex.dia] = 0;
@@ -549,16 +652,16 @@ function parseRoutineSheet(data){
 
 async function loadRoutineFromXlsx(){
   try{
-    // 1) Intentar fetch local del archivo rutina.xlsx
     const resp = await fetch("rutina.xlsx", { cache:"no-store" });
     if(!resp.ok) throw new Error("no fetch");
     const buf = await resp.arrayBuffer();
     const routine = parseRoutineSheet(new Uint8Array(buf));
     if(routine.length === 0) throw new Error("vacío");
-    setRoutine(routine);
+    if(!lsGet(K.routine, null)){ // solo si no hay rutina personalizada ya
+      setRoutine(routine);
+    }
     console.log("✅ Rutina cargada de rutina.xlsx (" + routine.length + " ejercicios)");
   }catch(e){
-    // 2) Fallback: rutina embebida
     console.log("ℹ️ Usando rutina por defecto embebida");
   }
 }
@@ -589,11 +692,11 @@ async function loadExerciseDataset(){
     const resp = await fetch(DATASET_URL);
     if(!resp.ok) throw new Error("no fetch dataset");
     const data = await resp.json();
-    // Guardar solo lo que necesitamos (id, name, image, instructions.es, body_part)
     const slim = data.map(ex => ({
       id: ex.id,
       name: ex.name,
       image: ex.image,
+      animation: ex.animation || null,  // GIF animado
       instr: (ex.instructions && ex.instructions.es) || "",
       part: ex.body_part || ""
     }));
@@ -614,13 +717,10 @@ function normalizeName(s){
 function findExerciseInDataset(dataset, name){
   if(!dataset || name === "") return null;
   const n = normalizeName(name);
-  // 1) igualdad exacta
   let hit = dataset.find(d => normalizeName(d.name) === n);
   if(hit) return hit;
-  // 2) incluye
   hit = dataset.find(d => normalizeName(d.name).includes(n) || n.includes(normalizeName(d.name)));
   if(hit) return hit;
-  // 3) fichas parciales (primera/última palabra)
   const words = n.split(" ");
   for(const w of words){
     if(w.length < 3) continue;
@@ -630,20 +730,23 @@ function findExerciseInDataset(dataset, name){
   return null;
 }
 
+/* Devuelve la mejor imagen/GIF disponible para un ejercicio.
+   Prioridad: imagen embebida (verificada) → imagen estática del dataset → GIF animado del dataset */
 function getExerciseImage(ex, dataset){
-  // 1) Buscar en el mapa embebido (por dataset name)
   if(ex.dataset && EMBEDDED_IMAGES[ex.dataset]){
     return IMG_BASE + EMBEDDED_IMAGES[ex.dataset];
   }
-  // 2) Buscar en el dataset JSON
   if(dataset && ex.dataset){
     const found = findExerciseInDataset(dataset, ex.dataset);
     if(found && found.image) return IMG_BASE + found.image;
   }
-  // 3) Buscar por el nombre en español normalizado
   if(dataset){
     const found = findExerciseInDataset(dataset, ex.nombre_es);
     if(found && found.image) return IMG_BASE + found.image;
+  }
+  if(dataset){
+    const found = findExerciseInDataset(dataset, ex.dataset) || findExerciseInDataset(dataset, ex.nombre_es);
+    if(found && found.animation) return IMG_BASE + found.animation;
   }
   return null;
 }
@@ -655,11 +758,188 @@ function getExerciseInstructions(ex, dataset){
   return ex.notas || "";
 }
 
+function getExerciseBodyPart(ex, dataset){
+  if(!dataset || !ex.dataset) return "";
+  const found = findExerciseInDataset(dataset, ex.dataset) || findExerciseInDataset(dataset, ex.nombre_es);
+  return found && found.part ? found.part : "";
+}
+
+/* Convierte instrucciones en formato listado esquemático */
+function escapeHtml(s){
+  const el = document.createElement('div');
+  el.textContent = String(s || "");
+  return el.innerHTML;
+}
+
+function formatInstructions(text){
+  if(!text) return "";
+  const clean = String(text).replace(/\s+/g," ").trim();
+  if(!clean) return "";
+  const steps = clean.split(/[.;\n]+/).map(s => s.trim().replace(/^\d+[\)\.\-]?\s*/, "")).filter(s => s && s.length > 2);
+  if(steps.length <= 1){
+    return `<p class="instr-plain">${escapeHtml(clean)}</p>`;
+  }
+  return `<ol class="instr-list">${steps.map(s => `<li>${escapeHtml(s)}</li>`).join("")}</ol>`;
+}
+
+/* ================================================================
+   SUPABASE — AUTH + ALMACENAMIENTO EN SERVIDOR
+   ================================================================ */
+let authMode = "login"; // login | register
+
+function showAuthOverlay(show){
+  const ov = document.getElementById("authOverlay");
+  if(show) ov.classList.add("show"); else ov.classList.remove("show");
+}
+
+async function handleAuthSubmit(){
+  const email = document.getElementById("authEmail").value.trim();
+  const pass = document.getElementById("authPass").value;
+  const errEl = document.getElementById("authError");
+  const btn = document.getElementById("authSubmit");
+  errEl.textContent = "";
+  if(!sbClient){
+    errEl.textContent = "🌐 Sin conexión al servidor de la nube. Usa el modo sin conexión.";
+    return;
+  }
+  if(!email || !pass){
+    errEl.textContent = "Introduce email y contraseña";
+    return;
+  }
+  if(pass.length < 6){
+    errEl.textContent = "La contraseña debe tener al menos 6 caracteres";
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "…";
+  try{
+    let result;
+    if(authMode === "register"){
+      result = await sbClient.auth.signUp({ email, password: pass });
+    } else {
+      result = await sbClient.auth.signInWithPassword({ email, password: pass });
+    }
+    if(result.error) throw result.error;
+    authUser = result.data.user || null;
+    if(authMode === "register" && !authUser){
+      errEl.textContent = "✅ Revisa tu email para confirmar el registro";
+      btn.disabled = false;
+      btn.textContent = "Registrarse";
+      return;
+    }
+    await afterLogin();
+    btn.disabled = false;
+    btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
+  }catch(err){
+    errEl.textContent = err && err.message ? err.message : "Error de conexión";
+    btn.disabled = false;
+    btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
+  }
+}
+
+async function afterLogin(){
+  showAuthOverlay(false);
+  await syncPending();
+  await pullServerData();
+  renderMain();
+}
+
+async function pullServerData(){
+  if(!sbClient || !authUser) return;
+  try{
+    // Rutina del usuario
+    const { data: routineRow, error: errR } = await sbClient
+      .from("routinas")
+      .select("routine")
+      .eq("user_id", authUser.id)
+      .maybeSingle();
+    if(!errR && routineRow && routineRow.routine && Array.isArray(routineRow.routine)){
+      setRoutine(routineRow.routine);
+      selectedDay = null;
+    }
+    // Historial del usuario
+    const { data: sesRows, error: errS } = await sbClient
+      .from("sesiones")
+      .select("data")
+      .eq("user_id", authUser.id);
+    if(!errS && Array.isArray(sesRows)){
+      const serverHistory = sesRows.map(r => r.data).filter(Boolean);
+      // Combinar con lo local (sin duplicados por fecha+day)
+      const local = getHistory();
+      const merged = [...serverHistory];
+      for(const h of local){
+        const dup = merged.some(m => m.date === h.date && m.day === h.day);
+        if(!dup) merged.push(h);
+      }
+      merged.sort((a,b) => new Date(b.date) - new Date(a.date));
+      saveHistory(merged);
+    }
+  }catch(e){
+    console.log("ℹ️ Pull de servidor no disponible", e);
+  }
+}
+
+async function pushRoutineToServer(){
+  if(!sbClient || !authUser) return false;
+  const routine = getRoutine();
+  try{
+    const { error } = await sbClient
+      .from("routinas")
+      .upsert({ user_id: authUser.id, routine }, { onConflict: "user_id" });
+    return !error;
+  }catch(e){
+    return false;
+  }
+}
+
+async function pushSessionToServer(record){
+  if(!sbClient || !authUser) return false;
+  try{
+    const { error } = await sbClient
+      .from("sesiones")
+      .insert({ user_id: authUser.id, data: record });
+    return !error;
+  }catch(e){
+    return false;
+  }
+}
+
+/* Cola offline: retiene datos pendientes y los sube al recuperar conexión */
+async function syncPending(){
+  if(!sbClient || !authUser) return;
+  const pending = getPending();
+  let changed = false;
+  // Subir sesiones pendientes
+  const remaining = [];
+  for(const rec of pending.sessions){
+    const ok = await pushSessionToServer(rec);
+    if(ok){ changed = true; } else { remaining.push(rec); break; }
+  }
+  // Subir rutina pendiente
+  if(pending.routine){
+    const { error } = await sbClient
+      .from("routinas")
+      .upsert({ user_id: authUser.id, routine: pending.routine }, { onConflict: "user_id" })
+      .catch(() => ({ error: true }));
+    if(!error){
+      setRoutine(pending.routine);
+      pending.routine = null;
+      changed = true;
+    }
+  }
+  pending.sessions = remaining;
+  setPending(pending);
+  if(changed){
+    showToast("🔄 Sincronizado con la nube");
+    if(currentTab === "ajustes") renderMain();
+  }
+}
+
 /* ================================================================
    ROUTER
    ================================================================ */
 let currentTab = "rutina";
-let selectedDay = null;      // día seleccionado en Rutina
+let selectedDay = null;
 let datasetCache = null;
 
 /* Sesión activa */
@@ -674,8 +954,12 @@ function setTab(tab){
 function renderMain(){
   const main = document.getElementById("main");
   const views = { rutina:renderRutina, sesion:renderSesion, historial:renderHistorial, ajustes:renderAjustes };
-  main.innerHTML = views[currentTab] ? views[currentTab]() : renderRutina();
-  attachEvents();
+  const html = views[currentTab] ? views[currentTab]() : renderRutina();
+  // Solo re-renderiza si el contenido cambió → transiciones instantáneas
+  if(main.innerHTML !== html){
+    main.innerHTML = html;
+    attachEvents();
+  }
 }
 
 /* ================================================================
@@ -684,18 +968,20 @@ function renderMain(){
 function renderRutina(){
   const routine = getRoutine();
   const days = DAY_ORDER.filter(d => routine.some(e => e.dia === d));
-  const today = new Date().getDay(); // 0=dom,1=lun...
-  const defaultDay = selectedDay || days[Math.max(0, today-1)] || "Lunes";
+  const todayName = getTodayName();
+  const defaultDay = selectedDay || (days.includes(todayName) ? todayName : days[0]) || "Lunes";
   if(!days.includes(defaultDay) && days.length) selectedDay = days[0];
   const sel = days.includes(selectedDay) ? selectedDay : days[0] || "Lunes";
   selectedDay = sel;
 
   const weekHtml = days.map(d => {
     const isSel = d === sel;
+    const isToday = d === todayName;
     const color = DAY_COLORS[d] || "#888";
     return `<div class="week-cell ${isSel ? "active" : ""}" data-day="${d}" style="${isSel ? "" : `border-color:${color}44;`}">
       <div class="d">${DAY_SHORT[d] || d.slice(0,3)}</div>
       <div class="l" style="${isSel ? "" : `color:${color}`}">${d}</div>
+      ${isToday ? `<span class="today-badge">HOY</span>` : ""}
     </div>`;
   }).join("");
 
@@ -726,27 +1012,26 @@ function renderRutina(){
     <h2 class="title">📅 Rutina Semanal</h2>
     ${noData || `<div class="week-grid">${weekHtml}</div>`}
     ${noData || dayHtml}
-    ${noData || `<button class="finish-btn" data-start-session="${sel}">🏋️ Iniciar sesión — ${sel}</button>`}
+    ${noData || `<button class="finish-btn" data-start-session="${sel}">🏋️ Entrenar — ${sel}</button>`}
   </div>`;
 }
 
 function exerciseCard(ex, i, day){
   const color = DAY_COLORS[day] || "#888";
   const imgUrl = getExerciseImage(ex, datasetCache);
-  const progress = 0;
-  const instr = getExerciseInstructions(ex, datasetCache);
+  const instr = formatInstructions(getExerciseInstructions(ex, datasetCache));
 
   return `<div class="ex-row">
     <div class="ex-top">
       <div class="ex-img">
         ${imgUrl
-          ? `<img src="${imgUrl}" alt="${ex.nombre_es}" loading="lazy" onerror="this.parentElement.innerHTML='🏋️'">`
+          ? `<img src="${imgUrl}" alt="${escapeHtml(ex.nombre_es)}" loading="lazy" onerror="this.parentElement.innerHTML='🏋️'">`
           : "🏋️"}
       </div>
       <div class="ex-info">
         <div style="display:flex;gap:6px;">
           <span class="ex-num" style="color:${color}">${ex.orden}</span>
-          <span class="ex-name">${ex.nombre_es}</span>
+          <span class="ex-name">${escapeHtml(ex.nombre_es)}</span>
         </div>
         <div class="ex-stats">
           <span class="stat-chip"><b>${ex.series}</b> series</span>
@@ -754,7 +1039,7 @@ function exerciseCard(ex, i, day){
           <span class="stat-chip">⚖️ <b>${ex.peso_kg}</b> kg</span>
           <span class="stat-chip">⏱ <b>${formatRest(ex.descanso_s)}</b></span>
         </div>
-        ${ex.notas ? `<div class="ex-notes">${ex.notas}</div>` : ""}
+        ${ex.notas ? `<div class="ex-notes">${escapeHtml(ex.notas)}</div>` : ""}
         ${instr ? `<button class="ex-instr-btn" data-instr-toggle="${i}">📖 Instrucciones</button>
         <div class="ex-instr" data-instr-body="${i}">${instr}</div>` : ""}
       </div>
@@ -772,25 +1057,32 @@ function formatRest(s){
 /* ================================================================
    VISTA: SESIÓN (entrenamiento activo)
    ================================================================ */
+function sessionProgress(){
+  const totalSets = session.exercises.reduce((a,e) => a + e.sets.length, 0);
+  const doneSets = session.exercises.reduce((a,e) => a + e.sets.filter(s => s.done).length, 0);
+  const pct = totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
+  return { totalSets, doneSets, pct };
+}
+
 function renderSesion(){
   if(!session){
     // Pantalla de selección de día
     const routine = getRoutine();
     const days = DAY_ORDER.filter(d => routine.some(e => e.dia === d));
-    const today = new Date().getDay();
-    const todayName = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"][today];
+    const todayName = getTodayName();
     const selDefault = days.includes(todayName) ? todayName : days[0];
 
     const dayBtns = days.map(d =>
       `<button class="select-day-btn" data-start-session="${d}">
         <span style="width:9px;height:9px;border-radius:50%;background:${DAY_COLORS[d] || "#888"};display:inline-block;"></span>
         ${d}
+        ${d === todayName ? '<span class="badge-warn" style="margin-left:4px;">HOY</span>' : ""}
         <span style="margin-left:auto;color:var(--muted);font-size:10.5px;">${routine.filter(e=>e.dia===d).length} ejercicios</span>
       </button>`
     ).join("");
 
     return `<div class="section active">
-      <h2 class="title">🏋️ Iniciar Sesión</h2>
+      <h2 class="title">🏋️ Entrenar</h2>
       ${days.length
         ? `<div class="card"><h3 style="font-size:13px;font-weight:700;margin-bottom:10px;">Elige el día de hoy</h3>
            <div class="select-days">${dayBtns}</div></div>`
@@ -803,6 +1095,9 @@ function renderSesion(){
   const ex = session.exercises[session.currentIdx];
   const totalEx = session.exercises.length;
   const color = DAY_COLORS[day] || "#888";
+  const prog = sessionProgress();
+  const imgUrl = getExerciseImage(ex, datasetCache);
+  const instr = formatInstructions(getExerciseInstructions(ex, datasetCache));
 
   const setRows = ex.sets.map((set, si) => {
     const currentSet = ex.currentSet === si + 1;
@@ -812,14 +1107,14 @@ function renderSesion(){
       <div class="set-control">
         <button class="stepper" data-kg-minus="${si}">−</button>
         <div style="text-align:center;min-width:42px;">
-          <div class="set-value">${set.kg}</div>
+          <div class="set-value" data-edit="${si}" data-field="kg">${set.kg}</div>
           <div class="set-label">kg</div>
         </div>
         <button class="stepper" data-kg-plus="${si}">+</button>
         <div style="width:8px;"></div>
         <button class="stepper" data-reps-minus="${si}">−</button>
         <div style="text-align:center;min-width:34px;">
-          <div class="set-value">${set.reps}</div>
+          <div class="set-value" data-edit="${si}" data-field="reps">${set.reps}</div>
           <div class="set-label">reps</div>
         </div>
         <button class="stepper" data-reps-plus="${si}">+</button>
@@ -830,21 +1125,29 @@ function renderSesion(){
 
   const completedExercises = session.exercises.filter(e => e.completed).length;
   const nextEx = session.currentIdx + 1 < session.exercises.length ? session.exercises[session.currentIdx + 1] : null;
+  const hasVariants = !!getVariants(ex).length;
 
   return `<div class="section active">
+    <div class="session-progress">
+      <div class="sp-label">
+        <span>📈 Progreso · ${prog.doneSets}/${prog.totalSets} series · ${completedExercises}/${totalEx} ejercicios</span>
+        <span class="sp-pct">${prog.pct}%</span>
+      </div>
+      <div class="sp-bar"><div class="sp-fill" style="width:${prog.pct}%"></div></div>
+    </div>
+
     <div class="session-header">
       <div class="session-day">${day}</div>
-      <div class="session-chrono" id="sessionChrono">${formatChrono(session.elapsed)}</div>
-      <div class="chrono-btns">
-        <button data-chrono="toggle">${session.chronoRunning ? "⏸ Pausar" : "▶ Reanudar"}</button>
-        <button data-chrono="reset">↺ Reiniciar</button>
-      </div>
+      ${instr ? `<div style="margin-top:6px;"><button class="ex-instr-btn" data-session-instr-toggle>📖 Instrucciones</button></div>
+      <div class="ex-instr ${instrOpen ? "show" : ""}" id="sessionInstr" style="text-align:left;margin-top:8px;padding:10px 12px;background:var(--surface2);border-radius:8px;color:#ccc;font-size:11px;line-height:1.6;">${instr}</div>` : ""}
     </div>
 
     <div class="rest-banner ${restActive ? "show" : ""}" id="restBanner">
       <div class="rest-label">⏳ Descanso entre series</div>
       <div class="rest-time" id="restTime">0:00</div>
       <div class="rest-btns">
+        <button class="adj" data-rest="minus15">−15s</button>
+        <button class="adj" data-rest="plus15">+15s</button>
         <button class="skip" data-rest="skip">Saltar</button>
         <button class="pause" data-rest="toggle">⏸ Pausa</button>
       </div>
@@ -852,16 +1155,18 @@ function renderSesion(){
 
     <div class="active-ex">
       <div class="active-ex-header">
-        <span class="active-ex-name">${ex.orden}. ${ex.nombre_es}</span>
+        <span class="active-ex-name">${ex.orden}. ${escapeHtml(ex.nombre_es)}</span>
         <span class="active-ex-count">${session.currentIdx + 1} / ${totalEx}</span>
       </div>
       <div class="active-ex-body">
+        ${imgUrl ? `<img class="active-ex-img" src="${imgUrl}" alt="${escapeHtml(ex.nombre_es)}" onerror="this.style.display='none'">` : ""}
+        ${hasVariants ? `<button class="variant-btn" data-open-variants>↔️ Ejercicios alternativos</button>` : ""}
         <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px;">
           <span class="stat-chip">⚖️ <b>${ex.peso_kg}</b> kg inicio</span>
           <span class="stat-chip">⏱ <b>${formatRest(ex.descanso_s)}</b> descanso</span>
           <span class="stat-chip">✓ <b>${completedExercises}/${session.exercises.length}</b> ejercicios</span>
         </div>
-        ${ex.notes ? `<div class="ex-notes" style="margin-bottom:7px;">${ex.notes}</div>` : ""}
+        ${ex.notes ? `<div class="ex-notes" style="margin-bottom:7px;">${escapeHtml(ex.notes)}</div>` : ""}
         ${setRows}
       </div>
     </div>
@@ -869,7 +1174,7 @@ function renderSesion(){
     ${nextEx
       ? `<div class="next-ex">
           <div class="next-ex-label">Siguiente ejercicio</div>
-          <div class="next-ex-name">${nextEx.orden}. ${nextEx.nombre_es}</div>
+          <div class="next-ex-name">${nextEx.orden}. ${escapeHtml(nextEx.nombre_es)}</div>
           <div class="ex-notes" style="margin-top:3px;">${nextEx.sets.length} series · ${nextEx.reps} reps · ${nextEx.peso_kg} kg</div>
         </div>`
       : ""}
@@ -878,10 +1183,22 @@ function renderSesion(){
   </div>`;
 }
 
-function formatChrono(totalSeconds){
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+let instrOpen = false;
+
+/* ---------- Persistencia de sesión activa ---------- */
+function saveSessionState(){
+  if(session) lsSet(K.session, session);
+}
+function clearSessionState(){
+  localStorage.removeItem(K.session);
+  localStorage.removeItem(K.sets);
+}
+function restoreSession(){
+  const saved = lsGet(K.session, null);
+  if(saved && saved.exercises && Array.isArray(saved.exercises) && saved.exercises.length){
+    session = saved;
+    stopRest();
+  }
 }
 
 /* ---------- Lógica de sesión ---------- */
@@ -895,7 +1212,6 @@ function startSession(day){
     startTime: Date.now(),
     elapsed: 0,
     baseElapsed: 0,
-    chronoRunning: true,
     currentIdx: 0,
     exercises: dayEx.map(ex => ({
       ...ex,
@@ -908,15 +1224,9 @@ function startSession(day){
       }))
     }))
   };
+  saveSessionState();
   selectedDay = day;
   setTab("sesion");
-}
-
-function updateSessionChrono(){
-  if(!session || !session.chronoRunning) return;
-  session.elapsed = Math.floor((Date.now() - session.startTime) / 1000) + session.baseElapsed;
-  const el = document.getElementById("sessionChrono");
-  if(el) el.textContent = formatChrono(session.elapsed);
 }
 
 /* ---------- Cronómetro de descanso ---------- */
@@ -992,10 +1302,54 @@ function vibrate(pattern){
 }
 
 /* ================================================================
+   VARIANTES
+   ================================================================ */
+function getVariants(ex){
+  if(!datasetCache) return [];
+  const found = findExerciseInDataset(datasetCache, ex.dataset) || findExerciseInDataset(datasetCache, ex.nombre_es);
+  if(!found || !found.part) return [];
+  return datasetCache
+    .filter(d => d.part === found.part && normalizeName(d.name) !== normalizeName(found.name))
+    .slice(0, 3);
+}
+
+function openVariants(){
+  const ex = session.exercises[session.currentIdx];
+  const variants = getVariants(ex);
+  const list = document.getElementById("varList");
+  if(variants.length === 0){
+    list.innerHTML = `<div class="var-empty">No hay alternativas disponibles para este ejercicio.</div>`;
+  } else {
+    list.innerHTML = variants.map((v,i) => `<div class="var-item" data-variant-idx="${i}">
+      <div class="vi-ic">🏋️</div>
+      <div>
+        <div class="vi-name">${escapeHtml(v.name)}</div>
+        <div class="vi-part">${escapeHtml(v.part)}</div>
+      </div>
+    </div>`).join("");
+  }
+  document.getElementById("varOverlay").classList.add("show");
+}
+
+function selectVariant(i){
+  const ex = session.exercises[session.currentIdx];
+  const variants = getVariants(ex);
+  const v = variants[i];
+  if(!v) return;
+  // Sustituir el ejercicio por la variante, conservando el progreso de series
+  ex.dataset = v.name;
+  ex.nombre_es = v.name;
+  ex.notas = v.instr ? "" : ex.notas;
+  document.getElementById("varOverlay").classList.remove("show");
+  saveSessionState();
+  renderMain();
+  showToast("↔️ Variante aplicada: " + v.name);
+}
+
+/* ================================================================
    VISTA: HISTORIAL
    ================================================================ */
 function renderHistorial(){
-  // Seguridad: si no hay historial, mostrar vacío
   const history = getHistory();
   if(!history || history.length === 0){
     return `<div class="section active">
@@ -1003,7 +1357,7 @@ function renderHistorial(){
       <div class="empty-state">
         <div style="font-size:30px;margin-bottom:10px;">🗓️</div>
         Aún no hay sesiones completadas.<br>
-        Termina tu primer entrenamiento en <b>Sesión</b> y aparecerá aquí.
+        Termina tu primer entrenamiento en <b>Entrenar</b> y aparecerá aquí.
       </div>
     </div>`;
   }
@@ -1028,7 +1382,7 @@ function renderHistorial(){
       <div class="hist-day-stats">⏱ ${mins}m ${String(secs).padStart(2,"0")}s · ${exDone.length} ejercicios · ${h.exercises.reduce((a,e) => a + e.sets.filter(s=>s.done).length, 0)} series</div>
       <div style="margin-top:6px;">
         ${exDone.slice(0,5).map(e => `<div class="hist-ex">
-          <span class="hist-ex-name">${e.orden}. ${e.nombre_es}</span>
+          <span class="hist-ex-name">${e.orden}. ${escapeHtml(e.nombre_es)}</span>
           <span class="hist-ex-set">${e.sets.map(s => s.done ? `${s.reps}×${s.kg}` : "—").join(" · ")}</span>
         </div>`).join("")}
         ${exDone.length > 5 ? `<div class="hist-ex"><span class="hist-ex-name" style="color:var(--muted);">+${exDone.length - 5} más</span></div>` : ""}
@@ -1052,12 +1406,31 @@ function renderHistorial(){
    VISTA: AJUSTES
    ================================================================ */
 function renderAjustes(){
-  const hasPin = !!lsGet(K.pin, null);
   const routineSrc = lsGet(K.routine, null) ? "Archivo importado" : "Rutina integrada";
   const routine = getRoutine();
+  const pending = getPending();
+  const pendingCount = pending.sessions.length;
+  const syncMsg = pendingCount > 0
+    ? `${pendingCount} sesión${pendingCount>1?"es":""} pendiente${pendingCount>1?"s":""} de subir`
+    : authUser ? "Todo sincronizado" : "Sin conexión a la nube";
+  const syncPendingClass = pendingCount > 0 ? "pending" : (authUser ? "" : "off");
 
   return `<div class="section active">
     <h2 class="title">⚙️ Ajustes</h2>
+
+    <div class="set-group">
+      <div class="set-group-title">Cuenta</div>
+      <div class="set-row-item">
+        <div>
+          <div class="label">${authUser ? escapeHtml(authUser.email) : "Sin sesión"}</div>
+          <div class="desc"><span class="sync-status ${syncPendingClass}"><span class="dot"></span> ${syncMsg}</span></div>
+        </div>
+        ${authUser
+          ? `<button class="btn btn-outline" data-logout>🚪 Salir</button>
+             ${pendingCount > 0 ? `<button class="btn" data-sync-now>🔄 Subir</button>` : ""}`
+          : `<button class="btn" data-open-auth>🔑 Acceder</button>`}
+      </div>
+    </div>
 
     <div class="set-group">
       <div class="set-group-title">Rutina (hoja de cálculo)</div>
@@ -1084,28 +1457,11 @@ function renderAjustes(){
     </div>
 
     <div class="set-group">
-      <div class="set-group-title">Privacidad</div>
-      <div class="set-row-item">
-        <div>
-          <div class="label">Bloqueo con PIN</div>
-          <div class="desc">${hasPin ? "Activado · Cambiar o eliminar" : "Desactivado · Protege el acceso a la app"}</div>
-        </div>
-        <button class="btn" data-setup-pin>${hasPin ? "🔒 Cambiar" : "🔓 Activar"}</button>
-      </div>
-      <div class="set-row-item">
-        <div>
-          <div class="label">Datos personales</div>
-          <div class="desc">🔒 Sin registro · Sin cuenta · Sin nube. Todo vive en este dispositivo (localStorage)</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="set-group">
       <div class="set-group-title">Datos</div>
       <div class="set-row-item">
         <div>
           <div class="label">Borrar historial</div>
-          <div class="desc">Elimina todas las sesiones guardadas</div>
+          <div class="desc">Elimina todas las sesiones guardadas (local y nube)</div>
         </div>
         <button class="btn btn-danger" data-clear-history>🗑️</button>
       </div>
@@ -1123,13 +1479,13 @@ function renderAjustes(){
       <div class="set-row-item">
         <div>
           <div class="label">Fuente: exercises-dataset</div>
-          <div class="desc">Imágenes de <b>github.com/hasaneyldrm/exercises-dataset</b> · 1.324 ejercicios con instrucciones en español</div>
+          <div class="desc">Imágenes animadas de <b>github.com/hasaneyldrm/exercises-dataset</b> · Instrucciones en español</div>
         </div>
       </div>
     </div>
 
     <div style="text-align:center;color:var(--muted);font-size:10px;padding:14px 0 30px;line-height:1.7;">
-      EyeFit v1.0 · PWA offline<br>Hecho para iPhone 15 · 🇪🇸 Español
+      EyeFit v1.1 · PWA con sincronización en la nube<br>Hecho para iPhone 15 · 🇪🇸 Español
     </div>
   </div>`;
 }
@@ -1138,17 +1494,14 @@ function renderAjustes(){
    EVENTOS
    ================================================================ */
 function attachEvents(){
-  // Tabs
-  document.querySelectorAll(".tabbtn").forEach(btn => {
-    btn.addEventListener("click", () => setTab(btn.dataset.tab));
-  });
+  // Nota: los .tabbtn se adjuntan UNA sola vez al inicio (attachTabButtons), no aquí.
 
   // Días en rutina
   document.querySelectorAll("[data-day]").forEach(el => {
     el.addEventListener("click", () => { selectedDay = el.dataset.day; renderMain(); });
   });
 
-  // Instrucciones toggle
+  // Instrucciones toggle (vista rutina)
   document.querySelectorAll("[data-instr-toggle]").forEach(btn => {
     btn.addEventListener("click", () => {
       const i = btn.dataset.instrToggle;
@@ -1160,30 +1513,20 @@ function attachEvents(){
     });
   });
 
+  // Instrucciones toggle (sesión)
+  document.querySelectorAll("[data-session-instr-toggle]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      instrOpen = !instrOpen;
+      renderMain();
+    });
+  });
+
   // Iniciar sesión
   document.querySelectorAll("[data-start-session]").forEach(btn => {
     btn.addEventListener("click", () => startSession(btn.dataset.startSession));
   });
 
-  // Crono de sesión
-  document.querySelectorAll("[data-chrono]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      if(!session) return;
-      if(btn.dataset.chrono === "toggle"){
-        session.chronoRunning = !session.chronoRunning;
-        if(session.chronoRunning){
-          session.startTime = Date.now() - (session.elapsed * 1000);
-        }
-      } else if(btn.dataset.chrono === "reset"){
-        session.elapsed = 0;
-        session.startTime = Date.now();
-        session.chronoRunning = true;
-      }
-      renderMain();
-    });
-  });
-
-  // Steppers de kg/reps
+  // Steppers de kg/reps + propagación de peso a series siguientes
   document.querySelectorAll("[data-kg-plus], [data-kg-minus], [data-reps-plus], [data-reps-minus]").forEach(btn => {
     btn.addEventListener("click", () => {
       if(!session) return;
@@ -1194,7 +1537,19 @@ function attachEvents(){
       if(btn.dataset.kgMinus) set.kg = Math.max(0, +(set.kg - 0.5).toFixed(1));
       if(btn.dataset.repsPlus) set.reps = set.reps + 1;
       if(btn.dataset.repsMinus) set.reps = Math.max(1, set.reps - 1);
+      // Propagacíón del peso a todas las series siguientes
+      if(btn.dataset.kgPlus || btn.dataset.kgMinus){
+        for(let j = si + 1; j < ex.sets.length; j++) ex.sets[j].kg = set.kg;
+      }
+      saveSessionState();
       renderMain();
+    });
+  });
+
+  // Edición numérica con teclado (tap en valor kg/reps)
+  document.querySelectorAll("[data-edit]").forEach(el => {
+    el.addEventListener("click", () => {
+      openNumPad(parseInt(el.dataset.edit), el.dataset.field);
     });
   });
 
@@ -1208,29 +1563,25 @@ function attachEvents(){
       if(set.done) return;
       set.done = true;
       vibrate(30);
-      // Si quedan series en este ejercicio
+      saveSessionState();
       if(ex.currentSet < ex.sets.length){
         ex.currentSet++;
-        // Iniciar descanso con el tiempo configurado
         startRest(ex.descanso_s);
         renderMain();
       } else {
-        // Ejercicio completado
         ex.completed = true;
         stopRest();
-        // Siguiente ejercicio
         if(session.currentIdx + 1 < session.exercises.length){
           session.currentIdx++;
           renderMain();
         } else {
-          // Sesión completa → guardar
           saveSession();
         }
       }
     });
   });
 
-  // Controles de descanso
+  // Controles de descanso (incluye ajuste ±15s)
   document.querySelectorAll("[data-rest]").forEach(btn => {
     btn.addEventListener("click", () => {
       if(btn.dataset.rest === "skip"){
@@ -1238,8 +1589,19 @@ function attachEvents(){
       } else if(btn.dataset.rest === "toggle"){
         restPaused = !restPaused;
         renderRestTime();
+      } else if(btn.dataset.rest === "minus15"){
+        restRemaining = Math.max(0, restRemaining - 15);
+        renderRestTime();
+      } else if(btn.dataset.rest === "plus15"){
+        restRemaining = restRemaining + 15;
+        renderRestTime();
       }
     });
+  });
+
+  // Variantes
+  document.querySelectorAll("[data-open-variants]").forEach(btn => {
+    btn.addEventListener("click", openVariants);
   });
 
   // Finalizar sesión
@@ -1249,35 +1611,10 @@ function attachEvents(){
     });
   });
 
-  // Importar xlsx
+  // Importar xlsx (los botones son dinámicos; el fileInput se adjunta una vez abajo)
   document.querySelectorAll("[data-import-xlsx]").forEach(btn => {
     btn.addEventListener("click", () => document.getElementById("fileInput").click());
   });
-  const fileInput = document.getElementById("fileInput");
-  if(fileInput){
-    fileInput.onchange = (e) => {
-      const file = e.target.files[0];
-      if(!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        try{
-          const routine = parseRoutineSheet(new Uint8Array(ev.target.result));
-          if(routine.length === 0){
-            showToast("⚠️ El archivo no tiene ejercicios válidos");
-            return;
-          }
-          setRoutine(routine);
-          selectedDay = null;
-          showToast("✅ Rutina importada: " + routine.length + " ejercicios");
-          setTab("rutina");
-        }catch(err){
-          showToast("❌ No se pudo leer el archivo");
-        }
-      };
-      reader.readAsArrayBuffer(file);
-      e.target.value = "";
-    };
-  }
 
   // Exportar xlsx
   document.querySelectorAll("[data-export-xlsx]").forEach(btn => {
@@ -1289,9 +1626,13 @@ function attachEvents(){
 
   // Limpiar historial
   document.querySelectorAll("[data-clear-history]").forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       if(confirm("¿Borrar todo el historial de sesiones?")){
         saveHistory([]);
+        // Borrar también en la nube
+        if(sbClient && authUser){
+          try{ await sbClient.from("sesiones").delete().eq("user_id", authUser.id); }catch(e){}
+        }
         renderMain();
         showToast("🗑️ Historial borrado");
       }
@@ -1300,28 +1641,152 @@ function attachEvents(){
 
   // Reset rutina
   document.querySelectorAll("[data-reset-routine]").forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       localStorage.removeItem(K.routine);
       selectedDay = null;
+      if(sbClient && authUser){
+        try{ await sbClient.from("routinas").delete().eq("user_id", authUser.id); }catch(e){}
+      }
       showToast("↺ Rutina por defecto restaurada");
       setTab("rutina");
     });
   });
 
-  // Setup PIN
-  document.querySelectorAll("[data-setup-pin]").forEach(btn => {
-    btn.addEventListener("click", () => openPinSetup());
+  // Logout
+  document.querySelectorAll("[data-logout]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if(confirm("¿Cerrar sesión?")){
+        if(sbClient) await sbClient.auth.signOut().catch(()=>{});
+        authUser = null;
+        showToast("🚪 Sesión cerrada");
+        showAuthOverlay(true);
+        if(currentTab === "ajustes") renderMain();
+      }
+    });
+  });
+
+  // Open auth (desde ajustes)
+  document.querySelectorAll("[data-open-auth]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      authMode = "login";
+      updateAuthTabs();
+      document.getElementById("authPass").value = "";
+      document.getElementById("authError").textContent = "";
+      showAuthOverlay(true);
+    });
+  });
+
+  // Sync now
+  document.querySelectorAll("[data-sync-now]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await syncPending();
+      renderMain();
+    });
   });
 }
 
+/* ---------- Num pad ---------- */
+let numPadCtx = { idx:0, field:"kg" };
+
+function openNumPad(idx, field){
+  numPadCtx = { idx, field };
+  const ex = session.exercises[session.currentIdx];
+  const set = ex.sets[idx];
+  const input = document.getElementById("numInput");
+  const label = document.getElementById("numLabel");
+  label.textContent = field === "kg" ? "Peso (kg)" : "Repeticiones";
+  input.value = field === "kg" ? set.kg : set.reps;
+  input.step = field === "kg" ? "0.5" : "1";
+  input.min = field === "kg" ? "0" : "1";
+  document.getElementById("numOverlay").classList.add("show");
+  setTimeout(() => input.focus(), 100);
+}
+
+function closeNumPad(){
+  document.getElementById("numOverlay").classList.remove("show");
+}
+
+function confirmNumPad(){
+  if(!session) { closeNumPad(); return; }
+  const input = document.getElementById("numInput");
+  const val = parseFloat(input.value);
+  if(isNaN(val)) { closeNumPad(); return; }
+  const ex = session.exercises[session.currentIdx];
+  const set = ex.sets[numPadCtx.idx];
+  if(numPadCtx.field === "kg"){
+    set.kg = Math.max(0, +(val).toFixed(1));
+    // Propagación del peso a series siguientes
+    for(let j = numPadCtx.idx + 1; j < ex.sets.length; j++) ex.sets[j].kg = set.kg;
+  } else {
+    set.reps = Math.max(1, Math.round(val));
+  }
+  saveSessionState();
+  closeNumPad();
+  renderMain();
+}
+
+document.getElementById("numOk").addEventListener("click", confirmNumPad);
+document.getElementById("numCancel").addEventListener("click", closeNumPad);
+document.getElementById("numInput").addEventListener("keydown", (e) => {
+  if(e.key === "Enter") confirmNumPad();
+  if(e.key === "Escape") closeNumPad();
+});
+
+/* ---------- Variantes overlay ---------- */
+document.getElementById("varList").addEventListener("click", (e) => {
+  const item = e.target.closest("[data-variant-idx]");
+  if(item) selectVariant(parseInt(item.dataset.variantIdx));
+});
+document.getElementById("varClose").addEventListener("click", () => {
+  document.getElementById("varOverlay").classList.remove("show");
+});
+
+/* ---------- Auth overlay ---------- */
+function updateAuthTabs(){
+  document.querySelectorAll("[data-auth-tab]").forEach(b => {
+    b.classList.toggle("active", b.dataset.authTab === authMode);
+  });
+  document.getElementById("authSubmit").textContent = authMode === "register" ? "Registrarse" : "Acceder";
+  document.getElementById("authPass").autocomplete = authMode === "register" ? "new-password" : "current-password";
+}
+document.querySelectorAll("[data-auth-tab]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    authMode = btn.dataset.authTab;
+    document.getElementById("authError").textContent = "";
+    updateAuthTabs();
+  });
+});
+document.getElementById("authSubmit").addEventListener("click", handleAuthSubmit);
+document.getElementById("authPass").addEventListener("keydown", (e) => {
+  if(e.key === "Enter") handleAuthSubmit();
+});
+document.getElementById("authEmail").addEventListener("keydown", (e) => {
+  if(e.key === "Enter") document.getElementById("authPass").focus();
+});
+document.getElementById("authSkip").addEventListener("click", () => {
+  showAuthOverlay(false);
+  showToast("📴 Modo sin conexión: los datos se guardan solo en este dispositivo");
+});
+
+/* ================================================================
+   UTILIDADES
+   ================================================================ */
+let toastTimeout = null;
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => t.classList.remove("show"), 2400);
+}
+
 /* ---------- Guardar sesión ---------- */
-function saveSession(force){
+async function saveSession(force){
   if(!session) return;
   const completedEx = session.exercises.filter(e => e.completed).length;
   const anyDone = session.exercises.some(e => e.sets.some(s => s.done));
 
   if(!force && completedEx < session.exercises.length && !anyDone){
-    // nada completado → no guardar
     return;
   }
 
@@ -1345,160 +1810,112 @@ function saveSession(force){
 
   stopRest();
   session = null;
-  setTab("historial");
-  showToast("✅ Sesión guardada");
-}
+  clearSessionState();
 
-/* ================================================================
-   PIN LOCK
-   ================================================================ */
-let pinMode = "unlock"; // unlock | set | confirm
-let pinInput = "";
-let pinNew = "";
-let pinErrorMsg = "";
-
-function openPinSetup(){
-  pinMode = "set";
-  pinInput = "";
-  pinNew = "";
-  pinErrorMsg = "";
-  showPinOverlay(true);
-}
-
-function showPinOverlay(show){
-  const ov = document.getElementById("pinOverlay");
-  if(show) ov.classList.add("show"); else ov.classList.remove("show");
-  renderPin();
-}
-
-function renderPin(){
-  const title = document.getElementById("pinTitle");
-  const dots = document.getElementById("pinDots");
-  const pad = document.getElementById("pinPad");
-  const err = document.getElementById("pinError");
-
-  if(pinMode === "unlock"){
-    title.textContent = "Introduce tu PIN";
-  } else if(pinMode === "set"){
-    title.textContent = "Elige un PIN de 4 dígitos";
-  } else if(pinMode === "confirm"){
-    title.textContent = "Confirma tu PIN";
-  }
-
-  dots.innerHTML = Array.from({length:4}, (_,i) =>
-    `<div class="pin-dot ${i < pinInput.length ? "filled" : ""}"></div>`
-  ).join("");
-
-  const keys = ["1","2","3","4","5","6","7","8","9","","0","⌫"];
-  pad.innerHTML = keys.map(k =>
-    k === "" ? `<button class="pin-key blank"></button>`
-    : k === "⌫" ? `<button class="pin-key" data-pin-key="back">⌫</button>`
-    : `<button class="pin-key" data-pin-key="${k}">${k}</button>`
-  ).join("");
-
-  err.textContent = pinErrorMsg || "";
-}
-
-function handlePinKey(k){
-  if(k === "back"){
-    pinInput = pinInput.slice(0, -1);
+  // Push a la nube o a la cola offline
+  if(sbClient && authUser){
+    const ok = await pushSessionToServer(record);
+    if(ok){
+      showToast("✅ Sesión guardada en la nube");
+    } else {
+      const p = getPending();
+      p.sessions.push(record);
+      setPending(p);
+      showToast("📴 Sin conexión: sesión guardada, se subirá sola");
+    }
   } else {
-    if(pinInput.length >= 4) return;
-    pinInput += k;
+    showToast("✅ Sesión guardada en este dispositivo");
   }
-  pinErrorMsg = "";
-  renderPin();
-  if(pinInput.length === 4){
-    setTimeout(() => processPinComplete(), 180);
-  }
-}
 
-function processPinComplete(){
-  if(pinMode === "unlock"){
-    const stored = lsGet(K.pin, null);
-    if(stored && String(stored) === pinInput){
-      pinInput = "";
-      showPinOverlay(false);
-    } else {
-      pinErrorMsg = "PIN incorrecto";
-      pinInput = "";
-      renderPin();
-    }
-  } else if(pinMode === "set"){
-    pinNew = pinInput;
-    pinInput = "";
-    pinMode = "confirm";
-    renderPin();
-  } else if(pinMode === "confirm"){
-    if(pinNew === pinInput){
-      lsSet(K.pin, pinInput);
-      pinInput = "";
-      showPinOverlay(false);
-      showToast("🔒 PIN activado");
-      if(currentTab === "ajustes") renderMain();
-    } else {
-      pinErrorMsg = "Los PIN no coinciden";
-      pinInput = "";
-      pinMode = "set";
-      renderPin();
-    }
-  }
-}
-
-document.getElementById("pinPad").addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-pin-key]");
-  if(btn) handlePinKey(btn.dataset.pinKey);
-});
-
-/* ---------- Bloqueo de app con PIN ---------- */
-function maybeShowPinLock(){
-  const stored = lsGet(K.pin, null);
-  if(stored){
-    pinMode = "unlock";
-    pinInput = "";
-    pinErrorMsg = "";
-    showPinOverlay(true);
-  }
+  setTab("historial");
 }
 
 /* ================================================================
-   UTILIDADES
+   INICIALIZACIONES ÚNICAS (elementos estáticos fuera de #main)
    ================================================================ */
-let toastTimeout = null;
-function showToast(msg){
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => t.classList.remove("show"), 2200);
-}
-
-/* ================================================================
-   CRONO DE SESIÓN (intervalo global)
-   ================================================================ */
-setInterval(updateSessionChrono, 1000);
-
-/* ================================================================
-   TAB BUTTONS — activos inmediatamente (no esperar a init async)
-   ================================================================ */
-(function attachTabButtons(){
+(function attachStaticHandlers(){
+  // Tabs — activos inmediatamente (no esperar a init async)
   document.querySelectorAll(".tabbtn").forEach(btn => {
     btn.addEventListener("click", () => setTab(btn.dataset.tab));
   });
+
+  // Importar xlsx — el fileInput es estático fuera de #main, se adjunta UNA vez
+  const fileInput = document.getElementById("fileInput");
+  if(fileInput){
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        try{
+          const routine = parseRoutineSheet(new Uint8Array(ev.target.result));
+          if(routine.length === 0){
+            showToast("⚠️ El archivo no tiene ejercicios válidos");
+            return;
+          }
+          setRoutine(routine);
+          selectedDay = null;
+          // Subir rutina al servidor (o a la cola si no hay conexión)
+          if(sbClient && authUser){
+            const ok = await pushRoutineToServer();
+            if(!ok){
+              const p = getPending();
+              p.routine = routine;
+              setPending(p);
+            }
+          }
+          showToast("✅ Rutina importada: " + routine.length + " ejercicios");
+          setTab("rutina");
+        }catch(err){
+          showToast("❌ No se pudo leer el archivo");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      e.target.value = "";
+    };
+  }
 })();
 
 /* ================================================================
    INIT
    ================================================================ */
 (async function init(){
-  // Cargar dataset de ejercicios (visuales + instrucciones ES)
-  datasetCache = await loadExerciseDataset();
+  // Autenticación con Supabase — LO PRIMERO, para mostrar login sin esperar fetches
+  let authenticated = false;
+  if(sbClient){
+    try{
+      const { data: authData } = await sbClient.auth.getSession();
+      authUser = authData.session ? authData.session.user : null;
+      if(authUser){
+        authenticated = true;
+      } else {
+        showAuthOverlay(true);
+      }
+    }catch(e){
+      showAuthOverlay(true);
+    }
+  } else {
+    showAuthOverlay(true);
+  }
+
+  // Cargar dataset de ejercicios en paralelo (visuales + instrucciones ES)
+  const datasetPromise = loadExerciseDataset();
   // Cargar rutina desde rutina.xlsx (o fallback)
   await loadRoutineFromXlsx();
-  // Render
+  // Restaurar sesión activa (sobrevive a recargas y cierres)
+  restoreSession();
+  // Render inicial (bajo el overlay)
   renderMain();
-  // Mostrar PIN si está configurado
-  maybeShowPinLock();
+  // Esperar dataset
+  datasetCache = await datasetPromise;
+  renderMain();
+
+  if(authenticated){
+    // Reanudar sesión de Supabase: sincronizar pendientes y traer datos
+    await syncPending();
+    await pullServerData();
+    renderMain();
+  }
 })();
 
 /* ---------- Service Worker (offline) ---------- */
@@ -1507,6 +1924,16 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   });
 }
+
+/* ---------- Sync automático al recuperar conexión ---------- */
+window.addEventListener("online", async () => {
+  showToast("🌐 Conexión restablecida");
+  if(authUser){
+    await syncPending();
+    await pullServerData();
+    renderMain();
+  }
+});
 </script>
 </body>
 </html>

@@ -867,17 +867,27 @@ async function handleAuthSubmit(){
     if(authMode === "register") result = await sbClient.auth.signUp({ email, password: pass });
     else result = await sbClient.auth.signInWithPassword({ email, password: pass });
     if(result.error) throw result.error;
-    authUser = result.data.user || null;
-    if(authMode === "register" && !authUser){
-      errEl.textContent = "✅ Revisa tu email para confirmar el registro";
-      btn.disabled = false; btn.textContent = "Registrarse";
+    const session = result.data.session;
+    const user = result.data.user || null;
+    if(!session){
+      if(authMode === "register"){
+        if(user && user.identities && user.identities.length === 0){
+          errEl.textContent = "⚠️ Ya existe una cuenta con ese email. Intenta acceder.";
+        } else {
+          errEl.textContent = "✅ Revisa tu email para confirmar el registro";
+        }
+      } else {
+        errEl.textContent = "⚠️ Email no confirmado o credenciales incorrectas";
+      }
+      btn.disabled = false; btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
       return;
     }
+    authUser = user;
     await afterLogin();
     btn.disabled = false;
     btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
   }catch(err){
-    errEl.textContent = err && err.message ? err.message : "Error de conexión";
+    errEl.textContent = (err && err.message ? String(err.message) : "Error de conexión");
     btn.disabled = false;
     btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
   }
@@ -1773,16 +1783,52 @@ function restoreSession(){
   }
 }
 
+/* Busca en el historial la última vez que se hizo este ejercicio y devuelve
+   los sets reales ({kg,reps}) de esa sesión — respeta las diferencias de
+   peso/reps entre series. Si no hay historial, devuelve null. */
+function getLastExercisePerformance(ex){
+  const history = getHistory();
+  if(!history || history.length===0) return null;
+  const key = String(ex.dataset||ex.nombre_es||"").trim().toLowerCase();
+  if(!key) return null;
+  const matches = [];
+  for(const h of history){
+    for(const e of (h.exercises||[])){
+      const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
+      if(eKey === key){
+        const done = (e.sets||[]).filter(s=>s.done);
+        if(done.length > 0) matches.push({ date:h.date, sets:done.map(s=>({ kg:s.kg, reps:s.reps })) });
+        break;
+      }
+    }
+  }
+  if(matches.length===0) return null;
+  matches.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  return matches[0].sets;
+}
+
 function startSession(day){
   const routine = getRoutine();
   const dayEx = routine.filter(e=>e.dia===day).sort((a,b)=>(a.orden||0)-(b.orden||0));
   if(dayEx.length===0) return;
   session = {
     day, startTime: Date.now(), elapsed: 0, baseElapsed: 0, currentIdx: 0,
-    exercises: dayEx.map(ex=>({
-      ...ex, completed:false, currentSet:1,
-      sets: Array.from({length:parseInt(ex.series)||3}, ()=>({ kg:parseFloat(ex.peso_kg)||0, reps:parseInt(ex.reps)||8, done:false }))
-    }))
+    exercises: dayEx.map(ex=>{
+      const lastPerf = getLastExercisePerformance(ex);
+      let sets;
+      if(lastPerf && lastPerf.length > 0){
+        /* Usar el rendimiento real de la última sesión de este ejercicio,
+           serie a serie. Si hubo más series en la última sesión que las
+           programadas, se rellenan con la última usada en la rutina. */
+        sets = Array.from({length:parseInt(ex.series)||3}, (_,i)=>{
+          const p = lastPerf[i] || lastPerf[lastPerf.length-1] || {};
+          return { kg: parseFloat(p.kg) ?? (parseFloat(ex.peso_kg)||0), reps: parseInt(p.reps) ?? (parseInt(ex.reps)||8), done:false };
+        });
+      } else {
+        sets = Array.from({length:parseInt(ex.series)||3}, ()=>({ kg:parseFloat(ex.peso_kg)||0, reps:parseInt(ex.reps)||8, done:false }));
+      }
+      return { ...ex, completed:false, currentSet:1, sets };
+    })
   };
   saveSessionState();
   selectedDay = day;

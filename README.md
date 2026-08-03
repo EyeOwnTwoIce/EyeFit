@@ -1,6 +1,6 @@
 # 👁️ EyeFit
 
-App de entrenamiento **privada y offline** para iPhone 15 (estándar), en español, con rutinas **Lunes–Viernes** editables desde una **hoja de cálculo (.xlsx)**.
+App de entrenamiento **privada** para iPhone 15 (estándar), en español, con rutinas **Lunes–Viernes** editables desde una **hoja de cálculo (.xlsx)** y sincronización opcional en la nube.
 
 ---
 
@@ -12,9 +12,8 @@ App de entrenamiento **privada y offline** para iPhone 15 (estándar), en españ
 | 📊 **Hoja de cálculo editable** | La rutina vive en `rutina.xlsx` — edítala en Excel/Numbers/Google Sheets |
 | 🏋️ **Sesión de entrenamiento** | Cronómetro de sesión + cronómetro secundario de descanso entre series |
 | 📸 **Visuales de ejercicios** | Imágenes e instrucciones en español del [exercises-dataset](https://github.com/hasaneyldrm/exercises-dataset) (1.324 ejercicios) |
-| 📈 **Historial** | Cada sesión se guarda localmente: fecha, día, ejercicios, series × kg × reps, tiempo total |
-| 🔒 **Privado y seguro** | Sin cuentas, sin nube, sin datos personales. Todo vive en `localStorage` del dispositivo |
-| 🔢 **PIN opcional** | Bloqueo de acceso con código de 4 dígitos |
+| 📈 **Historial + progresión** | Cada sesión se guarda con fecha, día, ejercicios, series × kg × reps. Al repetir un ejercicio, se cargan automáticamente los últimos pesos/reps reales de cada serie |
+| 🔐 **Cuentas con Supabase** | Registro por email + confirmación. Tu rutina e historial se sincronizan entre dispositivos |
 | 📱 **PWA offline** | Instalable en la pantalla de inicio del iPhone y funciona sin conexión |
 | 🇪🇸 **En español** | Interfaz completa en español |
 
@@ -24,13 +23,15 @@ App de entrenamiento **privada y offline** para iPhone 15 (estándar), en españ
 
 ### 1. Abrir la app
 
-Simplemente abre `index.html` con un navegador, o sirve la carpeta con un servidor local:
+Sirve la carpeta con un servidor local:
 
 ```bash
 # Opción rápida — servidor local Python
 python3 -m http.server 8000
 # Luego abre http://localhost:8000
 ```
+
+> ⚠️ La app usa Supabase y el Service Worker; para probar el registro/sincronización es recomendable servirla por HTTPS o localhost (`http://localhost` también funciona con los flujos de Supabase).
 
 ### 2. Instalar en iPhone 15 (pantalla de inicio)
 
@@ -41,13 +42,19 @@ python3 -m http.server 8000
 
 La app se abre como una aplicación nativa, en modo standalone, sin barra del navegador.
 
-### 3. Entrenar
+### 3. Cuenta (opcional)
+
+- **Acceder / Registrarse**: crea una cuenta con email y contraseña para sincronizar en la nube.
+- **Continuar sin conexión**: la app funciona 100% local en este dispositivo, sin cuenta.
+
+### 4. Entrenar
 
 1. Ves a **Rutina** para ver el día seleccionado (Lunes–Viernes)
 2. Toca **🏋️ Iniciar sesión**
-3. Marca cada serie completada → se lanza el **cronómetro de descanso** automáticamente
-4. Ajusta peso/reps por serie con los botones **− / +**
-5. Al terminar la última serie del último ejercicio, la sesión se guarda en **Historial**
+3. Al empezar cada ejercicio, los **pesos/reps se cargan de tu última sesión** de ese ejercicio (si existe historial)
+4. Marca cada serie completada → se lanza el **cronómetro de descanso** automáticamente
+5. Ajusta peso/reps por serie con los botones **− / +** (los cambios quedan guardados para la próxima vez)
+6. Al terminar la última serie del último ejercicio, la sesión se guarda en **Historial**
 
 ---
 
@@ -65,7 +72,7 @@ Abre `rutina.xlsx` en **Microsoft Excel**, **Numbers (Mac/iPhone)** o **Google S
 | `dataset` | texto | `barbell bench press` | Nombre en inglés del ejercicio (para la imagen) |
 | `series` | número | `3` | Series por ejercicio |
 | `reps` | número | `8` | Repeticiones objetivo |
-| `peso_kg` | número | `40` | Peso inicial en kg |
+| `peso_kg` | número | `40` | Peso inicial en kg (solo se usa si no hay historial) |
 | `descanso_s` | número | `180` | Descanso entre series (segundos) |
 | `notas` | texto | `Codos a 45°` | Nota opcional |
 
@@ -88,6 +95,19 @@ Esto modifica la `RUTINA` embebida en `generate_rutina.js` y genera un nuevo `ru
 
 ---
 
+## 🗄️ Backend (Supabase)
+
+La app usa Supabase para autenticación y sincronización. El SQL de setup está en `supabase_setup.sql` (tablas `rutinas`, `sesiones`, RLS y triggers).
+
+Pasos tras crear un proyecto en Supabase:
+
+1. Ejecuta `supabase_setup.sql` en el SQL Editor del dashboard.
+2. En **Authentication → Providers**, deja habilitado el email.
+3. En **Authentication → Emails**, configura la plantilla de confirmación (puedes usar `supabase_email_template.html` como base).
+4. Actualiza `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `index.html` con los valores de tu proyecto.
+
+---
+
 ## 🔍 Cómo se encuentran los visuales
 
 1. La app busca la imagen/instrucción del ejercicio usando la columna `dataset` (nombre en inglés).
@@ -99,11 +119,10 @@ Esto modifica la `RUTINA` embebida en `generate_rutina.js` y genera un nuevo `ru
 
 ## 🔒 Privacidad
 
-- ❌ **Sin registro** — no pides ni almacenas datos personales
-- ❌ **Sin nube** — nada sale de tu dispositivo
-- ✅ Todos los datos (rutina importada, historial, PIN) se guardan en `localStorage`
-- ✅ Al borrar los datos del sitio en Safari, todo desaparece definitivamente
-- ✅ Funcionamiento **100% offline** opcional (Service Worker)
+- ✅ Sin cuenta = 100% local: tus datos (rutina, historial) viven en `localStorage` del dispositivo.
+- ✅ Con cuenta = sincronización en la nube (Supabase) usando autenticación segura (bcrypt + JWT).
+- ✅ Al borrar los datos del sitio en Safari, todo desaparece definitivamente.
+- ✅ Funcionamiento **100% offline** opcional (Service Worker).
 
 ---
 
@@ -116,6 +135,9 @@ EyeFit/
 ├── sw.js                 Service Worker (caché offline)
 ├── xlsx.full.min.js      Librería SheetJS (parseo de .xlsx)
 ├── generate_rutina.js    Script para regenerar rutina.xlsx
+├── generate_icons.js     Script para regenerar los iconos PNG
+├── supabase_setup.sql    Setup SQL del backend (tablas, RLS, triggers)
+├── supabase_email_template.html  Plantilla de email de confirmación (opcional)
 ├── package.json          Dependencias Node (solo para regenerar el .xlsx)
 └── README.md             Esta documentación
 ```
@@ -125,6 +147,7 @@ EyeFit/
 ## 🧰 Stack técnico
 
 - **100% HTML + CSS + JavaScript** (vanilla, sin frameworks)
+- **Supabase** para auth (email + contraseña) y sincronización de rutina/historial
 - **SheetJS** ([SheetJS Community Edition](https://sheetjs.com/)) para leer/escribir .xlsx
 - **exercises-dataset** ([GitHub](https://github.com/hasaneyldrm/exercises-dataset)) — CC-BY-4.0, 1.324 ejercicios con imágenes e instrucciones multilingües
 - **PWA**: manifest embebido + Service Worker para offline
@@ -144,4 +167,4 @@ EyeFit/
 
 ---
 
-*Hecho con 💪 para el gimnasio · 100% local · 100% tuyo*
+*Hecho con 💪 para el gimnasio · Local y sincronizado en la nube*

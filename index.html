@@ -274,7 +274,12 @@
   }
   .hist-day-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
   .hist-day-name{ font-weight:800; font-size:13px; }
-  .hist-day-date{ color:var(--muted); font-size:10px; margin-left:auto; }
+  .hist-day-date{ color:var(--muted); font-size:10px; }
+  .hist-day-del{
+    background:none; border:none; color:var(--danger); font-size:13px; cursor:pointer;
+    padding:4px; margin-left:4px; opacity:.7; flex-shrink:0;
+  }
+  .hist-day-del:active{ opacity:1; transform:scale(.92); }
   .hist-day-chev{ color:var(--muted); font-size:12px; transition:transform .2s; }
   .hist-day.open .hist-day-chev{ transform:rotate(90deg); }
   .hist-day-body{ display:none; border-top:1px solid var(--border); padding:10px 15px; }
@@ -1671,6 +1676,7 @@ function renderHistorial(){
         <div class="hist-day-dot" style="background:${color}"></div>
         <span class="hist-day-name" style="color:${color}">${h.day}</span>
         <span class="hist-day-date">${dateStr} · ${mins}m ${secs}s</span>
+        <button class="hist-day-del" data-del-hist="${hi}" data-del-date="${h.date}" data-del-day="${h.day}" aria-label="Borrar sesión">🗑</button>
         <span class="hist-day-chev">▶</span>
       </div>
       <div class="hist-day-body">
@@ -1925,6 +1931,37 @@ function attachEvents(){
   /* Historial colapsable */
   document.querySelectorAll("[data-hist]").forEach(el=>{
     el.addEventListener("click", ()=> el.classList.toggle("open"));
+  });
+  /* Borrar una sesión individual del historial (local + pendientes + nube) */
+  document.querySelectorAll("[data-del-hist]").forEach(btn=>{
+    btn.addEventListener("click", async (e)=>{
+      e.stopPropagation();
+      const date = btn.dataset.delDate;
+      const day = btn.dataset.delDay;
+      if(confirm("¿Borrar esta sesión?")){
+        /* Eliminar del historial local por date+day (identificador único ya usado en sync) */
+        const history = getHistory();
+        const idx = history.findIndex(h=>h.date===date && h.day===day);
+        if(idx !== -1) history.splice(idx, 1);
+        saveHistory(history);
+        /* Eliminar también de la cola de pendientes si aún no se había subido */
+        const p = getPending();
+        p.sessions = p.sessions.filter(s=>!(s.date===date && s.day===day));
+        setPending(p);
+        /* Eliminar de la nube si hay sesión (mismo date + day) */
+        if(sbClient && authUser){
+          try{
+            const { data: rows } = await sbClient.from("sesiones").select("id").eq("user_id", authUser.id);
+            if(Array.isArray(rows)){
+              const matches = rows.filter(r=>r.data && r.data.date===date && r.data.day===day);
+              for(const m of matches) await sbClient.from("sesiones").delete().eq("id", m.id);
+            }
+          }catch(e){}
+        }
+        renderMain();
+        showToast("🗑️ Sesión eliminada");
+      }
+    });
   });
 }
 

@@ -1,0 +1,15 @@
+{
+  "name": "eyefit",
+  "version": "1.0.0",
+  "description": "EyeFit — App de entrenamiento privada y offline (iPhone 15)",
+  "main": "index.html",
+  "scripts": {
+    "generate": "node generate_rutina.js"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

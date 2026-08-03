@@ -63,13 +63,18 @@ create policy "sesiones_delete_own"
   on public.sesiones for delete
   using (auth.uid() = user_id);
 
--- 4) Trigger updated_at con search_path fijo (evita el lint "mutable search_path")
+-- 4) Trigger updated_at con search_path fijo y SECURITY INVOKER:
+--    - SECURITY INVOKER: la función respeta RLS del caller (no bypass).
+--      Solo asigna new.updated_at = now(); no necesita privilegios elevados.
+--    - set search_path = '' evita el lint "mutable search_path".
+--    - Revoke EXECUTE de anon/public como defensa en profundidad:
+--      no debe ser llamable como RPC desde /rest/v1/rpc/...
 drop trigger if exists set_rutinas_updated_at on public.rutinas;
 
 create or replace function public.set_rutinas_updated_at()
 returns trigger
 language plpgsql
-security definer set search_path = ''
+security invoker set search_path = ''
 as $$
 begin
   new.updated_at = now();
@@ -77,8 +82,6 @@ begin
 end;
 $$;
 
--- Revocar EXECUTE de anon/public: esta función es solo un trigger interno
--- y NO debe ser llamable como RPC por clientes no autenticados
 revoke execute on function public.set_rutinas_updated_at() from anon, public;
 
 create trigger set_rutinas_updated_at

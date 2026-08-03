@@ -7,6 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="EyeFit">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://raw.githubusercontent.com; connect-src 'self' https://*.supabase.co https://raw.githubusercontent.com; manifest-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
 <meta name="theme-color" content="#0A0A0A">
 <title>EyeFit</title>
 <link rel="manifest" id="manifest-link">
@@ -389,6 +390,21 @@
     border-radius:10px; padding:12px 14px; font-size:12.5px; font-weight:700; cursor:pointer;
     text-align:left; display:flex; align-items:center; gap:8px;
   }
+
+  /* ===== Fase 2: racha, sparklines de progresión y PR ===== */
+  .streak-banner{
+    background:rgba(255,183,77,.15); border:1px solid var(--orange); color:var(--orange);
+    border-radius:10px; padding:8px 12px; text-align:center; font-size:12px; font-weight:800; margin-bottom:10px;
+  }
+  .hist-ex-line{ border-bottom:1px solid var(--border); padding:6px 0; }
+  .hist-ex-line:last-child{ border-bottom:none; }
+  .hist-ex-prog{ margin-top:4px; display:flex; align-items:center; gap:8px; }
+  .hist-ex-prog .lbl{ font-size:9px; color:var(--muted); min-width:36px; flex-shrink:0; font-variant-numeric:tabular-nums; }
+  .hist-ex-prog svg{ display:block; flex:1; max-width:140px; }
+  .pr-badge{
+    background:var(--accent); color:#000; border-radius:5px; padding:1px 5px;
+    font-size:8.5px; font-weight:800; margin-left:5px; white-space:nowrap;
+  }
 </style>
 </head>
 <body>
@@ -453,6 +469,7 @@
     <button class="auth-btn" id="authSubmit">Acceder</button>
     <div class="auth-error" id="authError"></div>
     <div class="auth-info">🔒 Protegido con cifrado de última generación (bcrypt + JWT)<br>Tu historial se sincroniza entre dispositivos</div>
+    <button class="btn btn-outline" id="authSkip" style="width:100%;margin-top:8px;display:none;">📴 Continuar sin conexión</button>
   </div>
 </div>
 
@@ -475,8 +492,8 @@
   <button class="var-close" id="varClose">Cancelar</button>
 </div>
 
-<script src="xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="xlsx.full.min.js" defer></script>
+<script src="supabase.js"></script>
 <script>
 "use strict";
 /* ════════════════════════════════════════════════════════════════
@@ -736,6 +753,10 @@ const HEADER_MAP = {
   "notas":"notas","nota":"notas"
 };
 function parseRoutineSheet(data){
+  if(typeof XLSX === "undefined"){
+    showToast("⏳ SheetJS aún no ha cargado. Reintenta en un momento");
+    throw new Error("xlsx no disponible");
+  }
   const wb = XLSX.read(data, { type:"array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
@@ -784,6 +805,10 @@ async function loadRoutineFromXlsx(){
   }catch(e){}
 }
 function exportRoutineXlsx(){
+  if(typeof XLSX === "undefined"){
+    showToast("⏳ SheetJS aún no ha cargado. Reintenta en un momento");
+    return;
+  }
   const routine = getRoutine();
   const headers = ["dia","orden","nombre_es","dataset","series","reps","peso_kg","descanso_s","notas"];
   const rows = [headers];
@@ -799,26 +824,75 @@ function exportRoutineXlsx(){
    DATASET
    ================================================================ */
 const DATASET_URL = "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/data/exercises.json";
+const DATASET_CACHE = "eyefit-dataset-v1";
 async function loadExerciseDataset(){
-  const cached = lsGet(K.dataset, null);
-  if(cached && cached.length) return cached;
+  /* B8: mover el dataset fuera de localStorage → Cache API.
+     iOS limita localStorage a ~5MB y lsSet fallaba silenciosamente,
+     perdiendo el dataset sin aviso. La Cache API admite mucho más. */
+  try{
+    const cache = await caches.open(DATASET_CACHE);
+    const cachedResp = await cache.match(DATASET_URL);
+    if(cachedResp){
+      const cached = await cachedResp.json();
+      if(cached && cached.length) return cached;
+    }
+  }catch(e){}
+  /* Migración: dataset guardado en localStorage por versiones anteriores */
+  const legacy = lsGet(K.dataset, null);
+  if(legacy && legacy.length){
+    try{
+      const cache = await caches.open(DATASET_CACHE);
+      await cache.put(DATASET_URL, new Response(JSON.stringify(legacy), { headers: { "Content-Type": "application/json" } }));
+    }catch(e){}
+    return legacy;
+  }
   try{
     const resp = await fetch(DATASET_URL);
     if(!resp.ok) throw new Error("no fetch");
     const data = await resp.json();
     const slim = data.map(ex=>({ id:ex.id, name:ex.name, image:ex.image, instr:(ex.instructions&&ex.instructions.es)||"", part:ex.body_part||"" }));
-    lsSet(K.dataset, slim);
+    try{
+      const cache = await caches.open(DATASET_CACHE);
+      await cache.put(DATASET_URL, new Response(JSON.stringify(slim), { headers: { "Content-Type": "application/json" } }));
+    }catch(e){}
     return slim;
   }catch(e){ return null; }
 }
 function normalizeName(s){
   return String(s||"").toLowerCase().trim().replace(/[^\w\sà-úá-ú]/g,"").replace(/\s+/g," ");
 }
+/* Fase 1 (P5): índice del dataset con Maps para evitar pasadas O(n) repetidas.
+   Normaliza cada nombre una sola vez y agrupa por grupo muscular. */
+let datasetIndex = null;
+let datasetIndexSource = null;
+function buildDatasetIndex(ds){
+  const byName = new Map();
+  const byPart = new Map();
+  for(const ex of ds){
+    const n = normalizeName(ex.name);
+    if(!byName.has(n)) byName.set(n, ex);
+    const part = ex.part || "";
+    if(part){
+      if(!byPart.has(part)) byPart.set(part, []);
+      byPart.get(part).push(ex);
+    }
+  }
+  return { byName, byPart };
+}
+function getDatasetIndex(ds){
+  if(datasetIndexSource !== ds){
+    datasetIndex = buildDatasetIndex(ds||[]);
+    datasetIndexSource = ds;
+  }
+  return datasetIndex;
+}
 function findExerciseInDataset(dataset, name){
   if(!dataset || name==="") return null;
   const n = normalizeName(name);
-  let hit = dataset.find(d=>normalizeName(d.name)===n);
+  const idx = getDatasetIndex(dataset);
+  let hit = idx.byName.get(n);
   if(hit) return hit;
+  /* Fallback (solo si no hay coincidencia exacta): inclusión y palabras */
   hit = dataset.find(d=>normalizeName(d.name).includes(n)||n.includes(normalizeName(d.name)));
   if(hit) return hit;
   const words = n.split(" ");
@@ -845,7 +919,13 @@ function formatInstructions(text){
    SUPABASE AUTH + SYNC (tabla correcta: rutinas)
    ================================================================ */
 let authMode = "login";
-function showAuthOverlay(show){ document.getElementById("authOverlay").classList.toggle("show", show); }
+function showAuthOverlay(show){
+  document.getElementById("authOverlay").classList.toggle("show", show);
+  /* B3: cuando no hay SDK de Supabase (offline/CDN caído), mostrar botón
+     "Continuar sin conexión" para no bloquear el uso local de la app */
+  const skipBtn = document.getElementById("authSkip");
+  if(skipBtn) skipBtn.style.display = (!sbClient) ? "block" : "none";
+}
 
 /* Convierte un error de Supabase/red a texto legible.
    Filtra mensajes vacíos o inútiles ({} , "", etc.) para no mostrar
@@ -1102,6 +1182,118 @@ function formatRest(s){
 }
 
 /* ================================================================
+   FASE 2 · MÉTRICAS DE PROGRESIÓN (1RM Epley, PR, sparklines, racha)
+   ================================================================ */
+/* 1RM estimado con fórmula de Epley: peso × (1 + reps/30) */
+function epley1RM(kg, reps){
+  const w = parseFloat(kg)||0, r = parseInt(reps)||0;
+  if(w <= 0) return 0;
+  if(r <= 1) return w;
+  return +(w * (1 + r/30)).toFixed(1);
+}
+function setVolume(kg, reps){ return (parseFloat(kg)||0) * (parseInt(reps)||0); }
+
+/* Mejor registro histórico (por 1RM) de un ejercicio, excluyendo la sesión actual */
+function getHistoricalBest(exKey){
+  const history = getHistory();
+  const key = String(exKey||"").trim().toLowerCase();
+  if(!key) return null;
+  let best = null;
+  for(const h of history){
+    for(const e of (h.exercises||[])){
+      const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
+      if(eKey === key){
+        for(const s of (e.sets||[])){
+          if(!s.done) continue;
+          const rm = epley1RM(s.kg, s.reps);
+          if(!best || rm > best.rm) best = { rm, kg:s.kg, reps:s.reps, date:h.date };
+        }
+        break;
+      }
+    }
+  }
+  return best;
+}
+
+/* Registro del mejor 1RM visto dentro de la sesión actual (evita PRs duplicados) */
+let sessionBestByEx = {};
+
+/* Comprueba si el set completado es un récord personal y lo celebra en el comic-bubble */
+function checkPR(ex, set){
+  const key = String(ex.dataset||ex.nombre_es||"").trim().toLowerCase();
+  const best = getHistoricalBest(key);
+  const newRM = epley1RM(set.kg, set.reps);
+  if(!sessionBestByEx) sessionBestByEx = {};
+  const sessBest = sessionBestByEx[key] || 0;
+  if(newRM <= Math.max(best ? best.rm : 0, sessBest)) return;
+  sessionBestByEx[key] = newRM;
+  const diff = best ? ` (+${(newRM-best.rm).toFixed(0)}kg 1RM)` : "";
+  showComicBubble(`🏆 ¡NUEVO PR! ${getApodo(ex)} · ${set.kg}kg × ${set.reps}${diff}`);
+}
+
+/* Serie de fechas → mejor 1RM por sesión (cronológico, últimas 12) */
+function getExerciseProgression(exKey){
+  const history = getHistory();
+  const key = String(exKey||"").trim().toLowerCase();
+  const pts = [];
+  for(const h of history){
+    for(const e of (h.exercises||[])){
+      const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
+      if(eKey === key){
+        const done = (e.sets||[]).filter(s=>s.done);
+        if(done.length){
+          pts.push({ date:h.date, bestRM: Math.max(...done.map(s=>epley1RM(s.kg,s.reps))) });
+        }
+        break;
+      }
+    }
+  }
+  pts.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  return pts.slice(-12);
+}
+
+/* Mini-gráfica SVG de la evolución del 1RM (sin librerías, Fase 2 M2) */
+function svgSparkline(pts, w=140, h=36){
+  if(!pts || pts.length < 2) return "";
+  const vals = pts.map(p=>p.bestRM);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = (max-min) || 1;
+  const step = (pts.length>1) ? w/(pts.length-1) : 0;
+  const coords = pts.map((p,i)=>{
+    const x = i*step;
+    const y = h - 4 - ((p.bestRM-min)/range)*(h-8);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const last = vals[vals.length-1];
+  const lastY = h - 4 - ((last-min)/range)*(h-8);
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polygon points="0,${h} ${coords} ${w},${h}" fill="rgba(200,255,0,.12)"/>
+    <polyline points="${coords}" fill="none" stroke="#C8FF00" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="${(pts.length-1)*step}" cy="${lastY.toFixed(1)}" r="3" fill="#C8FF00"/>
+  </svg>`;
+}
+
+/* Racha de días consecutivos entrenados (Fase 2 M5) */
+function getStreak(){
+  const history = getHistory();
+  if(!history || !history.length) return 0;
+  const days = new Set();
+  for(const h of history){
+    try{ days.add(new Date(h.date).toISOString().slice(0,10)); }catch(e){}
+  }
+  const today = new Date();
+  const yesterday = new Date(); yesterday.setDate(today.getDate()-1);
+  const cursorStr = days.has(today.toISOString().slice(0,10)) ? today : yesterday;
+  const cursor = new Date(cursorStr);
+  let streak = 0;
+  while(days.has(cursor.toISOString().slice(0,10))){
+    streak++;
+    cursor.setDate(cursor.getDate()-1);
+  }
+  return streak;
+}
+
+/* ================================================================
    VISTA SESIÓN sin scroll
    ================================================================ */
 function sessionProgress(){
@@ -1191,7 +1383,7 @@ function renderSesion(){
     <div class="sets-grid">
       ${setRows}
       <button class="add-set-btn" data-add-set>＋ Añadir serie</button>
-      ${nextEx ? `<div style="text-align:center;color:var(--muted);font-size:10px;padding:4px 0 8px;">Siguiente: <b style="color:${DAY_COLORS[day]||"#fff"}">${getApodo(nextEx)}</b></div>` : ""}
+      ${nextEx ? `<div style="text-align:center;color:var(--muted);font-size:10px;padding:4px 0 8px;">Siguiente: <b style="color:${DAY_COLORS[day]||"#fff"}">${escapeHtml(getApodo(nextEx))}</b></div>` : ""}
     </div>
   </div>`;
 }
@@ -1279,7 +1471,7 @@ function showSummary(){
   document.getElementById("sumExList").innerHTML = s.exList.filter(e=>e.sets.some(x=>x.done)).slice(0,10).map(e=>{
     const done = e.sets.filter(x=>x.done);
     return `<div class="sum-ex">
-      <div class="sum-ex-top"><span style="color:${DAY_COLORS[session.day]||"#fff"}">${getApodo(e)}</span><span>${done.length}×${done[0]?.reps||0} reps</span></div>
+      <div class="sum-ex-top"><span style="color:${DAY_COLORS[session.day]||"#fff"}">${escapeHtml(getApodo(e))}</span><span>${done.length}×${done[0]?.reps||0} reps</span></div>
       <div class="sum-ex-sub">${done.map(x=>`${x.kg}kg`).join(" · ")}</div>
     </div>`;
   }).join("");
@@ -1379,17 +1571,20 @@ function isLastEffort(){
   const ex = session.exercises[session.currentIdx];
   return session.currentIdx === session.exercises.length-1 && ex && ex.currentSet >= ex.sets.length;
 }
-function showMotivation(){
+function showComicBubble(text){
   const overlay = document.getElementById("comicOverlay");
   const bubble = document.getElementById("comicBubble");
-  bubble.textContent = isLastEffort() ? LAST_EFFORT_MSG : MOTIVACIONES[Math.floor(Math.random()*MOTIVACIONES.length)];
+  bubble.textContent = text;
   overlay.classList.add("show");
   bubble.classList.add("comic-shake");
   clearTimeout(comicTimeout);
   comicTimeout = setTimeout(()=>{
     overlay.classList.remove("show");
     bubble.classList.remove("comic-shake");
-  }, 2200);
+  }, 2600);
+}
+function showMotivation(){
+  showComicBubble(isLastEffort() ? LAST_EFFORT_MSG : MOTIVACIONES[Math.floor(Math.random()*MOTIVACIONES.length)]);
 }
 comicOverlay.addEventListener("click", ()=>{
   clearTimeout(comicTimeout);
@@ -1477,16 +1672,30 @@ function renderHistorial(){
       </div>
       <div class="hist-day-body">
         <div class="hist-day-stats">${exDone.length} ejercicios · ${h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0)} series</div>
-        ${exDone.slice(0,10).map(e=>`<div class="hist-ex">
-          <span class="hist-ex-name">${getApodo(e)}</span>
-          <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${s.reps}×${s.kg}`).join(" · ")}</span>
-        </div>`).join("")}
+        ${exDone.slice(0,10).map(e=>{
+          const key = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
+          const prog = getExerciseProgression(key);
+          const bestNow = getHistoricalBest(key);
+          const spark = svgSparkline(prog);
+          const rmLabel = bestNow && bestNow.rm ? bestNow.rm : "";
+          return `<div class="hist-ex-line">
+            <div class="hist-ex">
+              <span class="hist-ex-name">${escapeHtml(getApodo(e))}</span>
+              <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${s.reps}×${s.kg}`).join(" · ")}</span>
+            </div>
+            ${spark ? `<div class="hist-ex-prog"><span class="lbl">1RM ${rmLabel}</span>${spark}</div>` : ""}
+          </div>`;
+        }).join("")}
       </div>
     </div>`;
   }).join("");
 
+  const streak = getStreak();
+  const streakHtml = streak > 0 ? `<div class="streak-banner">🔥 Racha: ${streak} día${streak>1?"s":""}</div>` : "";
+
   return `<div class="section active">
     <h2 class="title">📈 Historial</h2>
+    ${streakHtml}
     <div class="hist-summary">
       <div class="hist-stat"><div class="v">${totalSessions}</div><div class="l">Sesiones</div></div>
       <div class="hist-stat"><div class="v">${Math.floor(totalTime/60)}m</div><div class="l">Tiempo total</div></div>
@@ -1610,6 +1819,7 @@ function attachEvents(){
       const set = ex.sets[si];
       if(set.done) return;
       set.done = true;
+      checkPR(ex, set);
       vibrate(30);
       saveSessionState();
       if(ex.currentSet < ex.sets.length){
@@ -1671,6 +1881,8 @@ function attachEvents(){
     btn.addEventListener("click", async ()=>{
       if(confirm("¿Borrar todo el historial?")){
         saveHistory([]);
+        /* B2: limpiar también las sesiones pendientes de subir para que no "resuciten" */
+        const p = getPending(); p.sessions = []; setPending(p);
         if(sbClient && authUser){ try{ await sbClient.from("sesiones").delete().eq("user_id", authUser.id); }catch(e){} }
         renderMain(); showToast("🗑️ Historial borrado");
       }
@@ -1784,6 +1996,12 @@ document.querySelectorAll("[data-auth-tab]").forEach(btn=>{
 });
 document.getElementById("authSubmit").addEventListener("click", handleAuthSubmit);
 document.getElementById("authPass").addEventListener("keydown", e=>{ if(e.key==="Enter") handleAuthSubmit(); });
+/* B3: continuar sin conexión esconde el overlay y deja usar la app en local */
+document.getElementById("authSkip").addEventListener("click", ()=>{
+  authUser = null;
+  showAuthOverlay(false);
+  renderMain();
+});
 
 /* ================================================================
    UTILIDADES
@@ -1836,6 +2054,7 @@ function startSession(day){
   const routine = getRoutine();
   const dayEx = routine.filter(e=>e.dia===day).sort((a,b)=>(a.orden||0)-(b.orden||0));
   if(dayEx.length===0) return;
+  sessionBestByEx = {};
   session = {
     day, startTime: Date.now(), elapsed: 0, baseElapsed: 0, currentIdx: 0,
     exercises: dayEx.map(ex=>{

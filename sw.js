@@ -1,9 +1,10 @@
-/* EyeFit Service Worker — caching for offline use */
+/* EyeFit Service Worker — caching for offline use (v2.1: network-first para rutina.xlsx) */
 const CACHE = 'eyefit-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
   './xlsx.full.min.js',
+  './supabase.js',
   './rutina.xlsx',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -32,6 +33,24 @@ self.addEventListener('fetch', event => {
 
   // No interceptar Supabase (auth + datos) — siempre en red
   if (url.origin.includes('supabase.co')) return;
+
+  // rutina.xlsx: network-first con fallback a caché.
+  // La app la pide con cache:"no-store" — sin esto el SW serviría
+  // la versión cacheada para siempre y los cambios del archivo
+  // nunca se verían (bug B1).
+  if (url.pathname.endsWith('/rutina.xlsx')) {
+    event.respondWith(
+      fetch(request).then(response => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE).then(cache => cache.put(request, clone));
+          return response;
+        }
+        return caches.match(request);
+      }).catch(() => caches.match(request))
+    );
+    return;
+  }
 
   // No interceptar peticiones a la API del dataset (datos) cuando haya red
   if (url.hostname === 'raw.githubusercontent.com') {

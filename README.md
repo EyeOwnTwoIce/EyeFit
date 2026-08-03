@@ -32,6 +32,8 @@ python3 -m http.server 8000
 ```
 
 > ⚠️ La app usa Supabase y el Service Worker; para probar el registro/sincronización es recomendable servirla por HTTPS o localhost (`http://localhost` también funciona con los flujos de Supabase).
+>
+> ℹ️ Desde la **v1.3.1** el dataset se cachea en la **Cache API** (no en `localStorage`), evitando el límite de ~5MB de iOS.
 
 ### 2. Instalar en iPhone 15 (pantalla de inicio)
 
@@ -112,7 +114,7 @@ Pasos tras crear un proyecto en Supabase:
 
 1. La app busca la imagen/instrucción del ejercicio usando la columna `dataset` (nombre en inglés).
 2. Consulta el dataset remoto `exercises.json` (1.324 ejercicios) desde `github.com/hasaneyldrm/exercises-dataset`.
-3. El resultado se cachea en `localStorage` para funcionamiento offline.
+3. El resultado se cachea en la **Cache API** para funcionamiento offline.
 4. Un mapa embebido de imágenes cubre la rutina por defecto como fallback.
 
 ---
@@ -131,6 +133,7 @@ Pasos tras crear un proyecto en Supabase:
 ```
 EyeFit/
 ├── index.html            ★ La app completa (PWA single-file)
+├── utils.js              Utilidades puras compartidas (navegador + tests)
 ├── rutina.xlsx           ★ La hoja de cálculo de la rutina (edítala aquí)
 ├── sw.js                 Service Worker (caché offline)
 ├── xlsx.full.min.js      Librería SheetJS (parseo de .xlsx)
@@ -138,6 +141,7 @@ EyeFit/
 ├── generate_icons.js     Script para regenerar los iconos PNG
 ├── supabase_setup.sql    Setup SQL del backend (tablas, RLS, triggers)
 ├── supabase_email_template.html  Plantilla de email de confirmación (opcional)
+├── tests/                Tests unitarios (node:test → `npm test`)
 ├── package.json          Dependencias Node (solo para regenerar el .xlsx)
 └── README.md             Esta documentación
 ```
@@ -147,6 +151,7 @@ EyeFit/
 ## 🧰 Stack técnico
 
 - **100% HTML + CSS + JavaScript** (vanilla, sin frameworks)
+- **Tests unitarios** con `node:test` (ejecuta `npm test`)
 - **Supabase** para auth (email + contraseña) y sincronización de rutina/historial
 - **SheetJS** ([SheetJS Community Edition](https://sheetjs.com/)) para leer/escribir .xlsx
 - **exercises-dataset** ([GitHub](https://github.com/hasaneyldrm/exercises-dataset)) — CC-BY-4.0, 1.324 ejercicios con imágenes e instrucciones multilingües

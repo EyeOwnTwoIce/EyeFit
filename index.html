@@ -498,6 +498,7 @@
 </div>
 
 <script src="xlsx.full.min.js" defer></script>
+<script src="utils.js"></script>
 <script src="supabase.js"></script>
 <script>
 "use strict";
@@ -505,6 +506,41 @@
    EyeFit v1.3 — descanso en barra superior, alternativas con GIF,
    guardado automático, control de series, sin parpadeos
    ════════════════════════════════════════════════════════════════ */
+
+/* ---------- Utilidades compartidas (utils.js, sin duplicar) ----------
+   F1-C1: las funciones puras viven en utils.js y se exponen en
+   window.EyeFitUtils. Si el archivo no cargó, abortamos con un
+   mensaje claro en lugar de fallar en silencio. */
+const U = window.EyeFitUtils || null;
+if(!U){
+  document.getElementById("main").innerHTML =
+    '<div class="section active"><div class="empty-state">⚠️ Error crítico: utils.js no cargó.<br>Recarga la página o borra la caché.</div></div>';
+  throw new Error("EyeFitUtils missing");
+}
+
+/* ---------- Manejo global de errores (F2-A1) ----------
+   Evita pantallas en blanco silenciosas: cualquier error no capturado
+   se registra y se muestra como toast informativo. */
+window.addEventListener("error", (e)=>{
+  console.error("[EyeFit]", e.message || e.error);
+  showToast("⚠️ Error inesperado: " + (e.message || "desconocido"));
+});
+window.addEventListener("unhandledrejection", (e)=>{
+  const err = e && e.reason ? (e.reason.message || e.reason) : "desconocido";
+  console.error("[EyeFit] unhandledrejection", err);
+  showToast("⚠️ Error inesperado: " + err);
+});
+const APODOS = U.APODOS;
+const DAY_ORDER = U.DAY_ORDER;
+const DAY_COLORS = U.DAY_COLORS;
+const getApodo = U.getApodo;
+const epley1RM = U.epley1RM;
+const setVolume = U.setVolume;
+const formatRest = U.formatRest;
+const normalizeName = U.normalizeName;
+const buildExerciseSets = U.buildExerciseSets;
+const isValidSessionRecord = U.isValidSessionRecord;
+const sortRoutine = U.sortRoutine;
 
 /* ---------- Supabase ---------- */
 const SUPABASE_URL = "https://vkaxxphminfinufitcyp.supabase.co";
@@ -534,12 +570,6 @@ document.getElementById("manifest-link").setAttribute("href", URL.createObjectUR
    DATOS
    ================================================================ */
 
-/* Colores únicos por día */
-const DAY_COLORS = {
-  Lunes:"#4FC3F7", Martes:"#81C784", Miércoles:"#FFB74D",
-  Jueves:"#BA68C8", Viernes:"#F0625C"
-};
-const DAY_ORDER = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
 const DAY_SHORT = { Lunes:"LUN", Martes:"MAR", Miércoles:"MIÉ", Jueves:"JUE", Viernes:"VIE" };
 const WEEKDAY_NAMES = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 function getTodayName(){ return WEEKDAY_NAMES[new Date().getDay()]; }
@@ -576,39 +606,6 @@ const DEFAULT_ROUTINE = [
   { dia:"Viernes",   orden:6, nombre_es:"Ext. overhead tríceps (cuerda)",       dataset:"cable overhead triceps extension (rope attachment)", series:3, reps:15, peso_kg:10, descanso_s:75, notas:"Cabeza larga estirada." },
 ];
 
-/* Apodos (máx 3 palabras) por ejercicio programado */
-const APODOS = {
-  "barbell bench press": "Press Banca",
-  "dumbbell incline bench press": "Press Inclinado",
-  "dumbbell seated shoulder press": "Press Militar",
-  "cable standing fly": "Cruce Polea",
-  "dumbbell lateral raise": "Elevaciones Lat.",
-  "cable pushdown (with rope attachment)": "Ext. Tríceps",
-  "barbell full squat": "Sentadilla",
-  "sled 45° leg press": "Prensa 45°",
-  "lever leg extension": "Cuádriceps",
-  "lever lying leg curl": "Curl Femoral",
-  "barbell standing calf raise": "Gemelos Pie",
-  "barbell bent over row": "Remo Barra",
-  "cable pulldown (pro lat bar)": "Jalón Pecho",
-  "cable seated row": "Remo Sentado",
-  "cable standing rear delt row (with rope)": "Face Pull",
-  "ez barbell curl": "Curl EZ",
-  "dumbbell hammer curl": "Curl Martillo",
-  "barbell deadlift": "Peso Muerto",
-  "barbell glute bridge two legs on bench (male)": "Hip Thrust",
-  "barbell good morning": "Buenos Días",
-  "cable kickback": "Patada Glúteo",
-  "lever seated calf raise": "Gemelos Sentado",
-  "barbell incline bench press": "Press Inclinado",
-  "pull up (neutral grip)": "Dominadas",
-  "dumbbell arnold press": "Press Arnold",
-  "cable lateral raise": "Lat. Polea",
-  "cable curl": "Curl Polea",
-  "cable overhead triceps extension (rope attachment)": "Ext. Overhead"
-};
-function getApodo(ex){ return APODOS[ex.dataset] || (String(ex.nombre_es||"").split(" ").slice(0,3).join(" ")); }
-
 /* Instrucciones curadas en español (3-4 pasos clave) */
 const INSTRUCCIONES = {
   "barbell bench press":"Acuéstate en el banco, pies en el suelo\nAgarra la barra algo más ancha que hombros\nBaja al pecho controlado y sube",
@@ -641,7 +638,7 @@ const INSTRUCCIONES = {
   "cable overhead triceps extension (rope attachment)":"De pie, cuerda tras la cabeza\nExtiende los brazos hacia arriba\nVuelve flexionando"
 };
 function getInstrucciones(ex){
-  return INSTRUCCIONES[ex.dataset] || ex.notas || "Colócate en la posición inicial y realiza el movimiento con control";
+  return INSTRUCCIONES[ex.datasetOriginal || ex.dataset] || ex.notas || "Colócate en la posición inicial y realiza el movimiento con control";
 }
 
 /* 3 alternativas manuales en español por ejercicio */
@@ -698,10 +695,12 @@ const IMG_BASE = "https://raw.githubusercontent.com/hasaneyldrm/exercises-datase
 /* Devuelve la imagen con prioridad GIF animado (videos/{base}.gif) */
 function getExerciseImage(ex, dataset){
   let base = null;
-  if(ex.dataset && EMBEDDED_IMAGES[ex.dataset]){
-    base = EMBEDDED_IMAGES[ex.dataset];
-  } else if(dataset && ex.dataset){
-    const found = findExerciseInDataset(dataset, ex.dataset) || findExerciseInDataset(dataset, ex.nombre_es);
+  /* F1-C2: si se aplicó una variante, buscar la imagen del ejercicio ORIGINAL */
+  const datasetKey = ex.datasetOriginal || ex.dataset;
+  if(datasetKey && EMBEDDED_IMAGES[datasetKey]){
+    base = EMBEDDED_IMAGES[datasetKey];
+  } else if(dataset && datasetKey){
+    const found = findExerciseInDataset(dataset, datasetKey) || findExerciseInDataset(dataset, ex.nombre_es);
     if(found && found.image){
       base = found.image.replace("images/","").replace(".jpg","").replace(".png","");
     }
@@ -710,7 +709,11 @@ function getExerciseImage(ex, dataset){
   return null;
 }
 /* Devuelve el GIF de una alternativa por nombre.
-   Prioridad: mapa embebido → coincidencia EXACTA en dataset (evita falsos positivos de alternativas manuales) */
+   F1-C3: busca el nombre de la alternativa (español) con coincidencia
+   flexible en el dataset EN INGLÉS — prioriza palabras clave que
+   coincidan (ej. "Flexiones" → "push up", "Press Banca Inclinado" → "incline bench press").
+   Primero intenta EXACTA (nombres del dataset en inglés ya normalizados)
+   y luego cae a coincidencias por palabra. */
 function getExerciseImageForName(name, dataset){
   if(!name) return null;
   for(const [key,val] of Object.entries(EMBEDDED_IMAGES)){
@@ -720,10 +723,22 @@ function getExerciseImageForName(name, dataset){
   }
   if(dataset){
     const n = normalizeName(name);
-    const found = dataset.find(d=>d.name && normalizeName(d.name)===n);
+    /* Exacta primero */
+    let found = dataset.find(d=>d.name && normalizeName(d.name)===n);
     if(found && found.image){
       const base = String(found.image).replace("images/","").replace(".jpg","").replace(".png","");
       return IMG_BASE + "videos/" + base + ".gif";
+    }
+    /* Fallback por palabras clave: busca coincidencias parciales del nombre
+       de la alternativa dentro del dataset. Solo acepta si la palabra es
+       suficientemente informativa (>=4 caracteres). */
+    const words = n.split(" ").filter(w=>w.length>=4);
+    for(const w of words){
+      found = dataset.find(d=>d.name && normalizeName(d.name).includes(w));
+      if(found && found.image){
+        const base = String(found.image).replace("images/","").replace(".jpg","").replace(".png","");
+        return IMG_BASE + "videos/" + base + ".gif";
+      }
     }
   }
   return null;
@@ -741,7 +756,17 @@ function lsGet(key, def){ try{ return JSON.parse(localStorage.getItem(key)) ?? d
 function lsSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
 function getRoutine(){ return lsGet(K.routine, null) || DEFAULT_ROUTINE; }
 function setRoutine(r){ lsSet(K.routine, r); }
-function getHistory(){ return lsGet(K.history, []); }
+function getHistory(){
+  /* F2-A2: filtrar registros corruptos del historial para no romper la app.
+     Si hay registros inválidos, se limpian y persisten de nuevo. */
+  const raw = lsGet(K.history, []);
+  if(!Array.isArray(raw)) return [];
+  const valid = raw.filter(isValidSessionRecord);
+  if(valid.length !== raw.length){
+    try{ localStorage.setItem(K.history, JSON.stringify(valid)); }catch(e){}
+  }
+  return valid;
+}
 function saveHistory(h){ lsSet(K.history, h); }
 function getPending(){
   const p = lsGet(K.pending, null);
@@ -864,9 +889,6 @@ async function loadExerciseDataset(){
     }catch(e){}
     return slim;
   }catch(e){ return null; }
-}
-function normalizeName(s){
-  return String(s||"").toLowerCase().trim().replace(/[^\w\sà-úá-ú]/g,"").replace(/\s+/g," ");
 }
 /* Fase 1 (P5): índice del dataset con Maps para evitar pasadas O(n) repetidas.
    Normaliza cada nombre una sola vez y agrupa por grupo muscular. */
@@ -1059,6 +1081,7 @@ async function syncPending(){
   const remaining = [];
   for(let i = 0; i < pending.sessions.length; i++){
     const rec = pending.sessions[i];
+    if(!isValidSessionRecord(rec)) continue;
     const ok = await pushSessionToServer(rec);
     if(ok){ changed = true; } else { remaining.push(...pending.sessions.slice(i)); break; }
   }
@@ -1183,23 +1206,10 @@ function exerciseCard(ex, i, day){
   </div>`;
 }
 
-function formatRest(s){
-  if(!s) return "—";
-  const m = Math.floor(s/60), r = s%60;
-  return m>0 ? (r>0?`${m}m ${r}s`:`${m}min`) : `${r}s`;
-}
 
 /* ================================================================
    FASE 2 · MÉTRICAS DE PROGRESIÓN (1RM Epley, PR, sparklines, racha)
    ================================================================ */
-/* 1RM estimado con fórmula de Epley: peso × (1 + reps/30) */
-function epley1RM(kg, reps){
-  const w = parseFloat(kg)||0, r = parseInt(reps)||0;
-  if(w <= 0) return 0;
-  if(r <= 1) return w;
-  return +(w * (1 + r/30)).toFixed(1);
-}
-function setVolume(kg, reps){ return (parseFloat(kg)||0) * (parseInt(reps)||0); }
 
 /* Mejor registro histórico (por 1RM) de un ejercicio, excluyendo la sesión actual */
 function getHistoricalBest(exKey){
@@ -1438,7 +1448,7 @@ async function autoSaveSession(){
     day: session.day,
     duration: session.elapsed,
     exercises: session.exercises.map(e=>({
-      nombre_es: e.nombre_es, dataset: e.dataset, orden: e.orden, completed: e.completed,
+      nombre_es: e.nombre_es, dataset: e.dataset, datasetOriginal: e.datasetOriginal, orden: e.orden, completed: e.completed,
       sets: e.sets.map(s=>({ kg:s.kg, reps:s.reps, done:s.done }))
     }))
   };
@@ -1640,6 +1650,10 @@ function selectVariant(i){
   if(i === 0){ document.getElementById("varOverlay").classList.remove("show"); return; } // mantener actual
   const v = getVariants(ex)[i-1];
   if(!v) return;
+  /* F1-C2: preservar el dataset original para no romper PR/progresión/
+     precarga de pesos en sesiones futuras. El dataset original se usa
+     como clave de continuidad; el nombre de la variante solo para mostrar. */
+  if(!ex.datasetOriginal) ex.datasetOriginal = ex.dataset;
   ex.dataset = v.nombre;
   ex.nombre_es = v.nombre;
   document.getElementById("varOverlay").classList.remove("show");
@@ -1682,7 +1696,8 @@ function renderHistorial(){
       <div class="hist-day-body">
         <div class="hist-day-stats">${exDone.length} ejercicios · ${h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0)} series</div>
         ${exDone.slice(0,10).map(e=>{
-          const key = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
+          /* F1-C2: usar datasetOriginal como clave de continuidad */
+          const key = String(e.datasetOriginal||e.dataset||e.nombre_es||"").trim().toLowerCase();
           const prog = getExerciseProgression(key);
           const bestNow = getHistoricalBest(key);
           const spark = svgSparkline(prog);
@@ -2072,7 +2087,8 @@ function restoreSession(){
 function getLastExercisePerformance(ex){
   const history = getHistory();
   if(!history || history.length===0) return null;
-  const key = String(ex.dataset||ex.nombre_es||"").trim().toLowerCase();
+  /* F1-C2: buscar por el dataset original si se aplicó una variante */
+  const key = String(ex.datasetOriginal||ex.dataset||ex.nombre_es||"").trim().toLowerCase();
   if(!key) return null;
   const matches = [];
   for(const h of history){
@@ -2099,24 +2115,7 @@ function startSession(day){
     day, startTime: Date.now(), elapsed: 0, baseElapsed: 0, currentIdx: 0,
     exercises: dayEx.map(ex=>{
       const lastPerf = getLastExercisePerformance(ex);
-      let sets;
-      if(lastPerf && lastPerf.length > 0){
-        /* Usar el rendimiento real de la última sesión de este ejercicio,
-           serie a serie. Si hubo más series en la última sesión que las
-           programadas, se rellenan con la última usada en la rutina. */
-        sets = Array.from({length:parseInt(ex.series)||3}, (_,i)=>{
-          const p = lastPerf[i] || lastPerf[lastPerf.length-1] || {};
-          const kg = parseFloat(p.kg);
-          const reps = parseInt(p.reps);
-          return {
-            kg: Number.isFinite(kg) ? kg : (parseFloat(ex.peso_kg)||0),
-            reps: Number.isFinite(reps) ? reps : (parseInt(ex.reps)||8),
-            done:false
-          };
-        });
-      } else {
-        sets = Array.from({length:parseInt(ex.series)||3}, ()=>({ kg:parseFloat(ex.peso_kg)||0, reps:parseInt(ex.reps)||8, done:false }));
-      }
+      const sets = buildExerciseSets(ex, lastPerf);
       return { ...ex, completed:false, currentSet:1, sets };
     })
   };
@@ -2196,6 +2195,7 @@ function startSession(day){
 
   const datasetPromise = loadExerciseDataset();
   await loadRoutineFromXlsx();
+  getHistory(); /* F2-A2: saneamiento del historial al arrancar */
   restoreSession();
   renderMain();
   datasetCache = await datasetPromise;

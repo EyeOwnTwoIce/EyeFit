@@ -103,6 +103,17 @@ function buildExerciseSets(ex, lastPerf) {
 }
 
 /**
+ * Valida que un registro de sesión del historial tenga el schema mínimo.
+ * Protege contra datos corruptos en localStorage/nube (F2-A2).
+ */
+function isValidSessionRecord(h) {
+  return !!(h && typeof h === "object" && !Array.isArray(h) &&
+    typeof h.date === "string" && h.date.length > 0 &&
+    typeof h.day === "string" && h.day.length > 0 &&
+    Array.isArray(h.exercises));
+}
+
+/**
  * Procesa una cola de sesiones pendientes devolviendo las que NO se pudieron subir.
  * Sin pérdida de datos: si una falla, las siguientes permanecen en la cola.
  */
@@ -139,6 +150,15 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     APODOS, DAY_ORDER, DAY_COLORS,
     getApodo, epley1RM, setVolume, formatRest, normalizeName,
-    buildExerciseSets, computeRemainingSessions, sortRoutine
+    buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine
+  };
+}
+
+/* Export para navegador (compartido con index.html) */
+if (typeof window !== "undefined" && !window.EyeFitUtils) {
+  window.EyeFitUtils = {
+    APODOS, DAY_ORDER, DAY_COLORS,
+    getApodo, epley1RM, setVolume, formatRest, normalizeName,
+    buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine
   };
 }

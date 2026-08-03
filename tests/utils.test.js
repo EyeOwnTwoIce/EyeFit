@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   getApodo, epley1RM, setVolume, formatRest, normalizeName,
-  buildExerciseSets, computeRemainingSessions, sortRoutine
+  buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine
 } = require('../utils.js');
 
 /* ============ getApodo ============ */
@@ -124,6 +124,27 @@ test('buildExerciseSets: historial con menos series rellena con la última y nun
     assert.equal(Number.isFinite(s.reps), true);
   }
   assert.deepEqual(sets.map(s => s.kg), [50, 50, 50, 50]);
+});
+
+/* ============ isValidSessionRecord (validación historial, F2-A2) ============ */
+test('isValidSessionRecord: registro válido', () => {
+  const ok = { date: '2026-01-01T10:00:00.000Z', day: 'Lunes', exercises: [ { dataset: 'x', sets: [] } ] };
+  assert.equal(isValidSessionRecord(ok), true);
+});
+
+test('isValidSessionRecord: rechaza null/undefined/arrays/primitivos', () => {
+  assert.equal(isValidSessionRecord(null), false);
+  assert.equal(isValidSessionRecord(undefined), false);
+  assert.equal(isValidSessionRecord([]), false);
+  assert.equal(isValidSessionRecord('string'), false);
+  assert.equal(isValidSessionRecord(42), false);
+});
+
+test('isValidSessionRecord: rechaza sin date, sin day o sin exercises', () => {
+  assert.equal(isValidSessionRecord({ day: 'Lunes', exercises: [] }), false);
+  assert.equal(isValidSessionRecord({ date: '2026-01-01', exercises: [] }), false);
+  assert.equal(isValidSessionRecord({ date: '2026-01-01', day: 'Lunes' }), false);
+  assert.equal(isValidSessionRecord({ date: '', day: 'Lunes', exercises: [] }), false);
 });
 
 /* ============ computeRemainingSessions (bug pérdida de datos, BUG-1) ============ */

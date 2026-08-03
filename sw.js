@@ -1,8 +1,9 @@
 /* EyeFit Service Worker — caching for offline use (v2.1: network-first para rutina.xlsx) */
-const CACHE = 'eyefit-v2';
+const CACHE = 'eyefit-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
+  './utils.js',
   './xlsx.full.min.js',
   './supabase.js',
   './rutina.xlsx',

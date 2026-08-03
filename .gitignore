@@ -1,0 +1,15 @@
+# Dependencias
+node_modules/
+
+# Pruebas / Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Logs de npm
+npm-debug.log*
+npm-error.log*

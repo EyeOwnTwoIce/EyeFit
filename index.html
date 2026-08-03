@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -412,26 +412,26 @@
   <header id="appHeader">
     <div class="header-main">
       <h1>👁️ EyeFit</h1>
-      <button class="stop-btn" id="stopSessionBtn" style="display:none;">⏹ STOP</button>
+      <button class="stop-btn" id="stopSessionBtn" style="display:none;" aria-label="Detener sesión">⏹ STOP</button>
     </div>
     <!-- Barra de descanso superior: se vacía hacia la izquierda, no oculta el ejercicio siguiente -->
     <div class="rest-bar" id="restBar" style="display:none;">
       <div class="rest-bar-fill" id="restBarFill"></div>
       <div class="rest-bar-time" id="restBarTime">1:00</div>
       <div class="rest-bar-btns">
-        <button class="rest-mini" data-rest="minus15">−15</button>
-        <button class="rest-mini" data-rest="plus15">+15</button>
-        <button class="rest-mini" data-rest="toggle" id="restPauseBtn">⏸</button>
-        <button class="rest-mini" data-rest="skip">⏭</button>
+        <button class="rest-mini" data-rest="minus15" aria-label="Restar 15 segundos">−15</button>
+        <button class="rest-mini" data-rest="plus15" aria-label="Añadir 15 segundos">+15</button>
+        <button class="rest-mini" data-rest="toggle" id="restPauseBtn" aria-label="Pausar/reanudar descanso">⏸</button>
+        <button class="rest-mini" data-rest="skip" aria-label="Saltar descanso">⏭</button>
       </div>
     </div>
   </header>
   <main id="main"></main>
   <nav class="tabbar" id="tabbar">
-    <button class="tabbtn" data-tab="rutina"><span class="ic">📅</span>Rutina</button>
-    <button class="tabbtn" data-tab="sesion"><span class="ic">🏋️</span>Entrenar</button>
-    <button class="tabbtn" data-tab="historial"><span class="ic">📈</span>Historial</button>
-    <button class="tabbtn" data-tab="ajustes"><span class="ic">⚙️</span>Ajustes</button>
+    <button class="tabbtn" data-tab="rutina" aria-label="Ver rutina"><span class="ic">📅</span>Rutina</button>
+    <button class="tabbtn" data-tab="sesion" aria-label="Entrenar"><span class="ic">🏋️</span>Entrenar</button>
+    <button class="tabbtn" data-tab="historial" aria-label="Ver historial"><span class="ic">📈</span>Historial</button>
+    <button class="tabbtn" data-tab="ajustes" aria-label="Ver ajustes"><span class="ic">⚙️</span>Ajustes</button>
   </nav>
   <div class="toast" id="toast"></div>
   <input type="file" id="fileInput" accept=".xlsx,.xls">
@@ -1050,9 +1050,10 @@ async function syncPending(){
   const pending = getPending();
   let changed = false;
   const remaining = [];
-  for(const rec of pending.sessions){
+  for(let i = 0; i < pending.sessions.length; i++){
+    const rec = pending.sessions[i];
     const ok = await pushSessionToServer(rec);
-    if(ok){ changed = true; } else { remaining.push(rec); break; }
+    if(ok){ changed = true; } else { remaining.push(...pending.sessions.slice(i)); break; }
   }
   if(pending.routine){
     const { error } = await sbClient.from("rutinas").upsert({ user_id:authUser.id, routine:pending.routine }, { onConflict:"user_id" }).catch(()=>({error:true}));
@@ -2066,7 +2067,13 @@ function startSession(day){
            programadas, se rellenan con la última usada en la rutina. */
         sets = Array.from({length:parseInt(ex.series)||3}, (_,i)=>{
           const p = lastPerf[i] || lastPerf[lastPerf.length-1] || {};
-          return { kg: parseFloat(p.kg) ?? (parseFloat(ex.peso_kg)||0), reps: parseInt(p.reps) ?? (parseInt(ex.reps)||8), done:false };
+          const kg = parseFloat(p.kg);
+          const reps = parseInt(p.reps);
+          return {
+            kg: Number.isFinite(kg) ? kg : (parseFloat(ex.peso_kg)||0),
+            reps: Number.isFinite(reps) ? reps : (parseInt(ex.reps)||8),
+            done:false
+          };
         });
       } else {
         sets = Array.from({length:parseInt(ex.series)||3}, ()=>({ kg:parseFloat(ex.peso_kg)||0, reps:parseInt(ex.reps)||8, done:false }));

@@ -4,7 +4,6 @@
    Edita los datos aquí y vuelve a ejecutar para regenerar el xlsx.
 */
 const XLSX = require("xlsx");
-const fs = require("fs");
 
 /* ------------------------------------------------------------------
    RUTINA BASE — edita libremente esta estructura

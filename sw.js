@@ -25,6 +25,15 @@ self.addEventListener('activate', event => {
   );
 });
 
+/* Fallback offline para evitar responder con undefined (rompe el fetch) */
+const OFFLINE_RESPONSE = new Response('', { status: 504, statusText: 'Offline', headers: { 'Content-Type': 'text/plain' } });
+function isSupabaseUrl(url) {
+  return url.hostname === 'supabase.co' ||
+         url.hostname.endsWith('.supabase.co') ||
+         url.hostname === 'supabase.in' ||
+         url.hostname.endsWith('.supabase.in');
+}
+
 self.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -32,7 +41,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
 
   // No interceptar Supabase (auth + datos) — siempre en red
-  if (url.origin.includes('supabase.co')) return;
+  if (isSupabaseUrl(url)) return;
 
   // rutina.xlsx: network-first con fallback a caché.
   // La app la pide con cache:"no-store" — sin esto el SW serviría
@@ -47,7 +56,7 @@ self.addEventListener('fetch', event => {
           return response;
         }
         return caches.match(request);
-      }).catch(() => caches.match(request))
+      }).catch(() => caches.match(request)).then(res => res || OFFLINE_RESPONSE)
     );
     return;
   }
@@ -61,7 +70,7 @@ self.addEventListener('fetch', event => {
             if (response && response.ok) cache.put(request, response.clone());
             return response;
           }).catch(() => cached);
-          return cached || fetched;
+          return (cached || fetched) || OFFLINE_RESPONSE;
         })
       )
     );
@@ -78,7 +87,7 @@ self.addEventListener('fetch', event => {
         }
         return response;
       }).catch(() => cached);
-      return cached || networkFetch;
+      return (cached || networkFetch) || OFFLINE_RESPONSE;
     })
   );
 });

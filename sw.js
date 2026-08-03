@@ -4,8 +4,7 @@ const CORE_ASSETS = [
   './',
   './index.html',
   './xlsx.full.min.js',
-  './rutina.xlsx',
-  './example.html'
+  './rutina.xlsx'
 ];
 
 self.addEventListener('install', event => {

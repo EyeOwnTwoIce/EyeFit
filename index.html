@@ -926,6 +926,13 @@ let restTotal = 0;
 let restPaused = false;
 let restActive = false;
 
+function clearRestTimer(){
+  if(restTimer){
+    clearInterval(restTimer);
+    restTimer = null;
+  }
+}
+
 function startRest(seconds){
   clearRestTimer();
   restRemaining = seconds;
@@ -991,22 +998,6 @@ function renderHistorial(){
   // Seguridad: si no hay historial, mostrar vacío
   const history = getHistory();
   if(!history || history.length === 0){
-    return `<div class="section active">
-      <h2 class="title">📈 Historial</h2>
-      <div class="empty-state">
-        <div style="font-size:30px;margin-bottom:10px;">🗓️</div>
-        Aún no hay sesiones completadas.<br>
-        Termina tu primer entrenamiento en <b>Sesión</b> y aparecerá aquí.
-      </div>
-    </div>`;
-  }
-
-  const totalSessions = history.length;
-  const totalTime = history.reduce((a,h) => a + (h.duration || 0), 0);
-  const totalExercises = history.reduce((a,h) => a + h.exercises.filter(e => e.completed).length, 0);
-  const totalSets = history.reduce((a,h) => a + h.exercises.reduce((b,e) => b + e.sets.filter(s => s.done).length, 0), 0);
-  const history = getHistory();
-  if(history.length === 0){
     return `<div class="section active">
       <h2 class="title">📈 Historial</h2>
       <div class="empty-state">

@@ -77,6 +77,10 @@ begin
 end;
 $$;
 
+-- Revocar EXECUTE de anon/public: esta función es solo un trigger interno
+-- y NO debe ser llamable como RPC por clientes no autenticados
+revoke execute on function public.set_rutinas_updated_at() from anon, public;
+
 create trigger set_rutinas_updated_at
   before update on public.rutinas
   for each row execute function public.set_rutinas_updated_at();

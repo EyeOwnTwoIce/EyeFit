@@ -324,10 +324,6 @@
   .auth-btn{ width:100%; background:var(--accent); color:#000; border:none; border-radius:10px; padding:13px; font-size:14px; font-weight:800; cursor:pointer; margin-top:2px; }
   .auth-btn:disabled{ opacity:.5; }
   .auth-error{ color:var(--danger); font-size:11.5px; min-height:16px; margin-top:10px; text-align:center; }
-  .auth-offline{
-    margin-top:16px; text-align:center; font-size:11px; color:var(--muted); text-decoration:underline;
-    background:none; border:none; cursor:pointer;
-  }
   .auth-info{ margin-top:12px; text-align:center; font-size:10px; color:var(--muted); line-height:1.6; }
 
   /* ===== Num pad + slider ===== */
@@ -456,7 +452,6 @@
     <input type="password" class="auth-input" id="authPass" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="current-password">
     <button class="auth-btn" id="authSubmit">Acceder</button>
     <div class="auth-error" id="authError"></div>
-    <button class="auth-offline" id="authSkip">Continuar sin conexión (solo este dispositivo)</button>
     <div class="auth-info">🔒 Protegido con cifrado de última generación (bcrypt + JWT)<br>Tu historial se sincroniza entre dispositivos</div>
   </div>
 </div>
@@ -874,13 +869,17 @@ function errToString(err){
   return "Error de conexión";
 }
 
+function isEmailVerified(user){
+  return !!(user && (user.email_confirmed_at || user.email_verified === true));
+}
+
 async function handleAuthSubmit(){
   const email = document.getElementById("authEmail").value.trim();
   const pass = document.getElementById("authPass").value;
   const errEl = document.getElementById("authError");
   const btn = document.getElementById("authSubmit");
   errEl.textContent = "";
-  if(!sbClient){ errEl.textContent = "🌐 Sin conexión al servidor. Usa el modo sin conexión."; return; }
+  if(!sbClient){ errEl.textContent = "🌐 Sin conexión al servidor. No puedes acceder ahora."; return; }
   if(!email || !pass){ errEl.textContent = "Introduce email y contraseña"; return; }
   if(pass.length < 6){ errEl.textContent = "La contraseña debe tener al menos 6 caracteres"; return; }
   btn.disabled = true; btn.textContent = "…";
@@ -902,6 +901,14 @@ async function handleAuthSubmit(){
         errEl.textContent = "⚠️ Email no confirmado o credenciales incorrectas";
       }
       btn.disabled = false; btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
+      return;
+    }
+    /* Verificar que el email esté confirmado antes de permitir el acceso */
+    if(!isEmailVerified(user)){
+      await sbClient.auth.signOut().catch(()=>{});
+      errEl.textContent = "⚠️ Debes confirmar tu email antes de acceder. Revisa tu bandeja de entrada.";
+      btn.disabled = false;
+      btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
       return;
     }
     authUser = user;
@@ -1777,10 +1784,6 @@ document.querySelectorAll("[data-auth-tab]").forEach(btn=>{
 });
 document.getElementById("authSubmit").addEventListener("click", handleAuthSubmit);
 document.getElementById("authPass").addEventListener("keydown", e=>{ if(e.key==="Enter") handleAuthSubmit(); });
-document.getElementById("authSkip").addEventListener("click", ()=>{
-  showAuthOverlay(false);
-  showToast("📴 Modo sin conexión: los datos se guardan solo en este dispositivo");
-});
 
 /* ================================================================
    UTILIDADES
@@ -1914,8 +1917,13 @@ function startSession(day){
     try{
       const { data: authData } = await sbClient.auth.getSession();
       authUser = authData.session ? authData.session.user : null;
-      if(authUser) authenticated = true;
-      else showAuthOverlay(true);
+      /* Solo permitir acceso si el email está verificado */
+      if(authUser && isEmailVerified(authUser)) authenticated = true;
+      else{
+        if(authUser) await sbClient.auth.signOut().catch(()=>{});
+        authUser = null;
+        showAuthOverlay(true);
+      }
     }catch(e){ showAuthOverlay(true); }
   } else {
     showAuthOverlay(true);

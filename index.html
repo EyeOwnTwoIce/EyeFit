@@ -508,16 +508,18 @@ let sbClient = null;
 let authUser = null;
 try{ if(window.supabase) sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }catch(e){}
 
-/* ---------- PWA Manifest ---------- */
+/* ---------- PWA Manifest ----------
+   Las URLs deben ser ABSOLUTAS: el manifest se sirve desde un Blob URL
+   y las rutas relativas se resolverían contra blob:... (inválido). */
 const manifest = {
   name: "EyeFit", short_name: "EyeFit",
   description: "Entrenamiento Lunes-Viernes sincronizado en la nube",
-  start_url: "./", display: "standalone",
+  start_url: new URL("./", location.href).href, display: "standalone",
   background_color: "#0A0A0A", theme_color: "#0A0A0A",
   icons: [
-    { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
-    { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },
-    { src: "icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
+    { src: new URL("icons/icon-192.png", location.href).href, sizes: "192x192", type: "image/png" },
+    { src: new URL("icons/icon-512.png", location.href).href, sizes: "512x512", type: "image/png" },
+    { src: new URL("icons/icon-512.png", location.href).href, sizes: "512x512", type: "image/png", purpose: "maskable" }
   ]
 };
 const manifestBlob = new Blob([JSON.stringify(manifest)], {type:"application/json"});

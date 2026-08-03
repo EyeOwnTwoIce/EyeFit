@@ -13,8 +13,11 @@ create table if not exists public.rutinas (
 );
 
 -- 2) Migrar datos existentes (si la tabla vieja tiene filas)
-insert into public.rutinas (user_id, routine, created_at, updated_at)
-select user_id, routine, created_at, updated_at
+--    Solo copiamos user_id + routine: la tabla nueva rellena
+--    created_at/updated_at con sus valores por defecto (la tabla
+--    antigua "routinas" no siempre tiene esas columnas)
+insert into public.rutinas (user_id, routine)
+select user_id, routine
 from public.routinas
 on conflict (user_id) do nothing;
 

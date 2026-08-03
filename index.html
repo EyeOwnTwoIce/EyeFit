@@ -852,6 +852,28 @@ function formatInstructions(text){
 let authMode = "login";
 function showAuthOverlay(show){ document.getElementById("authOverlay").classList.toggle("show", show); }
 
+/* Convierte un error de Supabase/red a texto legible.
+   Filtra mensajes vacíos o inútiles ({} , "", etc.) para no mostrar
+   objetos crudos en pantalla. */
+function errToString(err){
+  if(!err) return "Error de conexión";
+  if(typeof err === "string") return err.trim() ? err : "Error de conexión";
+  const rawMsg = err.message;
+  if(typeof rawMsg === "string" && rawMsg.trim() && rawMsg.trim() !== "{}") return rawMsg.trim();
+  if(err.name === "AuthRetryableFetchError" || err.status >= 500){
+    return "⚠️ Error del servidor de EyeFit. Está caído o en mantenimiento. Inténtalo más tarde.";
+  }
+  for(const k of ["msg","error_description","error"]){
+    const v = err[k];
+    if(typeof v === "string" && v.trim() && v.trim() !== "{}") return v.trim();
+  }
+  try{
+    const s = JSON.stringify(err);
+    if(s && s !== "{}" && s !== '""' && s !== "null" && s !== '{"message":"{}"}') return s;
+  }catch(e){}
+  return "Error de conexión";
+}
+
 async function handleAuthSubmit(){
   const email = document.getElementById("authEmail").value.trim();
   const pass = document.getElementById("authPass").value;
@@ -887,7 +909,7 @@ async function handleAuthSubmit(){
     btn.disabled = false;
     btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
   }catch(err){
-    errEl.textContent = (err && err.message ? String(err.message) : "Error de conexión");
+    errEl.textContent = errToString(err);
     btn.disabled = false;
     btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
   }

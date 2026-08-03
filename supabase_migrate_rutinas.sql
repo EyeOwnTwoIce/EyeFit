@@ -1,9 +1,9 @@
 -- ════════════════════════════════════════════════════════════════
--- EyeFit — Setup completo de Supabase
+-- EyeFit — Migración: tabla "routinas" → "rutinas" (ortografía correcta)
 -- Ejecuta este script en Supabase Dashboard → SQL Editor
 -- ════════════════════════════════════════════════════════════════
 
--- 1) Tabla "rutinas" (una fila por usuario con su rutina en JSONB)
+-- 1) Crear la tabla correcta "rutinas" (misma estructura que "routinas")
 create table if not exists public.rutinas (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references auth.users(id) on delete cascade,
@@ -12,21 +12,15 @@ create table if not exists public.rutinas (
   updated_at timestamptz not null default now()
 );
 
--- 2) Tabla "sesiones" (historial de entrenamientos por usuario)
-create table if not exists public.sesiones (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  data jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
+-- 2) Migrar datos existentes (si la tabla vieja tiene filas)
+insert into public.rutinas (user_id, routine, created_at, updated_at)
+select user_id, routine, created_at, updated_at
+from public.routinas
+on conflict (user_id) do nothing;
 
-create index if not exists sesiones_user_idx on public.sesiones(user_id);
-
--- 3) Row Level Security
+-- 3) RLS en "rutinas"
 alter table public.rutinas enable row level security;
-alter table public.sesiones enable row level security;
 
--- Políticas rutinas
 drop policy if exists "rutinas_select_own" on public.rutinas;
 create policy "rutinas_select_own"
   on public.rutinas for select
@@ -47,23 +41,7 @@ create policy "rutinas_delete_own"
   on public.rutinas for delete
   using (auth.uid() = user_id);
 
--- Políticas sesiones
-drop policy if exists "sesiones_select_own" on public.sesiones;
-create policy "sesiones_select_own"
-  on public.sesiones for select
-  using (auth.uid() = user_id);
-
-drop policy if exists "sesiones_insert_own" on public.sesiones;
-create policy "sesiones_insert_own"
-  on public.sesiones for insert
-  with check (auth.uid() = user_id);
-
-drop policy if exists "sesiones_delete_own" on public.sesiones;
-create policy "sesiones_delete_own"
-  on public.sesiones for delete
-  using (auth.uid() = user_id);
-
--- 4) Trigger updated_at con search_path fijo (evita el lint "mutable search_path")
+-- 4) Trigger updated_at con search_path fijo (mismo fix que supabase_fix_trigger.sql)
 drop trigger if exists set_rutinas_updated_at on public.rutinas;
 
 create or replace function public.set_rutinas_updated_at()
@@ -81,5 +59,8 @@ create trigger set_rutinas_updated_at
   before update on public.rutinas
   for each row execute function public.set_rutinas_updated_at();
 
--- 5) Limpieza de la antigua tabla mal escrita "routinas" (si existía de versiones previas)
+-- 5) Eliminar la tabla vieja "routinas" (tras migrar: ya no usamos la app)
 drop table if exists public.routinas;
+
+-- 6) Renombrar función vieja del trigger (ya no se usa)
+drop function if exists public.set_updated_at();

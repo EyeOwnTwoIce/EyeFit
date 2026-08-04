@@ -3,8 +3,8 @@
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync
    - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
-const CACHE = "eyefit-vmsekcxv9";
-const CORE_ASSETS = ["./","./index.html","./styles.68daba14.css","./app.2caedb5d.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
+const CACHE = "eyefit-vmsekwtkr";
+const CORE_ASSETS = ["./","./index.html","./styles.68daba14.css","./app.687887b7.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
 
 /* Shell offline: página mínima para un cold-load sin red */
 const OFFLINE_SHELL = `<!DOCTYPE html>

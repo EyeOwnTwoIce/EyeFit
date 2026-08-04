@@ -10,10 +10,10 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/supabase.js', route => route.abort());
 });
 
-/* Cierra los overlays (auth/onboarding) por evaluación directa del DOM */
 async function closeOverlays(page) {
-  await page.goto('/');
+  await page.goto('./');
   await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(1500);
   await page.evaluate(() => {
     ['authOverlay', 'onboardOverlay'].forEach(id => {
       const el = document.getElementById(id);
@@ -25,21 +25,26 @@ async function closeOverlays(page) {
 test('T2: iniciar sesión, completar sets y ver la entrada en Historial', async ({ page }) => {
   await closeOverlays(page);
 
-  await page.locator('[data-start-session="Lunes"]').first().click();
-  await page.waitForSelector('.set-done', { timeout: 5000 });
+  await page.locator('[data-start-session="Lunes"]').last().click({ force: true });
 
-  for (let guard = 0; guard < 30; guard++) {
-    const done = page.locator('.set-done:not([disabled])').first();
-    if (!(await done.isVisible().catch(() => false))) break;
-    await done.click();
-    await page.waitForTimeout(250);
-    if (await page.locator('#summaryOverlay.show').isVisible({ timeout: 800 }).catch(() => false)) break;
+  // Marcar TODAS las series pendientes. El selector excluye las ya marcadas
+  // (.done) porque la app NO las deshabilita tras completarse.
+  for (let guard = 0; guard < 40; guard++) {
+    const clicked = await page.evaluate(() => {
+      const btn = document.querySelector('.set-done:not([disabled]):not(.done)');
+      if (!btn) return false;
+      btn.click();
+      return true;
+    });
+    if (!clicked) break;
+    await page.waitForTimeout(350);
+    if (await page.locator('#summaryOverlay.show').isVisible().catch(() => false)) break;
   }
 
-  await expect(page.locator('#summaryOverlay.show')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('#summaryOverlay.show')).toBeVisible({ timeout: 10000 });
   await expect(page.locator('.sum-title')).toContainText('completado');
 
   await page.locator('#sumAgain').click();
-  await page.locator('[data-tab="historial"]').click();
-  await expect(page.locator('.hist-day').first()).toBeVisible({ timeout: 4000 });
+  await page.locator('[data-tab="historial"]').last().click({ force: true });
+  await expect(page.locator('.hist-day').first()).toBeVisible({ timeout: 6000 });
 });

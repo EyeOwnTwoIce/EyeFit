@@ -897,31 +897,48 @@ function renderSesion(){
   const setRows = ex.sets.map((set,si)=>{
     const currentSet = ex.currentSet === si+1;
     const done = set.done;
-    const canDel = !done && ex.sets.length>1;
-    return `<div class="set-row" style="${currentSet?"border:1px solid var(--accent);":""}">
-      <span class="set-num">${si+1}</span>
-      <div class="set-control">
-        <button class="stepper" data-kg-minus="${si}" aria-label="Reducir peso de la serie ${si+1}">−</button>
-        <div style="text-align:center;min-width:36px;">
-          <div class="set-value" data-edit="${si}" data-field="kg" role="button" tabindex="0" aria-label="Editar peso de la serie ${si+1} (${set.kg} kg)">${set.kg}</div>
-          <div class="set-label">kg</div>
+    return `<div class="set-row ${done?"done-row":""}" data-swipe-set="${si}" style="${currentSet?"border:1px solid var(--accent);":""}">
+      <div class="set-swipe-bg"><span>🗑 Eliminar</span></div>
+      <div class="set-row-content">
+        <span class="set-num">${si+1}</span>
+        <div class="set-control">
+          <button class="stepper" data-kg-minus="${si}" aria-label="Reducir peso de la serie ${si+1}">−</button>
+          <div style="text-align:center;min-width:36px;">
+            <div class="set-value" data-edit="${si}" data-field="kg" role="button" tabindex="0" aria-label="Editar peso de la serie ${si+1} (${set.kg} kg)">${set.kg}</div>
+            <div class="set-label">kg</div>
+          </div>
+          <button class="stepper" data-kg-plus="${si}" aria-label="Aumentar peso de la serie ${si+1}">+</button>
+          <div style="width:6px;"></div>
+          <button class="stepper" data-reps-minus="${si}" aria-label="Reducir repeticiones de la serie ${si+1}">−</button>
+          <div style="text-align:center;min-width:30px;">
+            <div class="set-value" data-edit="${si}" data-field="reps" role="button" tabindex="0" aria-label="Editar repeticiones de la serie ${si+1} (${set.reps} reps)">${set.reps}</div>
+            <div class="set-label">reps</div>
+          </div>
+          <button class="stepper" data-reps-plus="${si}" aria-label="Aumentar repeticiones de la serie ${si+1}">+</button>
         </div>
-        <button class="stepper" data-kg-plus="${si}" aria-label="Aumentar peso de la serie ${si+1}">+</button>
-        <div style="width:6px;"></div>
-        <button class="stepper" data-reps-minus="${si}" aria-label="Reducir repeticiones de la serie ${si+1}">−</button>
-        <div style="text-align:center;min-width:30px;">
-          <div class="set-value" data-edit="${si}" data-field="reps" role="button" tabindex="0" aria-label="Editar repeticiones de la serie ${si+1} (${set.reps} reps)">${set.reps}</div>
-          <div class="set-label">reps</div>
-        </div>
-        <button class="stepper" data-reps-plus="${si}" aria-label="Aumentar repeticiones de la serie ${si+1}">+</button>
+        <button class="set-done ${done?"done":""}" data-set-done="${si}" ${currentSet&&!done?"":done?"":"disabled"} aria-label="${done?`Serie ${si+1} completada`:`Marcar serie ${si+1} como completada`}" aria-pressed="${done}">✓</button>
       </div>
-      <button class="set-done ${done?"done":""}" data-set-done="${si}" ${currentSet&&!done?"":done?"":"disabled"} aria-label="${done?`Serie ${si+1} completada`:`Marcar serie ${si+1} como completada`}" aria-pressed="${done}">✓</button>
-      ${canDel?`<button class="del-set-btn" data-set-del="${si}" aria-label="Eliminar serie ${si+1}">🗑</button>`:""}
     </div>`;
   }).join("");
 
   const completedEx = session.exercises.filter(e=>e.completed).length;
   const nextEx = session.currentIdx+1 < session.exercises.length ? session.exercises[session.currentIdx+1] : null;
+  const instr = formatInstructions(getInstrucciones(ex));
+
+  /* Lista de ejercicios pendientes (reordenable con flechas) */
+  const upcoming = session.exercises.slice(session.currentIdx+1).map((u,i)=>{
+    const absIdx = session.currentIdx+1+i;
+    const col = DAY_COLORS[day]||"#fff";
+    return `<div class="up-row">
+      <div class="up-arrows">
+        <button class="up-arrow" data-move-up="${absIdx}" ${i===0?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia arriba">↑</button>
+        <button class="up-arrow" data-move-down="${absIdx}" ${absIdx===session.exercises.length-1?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia abajo">↓</button>
+      </div>
+      <span class="up-num" style="color:${col}">${u.orden}</span>
+      <span class="up-name">${escapeHtml(getApodo(u))}</span>
+      <span class="up-sets">${u.sets.filter(s=>s.done).length}/${u.sets.length}</span>
+    </div>`;
+  }).join("");
 
   return `<div class="section active session-view">
     <div class="session-progress">
@@ -938,16 +955,26 @@ function renderSesion(){
         <span class="ex-active-count">${session.currentIdx+1} / ${totalEx}</span>
       </div>
       <div class="ex-active-body">
-        ${imgUrl ? `<img class="ex-active-img" src="${imgUrl}" alt="${escapeHtml(apodo)}" loading="lazy" decoding="async" data-img-fallback="hide">` : ""}
+        ${imgUrl ? `<div class="ex-img-wrap" data-img-zoom aria-label="Ampliar GIF de ${escapeHtmlAttr(apodo)}" role="button" tabindex="0">
+          <img class="ex-active-img" src="${imgUrl}" alt="${escapeHtml(apodo)}" loading="lazy" decoding="async" data-img-fallback="hide">
+          <div class="ex-img-zoom-hint">⛶</div>
+        </div>` : ""}
         ${variantes ? `<button class="variant-btn" data-open-variants>↔️ ${variantes}</button>` : ""}
       </div>
+      ${instr ? `<button class="ex-instr-btn" data-instr-session-toggle>📖 Instrucciones</button>
+      <div class="ex-instr-session" data-instr-session-body>${instr}</div>` : ""}
     </div>
 
     <div class="sets-grid">
       ${setRows}
       <button class="add-set-btn" data-add-set aria-label="Añadir una serie extra">＋ Añadir serie</button>
-      ${nextEx ? `<div style="text-align:center;color:var(--muted);font-size:10px;padding:4px 0 8px;">Siguiente: <b style="color:${DAY_COLORS[day]||"#fff"}">${escapeHtml(getApodo(nextEx))}</b></div>` : ""}
+      ${nextEx ? `<div class="sess-next-hint">Siguiente: <b style="color:${DAY_COLORS[day]||"#fff"}">${escapeHtml(getApodo(nextEx))}</b></div>` : ""}
     </div>
+
+    ${upcoming ? `<div class="up-list">
+      <div class="up-title">⏭ Pendientes (toca flechas para reordenar)</div>
+      ${upcoming}
+    </div>` : ""}
   </div>`;
 }
 
@@ -1074,9 +1101,32 @@ let restRemaining = 0;
 let restTotal = 0;
 let restPaused = false;
 let restActive = false;
+let restEndTime = 0;      /* Timestamp (ms) cuando termina el descanso */
+let restPausedRemaining = 0; /* Segundos restantes congelados cuando se pausa */
 
 function clearRestTimer(){
   if(restTimer){ clearInterval(restTimer); restTimer = null; }
+}
+
+/* Fix cronómetro: se usa un timestamp absoluto (restEndTime) en lugar de
+   decrementar un contador con setInterval. Así, si la app pasa a segundo
+   plano o se bloquea el dispositivo, al volver el descanso refleja el
+   tiempo REAL transcurrido. */
+function recomputeRestRemaining(){
+  if(!restActive || restPaused) return;
+  if(restEndTime <= 0){
+    restRemaining = 0;
+    return;
+  }
+  restRemaining = Math.max(0, Math.round((restEndTime - Date.now())/1000));
+}
+
+function getRestState(){
+  if(!restActive) return null;
+  if(restPaused){
+    return { remaining: restPausedRemaining, total: restTotal, paused: true, endTime: 0 };
+  }
+  return { remaining: restRemaining, total: restTotal, paused: false, endTime: restEndTime };
 }
 
 function startRest(seconds){
@@ -1084,6 +1134,8 @@ function startRest(seconds){
   restRemaining = seconds;
   restTotal = seconds;
   restPaused = false;
+  restPausedRemaining = seconds;
+  restEndTime = Date.now() + seconds*1000;
   restActive = true;
   const bar = document.getElementById("restBar");
   if(bar){
@@ -1094,20 +1146,22 @@ function startRest(seconds){
   }
   restTimer = setInterval(()=>{
     if(restPaused) return;
+    recomputeRestRemaining();
     if(restRemaining <= 0){
       restFinished();
       return;
     }
-    restRemaining--;
     renderRestTime();
     if(restRemaining <= 3 && restRemaining > 0) vibrate(60);
     if(restRemaining === 0) vibrate([100,80,100]);
-  }, 1000);
+  }, 500);
 }
 
 function stopRest(){
   clearRestTimer();
   restActive = false;
+  restEndTime = 0;
+  restPausedRemaining = 0;
   const bar = document.getElementById("restBar");
   if(bar) bar.style.display = "none";
 }
@@ -1115,6 +1169,7 @@ function stopRest(){
 function restFinished(){
   clearRestTimer();
   restActive = false;
+  restEndTime = 0;
   const bar = document.getElementById("restBar");
   if(bar) bar.style.display = "none";
   vibrate([150,100,150]);
@@ -1452,33 +1507,197 @@ function attachEvents(){
         startRest(ex.descanso_s);
         renderMain();
       } else {
+        /* Última serie del ejercicio: descanso antes de pasar al siguiente */
         ex.completed = true;
-        stopRest();
         if(session.currentIdx+1 < session.exercises.length){
           session.currentIdx++;
+          startRest(ex.descanso_s); /* Descanso inter-ejercicio */
           renderMain();
         } else {
+          /* Fin de la sesión */
+          stopRest();
           showSummary();
         }
       }
     });
   });
-  /* Eliminar una serie */
-  document.querySelectorAll("[data-set-del]").forEach(btn=>{
+  /* Eliminar una serie completada mediante swipe (confirmación visual) */
+  let swipeDeleteSet = null;
+  function askDeleteSet(si, rowEl){
+    if(!session) return;
+    swipeDeleteSet = si;
+    const ov = document.getElementById("swipeConfirmOverlay");
+    if(ov){
+      const ex = session.exercises[session.currentIdx];
+      const set = ex.sets[si];
+      document.getElementById("swipeConfirmText").textContent =
+        `¿Eliminar la serie ${si+1} (${set.kg}kg × ${set.reps})?`;
+      ov.classList.add("show");
+      setFocusTrap("swipeConfirmOverlay", ov);
+    }
+  }
+  /* Swipe a la izquierda en la fila de la serie */
+  function attachSwipeRow(row){
+    if(!row || row._swipeAttached) return;
+    row._swipeAttached = true;
+    let startX = 0, startY = 0, currentX = 0, dragging = false, locked = false;
+    const content = row.querySelector(".set-row-content");
+    const SWIPE_LIMIT = 90;
+    function setOffset(off){
+      currentX = Math.max(-SWIPE_LIMIT, Math.min(0, off));
+      if(content) content.style.transform = `translateX(${currentX}px)`;
+    }
+    row.addEventListener("touchstart", (e)=>{
+      if(row.classList.contains("swiped")) return;
+      const t = e.touches[0];
+      startX = t.clientX; startY = t.clientY; dragging = true;
+      locked = false;
+    }, { passive:true });
+    row.addEventListener("touchmove", (e)=>{
+      if(!dragging) return;
+      const t = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      /* Evitar conflicto con scroll vertical */
+      if(!locked){
+        if(Math.abs(dy) > Math.abs(dx)){ dragging = false; return; }
+        locked = true;
+      }
+      if(locked) setOffset(dx);
+    }, { passive:true });
+    row.addEventListener("touchend", ()=>{
+      if(!dragging) return;
+      dragging = false;
+      if(currentX <= -SWIPE_LIMIT/2){
+        row.classList.add("swiped");
+        setOffset(-SWIPE_LIMIT);
+        /* Mostrar confirmación visual */
+        const si = parseInt(row.dataset.swipeSet);
+        askDeleteSet(si, row);
+      } else {
+        setOffset(0);
+      }
+    }, { passive:true });
+    /* Fallback ratón para escritorio */
+    row.addEventListener("mousedown", (e)=>{
+      if(row.classList.contains("swiped")) return;
+      startX = e.clientX; startY = e.clientY; dragging = true; locked = false;
+    });
+    window.addEventListener("mousemove", (e)=>{
+      if(!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if(!locked){
+        if(Math.abs(dy) > Math.abs(dx)){ dragging = false; return; }
+        locked = true;
+      }
+      if(locked) setOffset(dx);
+    });
+    window.addEventListener("mouseup", ()=>{
+      if(!dragging) return;
+      dragging = false;
+      if(currentX <= -SWIPE_LIMIT/2){
+        row.classList.add("swiped");
+        setOffset(-SWIPE_LIMIT);
+        const si = parseInt(row.dataset.swipeSet);
+        askDeleteSet(si, row);
+      } else {
+        setOffset(0);
+      }
+    });
+    /* Tocar otra serie cierra las abiertas */
+    row.addEventListener("click", ()=>{
+      if(row.classList.contains("swiped")) return;
+      document.querySelectorAll(".set-row.swiped").forEach(r=>{
+        if(r !== row){
+          r.classList.remove("swiped");
+          const c = r.querySelector(".set-row-content");
+          if(c) c.style.transform = "translateX(0)";
+        }
+      });
+    });
+  }
+  document.querySelectorAll(".set-row[data-swipe-set]").forEach(attachSwipeRow);
+  /* Botón confirmar eliminación por swipe */
+  document.getElementById("swipeConfirmOk").addEventListener("click", ()=>{
+    const ov = document.getElementById("swipeConfirmOverlay");
+    ov.classList.remove("show");
+    setFocusTrap("swipeConfirmOverlay", null);
+    if(!session || swipeDeleteSet === null) return;
+    const ex = session.exercises[session.currentIdx];
+    if(ex.sets.length <= 1){
+      showToast("⚠️ No puedes eliminar la única serie");
+      document.querySelectorAll(".set-row.swiped").forEach(r=>{
+        r.classList.remove("swiped");
+        const c = r.querySelector(".set-row-content");
+        if(c) c.style.transform = "translateX(0)";
+      });
+      swipeDeleteSet = null;
+      return;
+    }
+    ex.sets.splice(swipeDeleteSet,1);
+    if(ex.currentSet > swipeDeleteSet+1) ex.currentSet--;
+    if(ex.currentSet > ex.sets.length) ex.currentSet = ex.sets.length;
+    if(ex.currentSet < 1) ex.currentSet = 1;
+    if(ex.sets.every(s=>s.done)) ex.completed = true; else ex.completed = false;
+    saveSessionState();
+    renderMain();
+    showToast("🗑️ Serie eliminada");
+    swipeDeleteSet = null;
+  });
+  document.getElementById("swipeConfirmCancel").addEventListener("click", ()=>{
+    document.getElementById("swipeConfirmOverlay").classList.remove("show");
+    setFocusTrap("swipeConfirmOverlay", null);
+    /* Cerrar el swipe abierto */
+    document.querySelectorAll(".set-row.swiped").forEach(r=>{
+      r.classList.remove("swiped");
+      const c = r.querySelector(".set-row-content");
+      if(c) c.style.transform = "translateX(0)";
+    });
+    swipeDeleteSet = null;
+  });
+  /* Ampliar GIF (overlay) */
+  document.querySelectorAll("[data-img-zoom]").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      const img = el.querySelector("img");
+      if(!img || !img.src) return;
+      const zoomImg = document.getElementById("zoomImg");
+      zoomImg.src = img.src;
+      zoomImg.alt = img.alt || "";
+      document.getElementById("imgZoomOverlay").classList.add("show");
+      setFocusTrap("imgZoomOverlay", document.getElementById("imgZoomOverlay"));
+    });
+    el.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        el.click();
+      }
+    });
+  });
+  /* Instrucciones en sesión (colapsable) */
+  document.querySelectorAll("[data-instr-session-toggle]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const body = document.querySelector(`[data-instr-session-body]`);
+      if(body){
+        body.classList.toggle("show");
+        btn.textContent = body.classList.contains("show") ? "📖 Ocultar" : "📖 Instrucciones";
+      }
+    });
+  });
+  /* Reordenar ejercicios pendientes */
+  document.querySelectorAll("[data-move-up],[data-move-down]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       if(!session) return;
-      const ex = session.exercises[session.currentIdx];
-      const si = parseInt(btn.dataset.setDel);
-      if(ex.sets.length<=1) return;
-      if(confirm("¿Eliminar la serie "+(si+1)+"?")){
-        ex.sets.splice(si,1);
-        if(ex.currentSet > si+1) ex.currentSet--;
-        if(ex.currentSet > ex.sets.length) ex.currentSet = ex.sets.length;
-        if(ex.currentSet < 1) ex.currentSet = 1;
-        if(ex.sets.every(s=>s.done)) ex.completed = true; else ex.completed = false;
-        saveSessionState();
-        renderMain();
-      }
+      const idx = parseInt(btn.dataset.moveUp ?? btn.dataset.moveDown);
+      const dir = btn.dataset.moveUp ? -1 : 1;
+      const j = idx + dir;
+      if(j < 0 || j >= session.exercises.length) return;
+      const arr = session.exercises;
+      [arr[idx], arr[j]] = [arr[j], arr[idx]];
+      /* Reasignar orden visual (1..n) */
+      arr.forEach((e,i)=>{ e.orden = i+1; });
+      saveSessionState();
+      renderMain();
     });
   });
   /* Añadir una serie extra */
@@ -1672,6 +1891,19 @@ document.getElementById("varClose").addEventListener("click", ()=>{
   document.getElementById("varOverlay").classList.remove("show");
 });
 
+/* Zoom de imagen: cerrar al tocar fuera o con el botón */
+document.getElementById("zoomClose").addEventListener("click", (e)=>{
+  e.stopPropagation();
+  setFocusTrap("imgZoomOverlay", null);
+  document.getElementById("imgZoomOverlay").classList.remove("show");
+});
+document.getElementById("imgZoomOverlay").addEventListener("click", (e)=>{
+  if(e.target === document.getElementById("imgZoomOverlay")){
+    setFocusTrap("imgZoomOverlay", null);
+    document.getElementById("imgZoomOverlay").classList.remove("show");
+  }
+});
+
 /* Auth overlay */
 function updateAuthTabs(){
   document.querySelectorAll("[data-auth-tab]").forEach(b=>b.classList.toggle("active", b.dataset.authTab===authMode));
@@ -1727,25 +1959,54 @@ function setFocusTrap(id, el){
 /* Persistencia de sesión activa */
 function saveSessionState(){
   if(!session) return;
-  session.restState = restActive ? { remaining: restRemaining, total: restTotal, paused: restPaused } : null;
+  session.restState = getRestState();
   lsSet(K.session, session);
 }
 function clearSessionState(){ localStorage.removeItem(K.session); localStorage.removeItem(K.sets); }
+function restoreRestState(st){
+  if(!st) return;
+  restTotal = st.total || 0;
+  restPaused = !!st.paused;
+  if(st.paused){
+    /* Descanso pausado: congelado en remaining segundos */
+    restPausedRemaining = st.remaining || 0;
+    restRemaining = restPausedRemaining;
+    restEndTime = 0;
+    restActive = restRemaining > 0;
+  } else if(st.endTime && st.endTime > 0){
+    /* Descanso activo: recalcular el tiempo REAL transcurrido */
+    restActive = true;
+    restEndTime = st.endTime;
+    restPausedRemaining = st.remaining || 0;
+    recomputeRestRemaining();
+    if(restRemaining <= 0){
+      /* El descanso ya terminó mientras la app estaba cerrada */
+      restActive = false;
+      restEndTime = 0;
+      restPausedRemaining = 0;
+      return;
+    }
+  } else {
+    /* Fallback legacy (formatos antiguos guardados sin endTime) */
+    restRemaining = st.remaining || 0;
+    restActive = restRemaining > 0;
+    restEndTime = restActive ? Date.now() + restRemaining*1000 : 0;
+    restPausedRemaining = restRemaining;
+  }
+  if(restActive){
+    const bar = document.getElementById("restBar");
+    if(bar){
+      bar.style.display = "flex";
+      renderRestTime();
+    }
+  }
+}
 function restoreSession(){
   const saved = lsGet(K.session, null);
   if(saved && saved.exercises && Array.isArray(saved.exercises) && saved.exercises.length && !saved.saved){
     session = rebaseElapsed(saved, Date.now());
     stopRest();
-    if(saved.restState){
-      restRemaining = saved.restState.remaining || 0;
-      restTotal = saved.restState.total || 0;
-      restPaused = !!saved.restState.paused;
-      restActive = restRemaining > 0;
-      if(restActive){
-        const bar = document.getElementById("restBar");
-        if(bar){ bar.style.display = "flex"; renderRestTime(); }
-      }
-    }
+    restoreRestState(saved.restState || null);
   }
 }
 
@@ -1800,22 +2061,44 @@ function startSession(day){
   document.querySelectorAll(".tabbtn").forEach(btn=>{
     btn.addEventListener("click", ()=>setTab(btn.dataset.tab));
   });
-  /* Botones de descanso: se enlazan UNA sola vez (evita listeners duplicados del bug ±15s) */
+  /* Botones de descanso: se enlazan UNA sola vez (evita listeners duplicados del bug ±15s).
+     Con el timer por timestamps: al reanudar tras pausa se recalcula endTime; al sumar/restar
+     15s se desplaza endTime para mantener sincronía con el reloj real. */
   document.querySelectorAll("[data-rest]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       if(btn.dataset.rest==="skip"){ stopRest(); }
-      else if(btn.dataset.rest==="toggle"){ restPaused = !restPaused; renderRestTime(); }
+      else if(btn.dataset.rest==="toggle"){
+        if(restActive && !restPaused){
+          /* Pausar: congelar remaining y anular endTime */
+          recomputeRestRemaining();
+          restPausedRemaining = restRemaining;
+          restPaused = true;
+          restEndTime = 0;
+        } else if(restActive && restPaused){
+          /* Reanudar: relanzar endTime desde remaining congelado */
+          restPaused = false;
+          restEndTime = Date.now() + Math.max(0, restPausedRemaining)*1000;
+        }
+        renderRestTime();
+      }
       else if(btn.dataset.rest==="minus15"){
+        recomputeRestRemaining();
         restRemaining = Math.max(0, restRemaining-15);
         if(restRemaining <= 0){ restFinished(); return; }
         restTotal = restRemaining;
+        restPausedRemaining = restRemaining;
+        if(!restPaused) restEndTime = Date.now() + restRemaining*1000;
         renderRestTime();
       }
       else if(btn.dataset.rest==="plus15"){
+        recomputeRestRemaining();
         restRemaining += 15;
         restTotal = restRemaining;
+        restPausedRemaining = restRemaining;
+        if(!restPaused) restEndTime = Date.now() + restRemaining*1000;
         renderRestTime();
       }
+      saveSessionState();
     });
   });
   const fileInput = document.getElementById("fileInput");
@@ -1979,12 +2262,30 @@ function persistActiveSession(){
 }
 window.addEventListener("pagehide", persistActiveSession);
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState === "hidden") persistActiveSession();
+  if(document.visibilityState === "hidden"){
+    persistActiveSession();
+  } else if(document.visibilityState === "visible"){
+    /* Al volver a la app: recalcular el descanso con el tiempo real */
+    if(restActive && !restPaused){
+      recomputeRestRemaining();
+      if(restRemaining <= 0){
+        restFinished();
+      } else {
+        renderRestTime();
+      }
+    }
+    /* Sincronizar pendientes al volver */
+    if(authUser && sbClient && navigator.onLine){
+      scheduleSync().then(()=>{
+        if(currentTab === "ajustes") renderMain();
+      });
+    }
+  }
 });
 
 document.addEventListener("keydown", (e)=>{
   if(e.key === "Escape"){
-    for(const id of ["numOverlay","varOverlay","authOverlay","summaryOverlay"]){
+    for(const id of ["numOverlay","varOverlay","authOverlay","summaryOverlay","imgZoomOverlay","swipeConfirmOverlay"]){
       const el = document.getElementById(id);
       if(el && el.classList.contains("show")){
         setFocusTrap(id, null);

@@ -35,7 +35,7 @@
 <link rel="preconnect" href="https://vkaxxphminfinufitcyp.supabase.co">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.e7a24714.css">
+<link rel="stylesheet" href="styles.68daba14.css">
 </head>
 <body>
 <div id="app">
@@ -123,7 +123,26 @@
   <button class="var-close" id="varClose">Cancelar</button>
 </div>
 
-<!-- Onboarding -->
+<!-- Ampliación GIF del ejercicio -->
+<div id="imgZoomOverlay" role="dialog" aria-modal="true" aria-label="Ejercicio ampliado" tabindex="-1">
+  <div class="zoom-wrap">
+    <img id="zoomImg" class="zoom-img" alt="" decoding="async">
+    <button class="zoom-close" id="zoomClose" aria-label="Cerrar imagen ampliada">✕</button>
+  </div>
+</div>
+
+<!-- Confirmación eliminación por swipe -->
+<div id="swipeConfirmOverlay" role="dialog" aria-modal="true" aria-label="Confirmar eliminación de serie" tabindex="-1">
+  <div class="swipe-confirm-card">
+    <div class="swipe-confirm-title">🗑️ Eliminar serie</div>
+    <div class="swipe-confirm-text" id="swipeConfirmText">¿Eliminar esta serie?</div>
+    <div class="swipe-confirm-btns">
+      <button class="btn btn-outline" id="swipeConfirmCancel">Cancelar</button>
+      <button class="btn btn-danger" id="swipeConfirmOk">Sí, eliminar</button>
+    </div>
+  </div>
+</div>
+
 <div id="onboardOverlay" role="dialog" aria-modal="true" aria-label="Bienvenido a EyeFit" tabindex="-1">
   <div class="onb-card">
     <div class="onb-title" id="onbTitle">👁️ Bienvenido a EyeFit</div>
@@ -139,6 +158,6 @@
 <script src="utils.js" defer></script>
 <script src="db.js" defer></script>
 <script src="supabase.js" defer></script>
-<script src="app.836de8b0.js" defer></script>
+<script src="app.2caedb5d.js" defer></script>
 </body>
 </html>

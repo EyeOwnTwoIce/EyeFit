@@ -39,9 +39,23 @@ jobs:
         env:
           CI: 1
 
+  lighthouse:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+      - run: npx http-server dist -p 4174 -c-1 & sleep 3 && npx lhci autorun --config=.lighthouserc.js
+        env:
+          CI: 1
+
   deploy-pages:
     runs-on: ubuntu-latest
-    needs: [build-test, e2e]
+    needs: [build-test, e2e, lighthouse]
     if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages

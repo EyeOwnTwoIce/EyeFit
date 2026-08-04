@@ -1913,14 +1913,81 @@ function updateAuthTabs(){
 document.querySelectorAll("[data-auth-tab]").forEach(btn=>{
   btn.addEventListener("click", ()=>{ authMode = btn.dataset.authTab; document.getElementById("authError").textContent = ""; updateAuthTabs(); });
 });
-document.getElementById("authSubmit").addEventListener("click", handleAuthSubmit);
-document.getElementById("authPass").addEventListener("keydown", e=>{ if(e.key==="Enter") handleAuthSubmit(); });
+const authForm = document.getElementById("authForm");
+if(authForm){
+  /* El botón Acceder ya no recarga la página: prevenir submit nativo */
+  authForm.addEventListener("submit", (e)=>{
+    e.preventDefault();
+    handleAuthSubmit();
+  });
+}
 /* B3: continuar sin conexión esconde el overlay y deja usar la app en local */
 document.getElementById("authSkip").addEventListener("click", ()=>{
   authUser = null;
   showAuthOverlay(false);
   renderMain();
 });
+
+/* ── Auto-login con autorrelleno (autofill) sin tocar el botón ──
+   El autofill del navegador puede no disparar eventos input/change.
+   1) Detectamos el relleno CSS de Chrome (input:-webkit-autofill via animationstart)
+   2) Un pequeño poller comprueba si email+pass están completos y aún no
+      se intentó el login, y lo envía automáticamente. */
+let autofillPollTimer = null;
+let autofillLastChecked = "";
+function maybeAutofillLogin(){
+  const emailInput = document.getElementById("authEmail");
+  const passInput = document.getElementById("authPass");
+  const errEl = document.getElementById("authError");
+  const overlay = document.getElementById("authOverlay");
+  if(!emailInput || !passInput || !overlay) return;
+  /* Solo en modo login y con el overlay visible */
+  if(authMode !== "login" || !overlay.classList.contains("show")) return;
+  /* No reenviar si ya hay un intento en curso (botón disabled) */
+  if(document.getElementById("authSubmit").disabled) return;
+  const signature = emailInput.value.trim() + "|" + passInput.value;
+  if(signature === autofillLastChecked) return; /* sin cambios */
+  autofillLastChecked = signature;
+  if(emailInput.value.trim() && passInput.value.length >= 6){
+    /* Ambos campos rellenos: login automático */
+    if(errEl) errEl.textContent = "";
+    handleAuthSubmit();
+  }
+}
+function ensureAutofillListener(){
+  /* Detección vía animationstart (Chrome dispara este evento al autocompletar) */
+  const emailInput = document.getElementById("authEmail");
+  const passInput = document.getElementById("authPass");
+  for(const el of [emailInput, passInput]){
+    if(!el || el._autofillWatched) continue;
+    el._autofillWatched = true;
+    el.addEventListener("animationstart", (e)=>{
+      if(e.animationName && e.animationName.startsWith && e.animationName.startsWith("authfill")){
+        maybeAutofillLogin();
+      }
+    });
+  }
+  /* Poller ligero cada 700ms: cubre Safari/iOS y casos sin animationstart */
+  if(!autofillPollTimer){
+    autofillPollTimer = setInterval(()=>{
+      maybeAutofillLogin();
+    }, 700);
+  }
+}
+/* Añadir la keyframe authfill al CSS para que Chrome la dispare al autofill */
+(function injectAuthfillKeyframes(){
+  try{
+    if(document.getElementById("authfill-keyframes")) return;
+    const style = document.createElement("style");
+    style.id = "authfill-keyframes";
+    style.textContent = `
+      @keyframes authfill { from {} to {} }
+      input:-webkit-autofill { animation-name: authfill; }
+    `;
+    document.head.appendChild(style);
+  }catch(e){}
+})();
+ensureAutofillListener();
 
 /* ================================================================
    UTILIDADES

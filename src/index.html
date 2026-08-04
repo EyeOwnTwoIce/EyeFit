@@ -96,9 +96,11 @@
       <button data-auth-tab="login" class="active" role="tab" aria-selected="true">Acceder</button>
       <button data-auth-tab="register" role="tab" aria-selected="false">Registrarse</button>
     </div>
-    <input type="email" class="auth-input" id="authEmail" placeholder="Email" autocomplete="email" autocapitalize="off" spellcheck="false">
-    <input type="password" class="auth-input" id="authPass" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="current-password">
-    <button class="auth-btn" id="authSubmit">Acceder</button>
+    <form id="authForm" autocomplete="on">
+      <input type="email" class="auth-input" id="authEmail" placeholder="Email" autocomplete="email" autocapitalize="off" spellcheck="false">
+      <input type="password" class="auth-input" id="authPass" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="current-password">
+      <button type="submit" class="auth-btn" id="authSubmit">Acceder</button>
+    </form>
     <div class="auth-error" id="authError"></div>
     <div class="auth-info">🔒 Protegido con cifrado de última generación (bcrypt + JWT)<br>Tu historial se sincroniza entre dispositivos</div>
     <button class="btn btn-outline" id="authSkip" style="width:100%;margin-top:8px;display:none;">📴 Continuar sin conexión</button>

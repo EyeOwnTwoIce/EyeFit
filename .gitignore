@@ -6,6 +6,9 @@ test-results/
 playwright-report/
 playwright/.cache/
 
+# Lighthouse CI
+.lighthouseci/
+
 # macOS
 .DS_Store
 **/.DS_Store

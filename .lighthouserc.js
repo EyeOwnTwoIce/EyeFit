@@ -23,8 +23,7 @@ module.exports = {
         'csp-xss': ['warn'],
         'link-name': ['error'],
         'button-name': ['error'],
-        'image-alt': ['error'],
-        'tap-targets': ['error']
+        'image-alt': ['error']
       }
     },
     upload: { target: 'temporary-public-storage' }

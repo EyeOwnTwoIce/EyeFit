@@ -49,9 +49,7 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build
-      - run: npx http-server dist -p 4174 -c-1 & sleep 3 && npx lhci autorun --config=.lighthouserc.js
-        env:
-          CI: 1
+      - run: npx lhci autorun --config=.lighthouserc.js
 
   deploy-pages:
     runs-on: ubuntu-latest

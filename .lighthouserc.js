@@ -1,9 +1,10 @@
-/* EyeFit — Lighthouse CI budgets (perf ≥95, a11y ≥95, etc.) */
+/* EyeFit — Lighthouse CI budgets (perf ≥95, a11y ≥95, seo ≥95, etc.)
+   staticDistDir: lhci sirve dist/ él mismo (determinista, sin servidor externo) */
 'use strict';
 module.exports = {
   ci: {
     collect: {
-      url: ['http://localhost:4173/'],
+      staticDistDir: 'dist',
       numberOfRuns: 1,
       settings: {
         preset: 'desktop',

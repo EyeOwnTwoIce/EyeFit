@@ -5,9 +5,21 @@
   "main": "index.html",
   "scripts": {
     "generate": "node generate_rutina.js",
-    "test": "node --test tests/*.test.js"
+    "build": "node scripts/build.js",
+    "gen:slim-data": "node scripts/generate_slim_dataset.js",
+    "test": "node --test tests/*.test.js",
+    "test:e2e": "npm run build && playwright test",
+    "lighthouse": "npm run build && npx http-server dist -p 4173 -c-1 & lhci autorun"
   },
   "dependencies": {
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "esbuild": "^0.28.1",
+    "http-server": "^14.1.1"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
   }
 }

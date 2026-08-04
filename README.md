@@ -34,6 +34,8 @@ python3 -m http.server 8000
 > ⚠️ La app usa Supabase y el Service Worker; para probar el registro/sincronización es recomendable servirla por HTTPS o localhost (`http://localhost` también funciona con los flujos de Supabase).
 >
 > ℹ️ Desde la **v1.3.1** el dataset se cachea en la **Cache API** (no en `localStorage`), evitando el límite de ~5MB de iOS.
+>
+> ℹ️ Desde la **v2.0.0** el manifest es un archivo estático (`manifest.json`), la app es instalable en Chromium/Android y el Service Worker incluye un offline shell y Background Sync para la subida de sesiones pendientes.
 
 ### 2. Instalar en iPhone 15 (pantalla de inicio)
 
@@ -134,15 +136,19 @@ Pasos tras crear un proyecto en Supabase:
 EyeFit/
 ├── index.html            ★ La app completa (PWA single-file)
 ├── utils.js              Utilidades puras compartidas (navegador + tests)
+├── manifest.json         Manifest PWA estático (instalable)
 ├── rutina.xlsx           ★ La hoja de cálculo de la rutina (edítala aquí)
-├── sw.js                 Service Worker (caché offline)
+├── sw.js                 Service Worker (caché offline + Background Sync)
 ├── xlsx.full.min.js      Librería SheetJS (parseo de .xlsx)
 ├── generate_rutina.js    Script para regenerar rutina.xlsx
 ├── generate_icons.js     Script para regenerar los iconos PNG
 ├── supabase_setup.sql    Setup SQL del backend (tablas, RLS, triggers)
 ├── supabase_email_template.html  Plantilla de email de confirmación (opcional)
 ├── tests/                Tests unitarios (node:test → `npm test`)
-├── package.json          Dependencias Node (solo para regenerar el .xlsx)
+├── .eslintrc.json        Config ESLint
+├── .prettierrc           Config Prettier
+├── .github/workflows/ci.yml  CI (test + lint en cada PR/push)
+├── CHANGELOG.md          Registro de cambios
 └── README.md             Esta documentación
 ```
 
@@ -155,7 +161,7 @@ EyeFit/
 - **Supabase** para auth (email + contraseña) y sincronización de rutina/historial
 - **SheetJS** ([SheetJS Community Edition](https://sheetjs.com/)) para leer/escribir .xlsx
 - **exercises-dataset** ([GitHub](https://github.com/hasaneyldrm/exercises-dataset)) — CC-BY-4.0, 1.324 ejercicios con imágenes e instrucciones multilingües
-- **PWA**: manifest embebido + Service Worker para offline
+- **PWA**: manifest.json estático (instalable en Chromium) + Service Worker con offline shell y Background Sync
 - **Diseño iPhone 15**: max-width 393px, safe-areas (Dynamic Island + home indicator), bottom tab bar, haptics
 
 ---

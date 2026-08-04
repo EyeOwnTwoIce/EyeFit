@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EyeFit">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://raw.githubusercontent.com; connect-src 'self' https://*.supabase.co https://raw.githubusercontent.com; manifest-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
+<meta name="theme-color" content="#0A0A0A">
+<title>EyeFit — Rutina Lunes-Viernes offline y sincronizada</title>
+<meta name="description" content="EyeFit: app de entrenamiento privada con rutinas Lunes-Viernes, historial con progresión 1RM, racha y sincronización opcional en la nube.">
+<meta name="theme-color" content="#0A0A0A">
+<meta property="og:type" content="website">
+<meta property="og:title" content="EyeFit — Rutina de entrenamiento semanal">
+<meta property="og:description" content="Tus rutinas Lunes-Viernes, historial y progresión 1RM. Funciona offline y se sincroniza en la nube.">
+<meta property="og:image" content="icons/icon-512.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="EyeFit — Rutina de entrenamiento semanal">
+<meta name="twitter:description" content="Tus rutinas Lunes-Viernes, historial y progresión 1RM.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "EyeFit",
+  "description": "App de entrenamiento privada con rutinas Lunes-Viernes, historial con progresión 1RM y sincronización en la nube.",
+  "applicationCategory": "HealthApplication",
+  "operatingSystem": "iOS, Android, Web",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+}
+</script>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://raw.githubusercontent.com">
+<link rel="preconnect" href="https://vkaxxphminfinufitcyp.supabase.co">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="<!--EYEFIT_CSS-->">
+</head>
+<body>
+<div id="app">
+  <header id="appHeader">
+    <div class="header-main">
+      <h1>👁️ EyeFit</h1>
+      <button class="stop-btn" id="stopSessionBtn" style="display:none;" aria-label="Detener sesión">⏹ STOP</button>
+    </div>
+    <!-- Barra de descanso superior: se vacía hacia la izquierda, no oculta el ejercicio siguiente -->
+    <div class="rest-bar" id="restBar" style="display:none;">
+      <div class="rest-bar-fill" id="restBarFill"></div>
+      <div class="rest-bar-time" id="restBarTime">1:00</div>
+      <div class="rest-bar-btns">
+        <button class="rest-mini" data-rest="minus15" aria-label="Restar 15 segundos">−15</button>
+        <button class="rest-mini" data-rest="plus15" aria-label="Añadir 15 segundos">+15</button>
+        <button class="rest-mini" data-rest="toggle" id="restPauseBtn" aria-label="Pausar/reanudar descanso">⏸</button>
+        <button class="rest-mini" data-rest="skip" aria-label="Saltar descanso">⏭</button>
+      </div>
+    </div>
+  </header>
+  <main id="main"></main>
+  <nav class="tabbar" id="tabbar">
+    <button class="tabbtn" data-tab="rutina" aria-label="Ver rutina"><span class="ic">📅</span>Rutina</button>
+    <button class="tabbtn" data-tab="sesion" aria-label="Entrenar"><span class="ic">🏋️</span>Entrenar</button>
+    <button class="tabbtn" data-tab="historial" aria-label="Ver historial"><span class="ic">📈</span>Historial</button>
+    <button class="tabbtn" data-tab="ajustes" aria-label="Ver ajustes"><span class="ic">⚙️</span>Ajustes</button>
+  </nav>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="fileInput" accept=".xlsx,.xls">
+  <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
+</div>
+
+<!-- Bocadillo de cómic motivador -->
+<div class="comic-overlay" id="comicOverlay">
+  <div class="comic-bubble" id="comicBubble" role="status" aria-live="polite">¡A POR ELLO!</div>
+</div>
+
+<!-- Resumen de sesión (guardado automático) -->
+<div class="summary-overlay" id="summaryOverlay" role="dialog" aria-modal="true" aria-label="Resumen del entrenamiento">
+  <div class="sum-title">🏆 ¡Entrenamiento completado!</div>
+  <div class="sum-sub" id="sumSub"></div>
+  <div class="sum-saved-msg" id="sumSavedMsg" role="status" aria-live="polite">✅ Sesión guardada</div>
+  <div class="sum-grid" id="sumGrid"></div>
+  <div id="sumExList"></div>
+  <div class="sum-btns">
+    <button class="sum-save" id="sumAgain">✅ Entrenar de nuevo</button>
+  </div>
+</div>
+
+<!-- Auth overlay -->
+<div id="authOverlay" role="dialog" aria-modal="true" aria-label="Acceder a EyeFit" tabindex="-1">
+  <div class="auth-card">
+    <div class="auth-logo">👁️</div>
+    <div class="auth-title">EyeFit</div>
+    <div class="auth-sub">Tu entrenamiento, sincronizado en la nube</div>
+    <div class="auth-tabs">
+      <button data-auth-tab="login" class="active" role="tab" aria-selected="true">Acceder</button>
+      <button data-auth-tab="register" role="tab" aria-selected="false">Registrarse</button>
+    </div>
+    <input type="email" class="auth-input" id="authEmail" placeholder="Email" autocomplete="email" autocapitalize="off" spellcheck="false">
+    <input type="password" class="auth-input" id="authPass" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="current-password">
+    <button class="auth-btn" id="authSubmit">Acceder</button>
+    <div class="auth-error" id="authError"></div>
+    <div class="auth-info">🔒 Protegido con cifrado de última generación (bcrypt + JWT)<br>Tu historial se sincroniza entre dispositivos</div>
+    <button class="btn btn-outline" id="authSkip" style="width:100%;margin-top:8px;display:none;">📴 Continuar sin conexión</button>
+  </div>
+</div>
+
+<!-- Num pad + slider -->
+<div id="numOverlay" role="dialog" aria-modal="true" aria-label="Editar peso o repeticiones" tabindex="-1">
+  <div class="num-label" id="numLabel">Peso (kg)</div>
+  <input type="number" class="num-input" id="numInput" inputmode="decimal" step="0.5" min="0">
+  <input type="range" class="num-slider" id="numSlider" min="0" max="200" step="0.5" value="0">
+  <div class="num-btns">
+    <button class="num-cancel" id="numCancel">Cancelar</button>
+    <button class="num-ok" id="numOk">OK</button>
+  </div>
+</div>
+
+<!-- Variantes -->
+<div id="varOverlay" role="dialog" aria-modal="true" aria-label="Ejercicios alternativos" tabindex="-1">
+  <div class="var-title">↔️ Ejercicios alternativos</div>
+  <div class="var-sub" id="varCurrentEx"></div>
+  <div class="var-grid" id="varList"></div>
+  <button class="var-close" id="varClose">Cancelar</button>
+</div>
+
+<!-- Onboarding -->
+<div id="onboardOverlay" role="dialog" aria-modal="true" aria-label="Bienvenido a EyeFit" tabindex="-1">
+  <div class="onb-card">
+    <div class="onb-title" id="onbTitle">👁️ Bienvenido a EyeFit</div>
+    <div class="onb-body" id="onbBody"></div>
+    <div class="onb-dots" id="onbDots" aria-hidden="true"></div>
+    <div class="onb-btns">
+      <button class="btn btn-outline" id="onbSkip">Omitir</button>
+      <button class="btn" id="onbNext">Siguiente</button>
+    </div>
+  </div>
+</div>
+
+<script src="utils.js" defer></script>
+<script src="db.js" defer></script>
+<script src="supabase.js" defer></script>
+<!--EYEFIT_APP_JS-->
+</body>
+</html>

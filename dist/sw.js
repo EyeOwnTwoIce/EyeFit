@@ -1,21 +1,10 @@
-/* EyeFit Service Worker — v5
-   - manifest.json estático en CORE_ASSETS
-   - cache versionada (bump manual por release)
+/* EyeFit Service Worker — template (build injecta CACHE + CORE_ASSETS)
+   - cache versionada (bump automático por hash de build)
    - offline fallback shell en vez de respuesta vacía
-   - Background Sync: navigator.sync → notifica a la app para scheduleSync */
-const CACHE = 'eyefit-v5';
-const CORE_ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './utils.js',
-  './xlsx.full.min.js',
-  './supabase.js',
-  './rutina.xlsx',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-180.png'
-];
+   - Background Sync: navigator.sync → notifica a la app para scheduleSync
+   - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
+const CACHE = "eyefit-vmsdwf75e";
+const CORE_ASSETS = ["./","./index.html","./styles.e7a24714.css","./app.836de8b0.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
 
 /* Shell offline: página mínima para un cold-load sin red */
 const OFFLINE_SHELL = `<!DOCTYPE html>
@@ -105,8 +94,8 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Dataset de ejercicios: stale-while-revalidate (cache + red en paralelo)
-  if (url.hostname === 'raw.githubusercontent.com') {
+  // slim-dataset.json: stale-while-revalidate (cache + red en paralelo)
+  if (url.pathname.endsWith('/slim-dataset.json')) {
     event.respondWith(
       caches.open(CACHE).then(cache =>
         cache.match(request).then(cached => {
@@ -121,18 +110,19 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Navegaciones: cache-first + red; si falla todo, shell offline
+  // Navegaciones: cache-first; si no hay caché, red y si falla → shell offline.
+  // (No devolver `undefined`: cause ERR_FAILED en recargas offline.)
   if (request.mode === 'navigate') {
     event.respondWith(
       caches.match(request).then(cached => {
-        const network = fetch(request).then(response => {
+        if (cached) return cached;
+        return fetch(request).then(response => {
           if (response && response.ok) {
             const clone = response.clone();
             caches.open(CACHE).then(cache => cache.put(request, clone));
           }
           return response;
-        }).catch(() => cached);
-        return (cached || network).catch(() =>
+        }).catch(() =>
           new Response(OFFLINE_SHELL, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
         );
       })

@@ -4,8 +4,10 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  getApodo, epley1RM, setVolume, formatRest, normalizeName,
-  buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine
+  getApodo, epley1RM, formatRest, normalizeName,
+  buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine,
+  escapeHtmlAttr, localDateKey, genUUID, clampNum, isValidDay, sanitizeRoutineRow,
+  rebaseElapsed, mergeHistoryBySessionId, DAY_ORDER, DEFAULT_ROUTINE, ALTERNATIVAS
 } = require('../utils.js');
 
 /* ============ getApodo ============ */
@@ -41,15 +43,6 @@ test('epley1RM: peso 0 → 0', () => {
 test('epley1RM: NaN en kg → 0 (sin NaN propagado)', () => {
   assert.equal(epley1RM(undefined, 10), 0);
   assert.equal(Number.isNaN(epley1RM(NaN, 10)), false);
-});
-
-/* ============ setVolume ============ */
-test('setVolume: peso × reps', () => {
-  assert.equal(setVolume(40, 8), 320);
-});
-
-test('setVolume: NaN → 0', () => {
-  assert.equal(setVolume(undefined, 8), 0);
 });
 
 /* ============ formatRest ============ */
@@ -195,4 +188,164 @@ test('sortRoutine: día desconocido va al final', () => {
   ];
   const sorted = sortRoutine(routine);
   assert.deepEqual(sorted.map(e => e.dia), ['Lunes', 'Viernes', 'Sabado']);
+});
+
+/* ============ escapeHtmlAttr (XSS fix) ============ */
+test('escapeHtmlAttr: escapa comillas, &, < > para atributos', () => {
+  assert.equal(escapeHtmlAttr('"><script>alert(1)</script>'),
+    '\u0026quot;\u0026gt;\u0026lt;script\u0026gt;alert(1)\u0026lt;/script\u0026gt;');
+});
+
+test('escapeHtmlAttr: tolera null/undefined/numbers', () => {
+  assert.equal(escapeHtmlAttr(null), '');
+  assert.equal(escapeHtmlAttr(undefined), '');
+  assert.equal(escapeHtmlAttr(42), '42');
+});
+
+/* ============ localDateKey (fix streak TZ) ============ */
+test('localDateKey: usa componentes locales, no UTC', () => {
+  const d = new Date(2026, 2, 8, 0, 30); // 8 marzo 00:30 hora local
+  const key = localDateKey(d);
+  const tzOff = -new Date(2026, 2, 8).getTimezoneOffset();
+  const expected = tzOff >= 0 ? '2026-03-08' : '2026-03-07';
+  assert.equal(key, expected);
+});
+
+test('localDateKey: fecha inválida → cadena vacía', () => {
+  assert.equal(localDateKey(new Date('invalid')), '');
+});
+
+/* ============ genUUID ============ */
+test('genUUID: genera un UUID v4 válido', () => {
+  const uuid = genUUID();
+  assert.match(uuid, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+});
+
+test('genUUID: genera valores únicos', () => {
+  const a = genUUID(), b = genUUID();
+  assert.notEqual(a, b);
+});
+
+/* ============ clampNum ============ */
+test('clampNum: limita dentro del rango', () => {
+  assert.equal(clampNum(250, 0, 200, 0), 200);
+  assert.equal(clampNum(-5, 0, 200, 0), 0);
+  assert.equal(clampNum(42.5, 0, 200, 0), 42.5);
+});
+
+test('clampNum: no numérico → fallback', () => {
+  assert.equal(clampNum('abc', 0, 200, 10), 10);
+  assert.equal(clampNum(NaN, 0, 200, 10), 10);
+});
+
+/* ============ isValidDay ============ */
+test('isValidDay: acepta días válidos y rechaza otros', () => {
+  assert.equal(isValidDay('Lunes'), true);
+  assert.equal(isValidDay('VIERNES'), true);
+  assert.equal(isValidDay('Sabado'), false);
+  assert.equal(isValidDay(''), false);
+  assert.equal(isValidDay(null), false);
+});
+
+/* ============ sanitizeRoutineRow (XLSX sanitize fix) ============ */
+test('sanitizeRoutineRow: normaliza día a DAY_ORDER y clamp numéricos', () => {
+  const r = sanitizeRoutineRow({
+    dia: ' lunes ', orden: 1, nombre_es: 'Press banca',
+    series: 99, reps: 999, peso_kg: 99999, descanso_s: -10
+  });
+  assert.equal(r.dia, 'Lunes');
+  assert.equal(r.series, 20);
+  assert.equal(r.reps, 100);
+  assert.equal(r.peso_kg, 500);
+  assert.equal(r.descanso_s, 0);
+});
+
+test('sanitizeRoutineRow: rechaza día desconocido o sin nombre', () => {
+  assert.equal(sanitizeRoutineRow({ dia: 'Sabado', nombre_es: 'X' }), null);
+  assert.equal(sanitizeRoutineRow({ dia: 'Lunes', nombre_es: '   ' }), null);
+  assert.equal(sanitizeRoutineRow(null), null);
+});
+
+test('sanitizeRoutineRow: no numéricos caen a defaults', () => {
+  const r = sanitizeRoutineRow({ dia: 'Lunes', nombre_es: 'X', series: 'abc', reps: 'abc', peso_kg: 'abc', descanso_s: 'abc' });
+  assert.equal(r.series, 3);
+  assert.equal(r.reps, 8);
+  assert.equal(r.peso_kg, 0);
+  assert.equal(r.descanso_s, 90);
+});
+
+/* ============ rebaseElapsed (fix duración inflada) ============ */
+test('rebaseElapsed: suma el gap wall-clock a baseElapsed', () => {
+  const saved = { startTime: 1000, baseElapsed: 60 };
+  const now = 1000 + 10 * 1000; // 10s después
+  const out = rebaseElapsed(saved, now);
+  assert.equal(out.baseElapsed, 70);
+  assert.equal(out.startTime, now);
+  assert.equal(out.saved, undefined);
+});
+
+test('rebaseElapsed: gap negativo se trunca a 0', () => {
+  const saved = { startTime: 1000, baseElapsed: 5 };
+  const out = rebaseElapsed(saved, 500);
+  assert.equal(out.baseElapsed, 5);
+});
+
+test('rebaseElapsed: sin startTime usa now como base', () => {
+  const out = rebaseElapsed({ baseElapsed: 10 }, 5000);
+  assert.equal(out.baseElapsed, 10);
+  assert.equal(out.startTime, 5000);
+});
+
+/* ============ mergeHistoryBySessionId (fix dedup + LWW) ============ */
+test('mergeHistoryBySessionId: dedup por session_id', () => {
+  const local = [{ session_id: 'a', date: '2026-01-01T10:00:00Z', day: 'Lunes', exercises: [] }];
+  const server = [{ session_id: 'a', date: '2026-01-01T10:00:00Z', day: 'Lunes', exercises: [] }];
+  const merged = mergeHistoryBySessionId(local, server);
+  assert.equal(merged.length, 1);
+});
+
+test('mergeHistoryBySessionId: mantiene dos sesiones del mismo día con session_id distinto', () => {
+  const local = [{ session_id: 'a', date: '2026-01-01T10:00:00Z', day: 'Lunes', exercises: [] }];
+  const server = [{ session_id: 'b', date: '2026-01-01T18:00:00Z', day: 'Lunes', exercises: [] }];
+  const merged = mergeHistoryBySessionId(local, server);
+  assert.equal(merged.length, 2);
+});
+
+test('mergeHistoryBySessionId: LWW por updated_at', () => {
+  const local = [{ session_id: 'a', date: '2026-01-01T10:00:00Z', day: 'Lunes', exercises: [{ nombre_es: 'LOCAL' }], updated_at: '2026-02-01T00:00:00Z' }];
+  const server = [{ session_id: 'a', date: '2026-01-01T10:00:00Z', day: 'Lunes', exercises: [{ nombre_es: 'SERVER' }], updated_at: '2026-03-01T00:00:00Z' }];
+  const merged = mergeHistoryBySessionId(local, server);
+  assert.equal(merged[0].exercises[0].nombre_es, 'SERVER');
+});
+
+test('mergeHistoryBySessionId: legacy sin session_id usa date+day como clave', () => {
+  const local = [{ date: '2026-01-01T10:00:00Z', day: 'Lunes', exercises: [] }];
+  const server = [{ date: '2026-01-01T10:00:00Z', day: 'Lunes', exercises: [] }];
+  const merged = mergeHistoryBySessionId(local, server);
+  assert.equal(merged.length, 1);
+});
+
+test('mergeHistoryBySessionId: descarta registros inválidos', () => {
+  const merged = mergeHistoryBySessionId([{ garbage: true }], [{ session_id: 'x', date: '2026-01-01T10:00:00Z', day: 'Lunes', exercises: [] }]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].session_id, 'x');
+});
+
+/* ============ Constants single-source ============ */
+test('constantes: DAY_ORDER tiene 5 días Lunes-Viernes', () => {
+  assert.deepEqual(DAY_ORDER, ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']);
+});
+
+test('constantes: DEFAULT_ROUTINE tiene ejercicios en días válidos', () => {
+  assert.ok(DEFAULT_ROUTINE.length > 0);
+  for (const ex of DEFAULT_ROUTINE) {
+    assert.ok(DAY_ORDER.includes(ex.dia), `día ${ex.dia} válido`);
+    assert.ok(ex.nombre_es && ex.dataset, `ejercicio ${ex.nombre_es} completo`);
+  }
+});
+
+test('constantes: ALTERNATIVAS cubre ejercicios de la rutina por defecto', () => {
+  for (const ex of DEFAULT_ROUTINE) {
+    assert.ok(ALTERNATIVAS[ex.dataset], `ALTERNATIVAS contiene ${ex.dataset}`);
+  }
 });

@@ -11,7 +11,7 @@ module.exports = defineConfig({
   reporter: [['list']],
   use: {
     baseURL: BASE_URL,
-    headless: false,
+    headless: process.env.CI ? true : false,
     trace: 'on-first-retry',
     viewport: { width: 393, height: 852 }
   },
@@ -22,6 +22,6 @@ module.exports = defineConfig({
     timeout: 30_000
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'], headless: false } }
+    { name: 'chromium', use: { ...devices['Desktop Chrome'], headless: process.env.CI ? true : false } }
   ]
 });

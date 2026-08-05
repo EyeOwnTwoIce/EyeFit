@@ -336,6 +336,16 @@ test('constantes: DAY_ORDER tiene 5 días Lunes-Viernes', () => {
   assert.deepEqual(DAY_ORDER, ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']);
 });
 
+test('constantes: DAY_SHORT incluye todos los días de la semana', () => {
+  assert.equal(DAY_SHORT.Lunes, 'LUN');
+  assert.equal(DAY_SHORT.Martes, 'MAR');
+  assert.equal(DAY_SHORT.Miércoles, 'MIÉ');
+  assert.equal(DAY_SHORT.Jueves, 'JUE');
+  assert.equal(DAY_SHORT.Viernes, 'VIE');
+  assert.equal(DAY_SHORT.Sábado, 'SÁB');
+  assert.equal(DAY_SHORT.Domingo, 'DOM');
+});
+
 test('constantes: DEFAULT_ROUTINE tiene ejercicios en días válidos', () => {
   assert.ok(DEFAULT_ROUTINE.length > 0);
   for (const ex of DEFAULT_ROUTINE) {

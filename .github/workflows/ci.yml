@@ -45,12 +45,18 @@ jobs:
         env:
           CI: 1
 
-  # Informativo y no bloqueante: los budgets de Lighthouse dependen del runner
+  # Informativo y no bloqueante: los budgets de Lighthouse dependen del runner.
+  # Se le da statuses:write + checks:write para que LHCI pueda publicar el
+  # estado en el commit y recibir el GITHUB_TOKEN (evita "GitHub token not set").
   lighthouse:
     runs-on: ubuntu-latest
     needs: build-test
     if: always()
     continue-on-error: true
+    permissions:
+      contents: read
+      statuses: write
+      checks: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,6 +67,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx lhci autorun --config=.lighthouserc.js
+        env:
+          LHCI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   deploy-pages:
     runs-on: ubuntu-latest

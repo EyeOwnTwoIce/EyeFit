@@ -37,6 +37,8 @@ const epley1RM = U.epley1RM;
    CONFIGURACIÓN DE ENTRENAMIENTO (doble progresión + RIR para hipertrofia)
    ================================================================ */
 const K_CONFIG = "eyefit_training_config_v1";
+const K_TRAIN_DAYS = "eyefit_training_days_v1";
+const DEFAULT_TRAIN_DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
 const TRAINING_DEFAULTS = {
   peso_corporal: 70,
   rango_compuesto_min: 6,
@@ -48,6 +50,16 @@ const TRAINING_DEFAULTS = {
   incremento_mancuerna: 2.0,
   tipo_progresion: "doble"  /* "doble" | "lineal" */
 };
+let trainingDays = [...DEFAULT_TRAIN_DAYS];
+function loadTrainingDays(){
+  try{
+    const d = lsGet(K_TRAIN_DAYS, null);
+    if(Array.isArray(d) && d.length) trainingDays = d.filter(x=>DAY_ORDER.includes(x) || x.includes("Sáb") || x.includes("Sábado") || x === "Sábado" || x === "Domingo");
+  }catch(e){}
+}
+function saveTrainingDays(){
+  lsSet(K_TRAIN_DAYS, trainingDays);
+}
 let trainingConfig = { ...TRAINING_DEFAULTS };
 function loadTrainingConfig(){
   try{
@@ -791,6 +803,7 @@ let routineEditMode = false;
 
 function renderMain(){
   const main = document.getElementById("main");
+  updateSessionHeader();
   if(routineEditMode && currentTab === "rutina"){
     const html = renderEditRoutine();
     if(main.innerHTML !== html){
@@ -812,32 +825,36 @@ function renderMain(){
    ================================================================ */
 function renderRutina(){
   const routine = getRoutine();
-  const days = DAY_ORDER.filter(d=>routine.some(e=>e.dia===d));
+  /* Todos los días de la semana: L-V con ejercicios, S-D como descanso */
+  const ALL_DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
   const todayName = getTodayName();
-  const defaultDay = selectedDay || (days.includes(todayName) ? todayName : days[0]) || "Lunes";
-  const sel = days.includes(defaultDay) ? defaultDay : days[0] || "Lunes";
+  const defaultDay = selectedDay || (ALL_DAYS.includes(todayName) ? todayName : "Lunes");
+  const sel = ALL_DAYS.includes(defaultDay) ? defaultDay : "Lunes";
   selectedDay = sel;
 
-  const noData = days.length===0;
+  const noData = routine.length===0;
   if(noData) return `<div class="section active">
     <h2 class="title">📅 Rutina Semanal</h2>
     <div class="empty-state">No hay rutina cargada.<br>Importa un .xlsx en Ajustes.</div>
   </div>`;
 
-  /* Vista tabla/calendario: columnas Lunes-Viernes, filas con ejercicios por día */
-  const maxEx = Math.max(...days.map(d=>routine.filter(e=>e.dia===d).length), 1);
-  const ths = days.map(d=>`<th style="color:${DAY_COLORS[d]||"#888"}">${DAY_SHORT[d]||d.slice(0,3)}</th>`).join("");
+  /* Vista tabla/calendario: columnas L-V + Sábado/Domingo vacíos como descanso */
+  const displayDays = ALL_DAYS;
+  const ths = displayDays.map(d=>`<th style="color:${DAY_COLORS[d]||"#888"}">${DAY_SHORT[d]||d.slice(0,3)}</th>`).join("");
 
-  const tds = days.map(d=>{
+  const tds = displayDays.map(d=>{
     const dayEx = routine.filter(e=>e.dia===d).sort((a,b)=>(a.orden||0)-(b.orden||0));
-    if(dayEx.length===0){
-      return `<td class="day-empty"><div class="rt-day-list"><li style="color:var(--muted);font-size:9px;text-align:center;">—</li></div>
+    const esDescanso = (d==="Sábado" || d==="Domingo");
+    if(esDescanso || dayEx.length===0){
+      return `<td class="day-empty"><div class="rt-day-rest">
+        <span>😴 Descanso</span>
+      </div>
         <button class="rt-edit-btn" data-edit-routine data-edit-routine-day="${escapeHtmlAttr(d)}">✏️ Editar</button></td>`;
     }
     const items = dayEx.map(e=>{
       const img = getExerciseImage(e, datasetCache);
       return `<li>
-        ${img?`<img class="rt-ex-img" src="${img}" alt="" loading="lazy" decoding="async">`:`<span class="rn">${e.orden}</span>`}
+        ${img?`<img class="rt-ex-img" src="${img}" alt="" loading="lazy" decoding="async" data-img-fallback="hide">`:`<span class="rn">${e.orden}</span>`}
         <span>${escapeHtml(getApodo(e))}</span>
       </li>`;
     }).join("");
@@ -848,17 +865,47 @@ function renderRutina(){
     </td>`;
   }).join("");
 
+  /* Cards del día seleccionado: apodo → GIF → series x reps */
+  const dayEx = routine.filter(e=>e.dia===sel).sort((a,b)=>(a.orden||0)-(b.orden||0));
+  const dayCards = dayEx.length===0
+    ? `<div class="empty-state">${sel} es día de descanso.<br>Pulsa «Editar» para añadir ejercicios si lo deseas.</div>`
+    : dayEx.map(e=>{
+        const img = getExerciseImage(e, datasetCache);
+        const instrRaw = getInstrucciones(e);
+        const key = String(e.datasetOriginal||e.dataset||e.nombre_es||"").trim().toLowerCase();
+        const best = getHistoricalBest(key);
+        const rmLabel = best && best.rm ? `${Math.round(best.rm)}kg 1RM` : "";
+        return `<div class="rt-ex-card">
+          <div class="rtc-name">${escapeHtml(getApodo(e))}</div>
+          ${img ? `<div class="rtc-img-wrap" data-img-zoom data-ex-name="${escapeHtmlAttr(e.nombre_es)}" data-ex-dataset="${escapeHtmlAttr(e.dataset||"")}" data-ex-dataset-original="${escapeHtmlAttr(e.datasetOriginal||"")}" data-img-instr="${escapeHtmlAttr(instrRaw)}" role="button" tabindex="0" aria-label="Ampliar GIF de ${escapeHtmlAttr(getApodo(e))}">
+            <img class="rtc-img" src="${img}" alt="${escapeHtml(getApodo(e))}" loading="lazy" decoding="async" data-img-fallback="hide">
+            <div class="rtc-zoom-hint">⛶</div>
+          </div>` : ""}
+          <div class="rtc-stats">
+            <span><b>${e.series}</b> series</span>
+            <span><b>${e.reps}</b> reps</span>
+            <span><b>${e.peso_kg}</b> kg</span>
+            ${rmLabel ? `<span>🏆 ${rmLabel}</span>` : ""}
+          </div>
+        </div>`;
+      }).join("");
+
   return `<div class="section active">
     <h2 class="title">📅 Rutina Semanal</h2>
     <div class="routine-table-wrap">
-      <table class="routine-table" aria-label="Rutina semanal de lunes a viernes">
+      <table class="routine-table" aria-label="Rutina semanal completa">
         <thead><tr>${ths}</tr></thead>
         <tbody><tr>${tds}</tr></tbody>
       </table>
     </div>
-    <div class="routine-edit-top">
-      <button class="btn" style="width:100%;padding:13px;" data-start-session="${escapeHtmlAttr(sel)}">🏋️ Entrenar — ${escapeHtmlAttr(sel)}</button>
+    <div class="rt-day-nav">
+      <span style="font-weight:800;font-size:13px;color:${DAY_COLORS[sel]||"#fff"};">${sel}</span>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-outline" data-edit-routine data-edit-routine-day="${escapeHtmlAttr(sel)}" style="min-height:36px;">✏️ Editar</button>
+        ${dayEx.length>0?`<button class="btn" style="min-height:36px;" data-start-session="${escapeHtmlAttr(sel)}">🏋️ Entrenar</button>`:""}
+      </div>
     </div>
+    <div class="rt-day-view">${dayCards}</div>
   </div>`;
 }
 
@@ -1306,10 +1353,9 @@ function renderSesion(){
   const day = session.day;
   const ex = session.exercises[session.currentIdx];
   const totalEx = session.exercises.length;
-  const prog = sessionProgress();
   const imgUrl = getExerciseImage(ex, datasetCache);
   const apodo = getApodo(ex);
-  const variantes = getVariants(ex).map(v=>v.nombre).join(" · ");
+  const hasVariants = getVariants(ex).length > 0;
 
   const setRows = ex.sets.map((set,si)=>{
     const currentSet = ex.currentSet === si+1;
@@ -1358,17 +1404,8 @@ function renderSesion(){
   }).join("");
 
   return `<div class="section active session-view">
-    <div class="session-progress">
-      <div class="sp-label">
-        <span>${session.day} · ${completedEx}/${totalEx} ejercicios</span>
-        <span class="sp-pct">${prog.pct}%</span>
-      </div>
-      <div class="sp-bar"><div class="sp-fill" style="width:${prog.pct}%"></div></div>
-    </div>
-
     <div class="ex-active-card">
       <div class="ex-active-header">
-        <span class="ex-active-name">${ex.orden}. ${escapeHtml(apodo)}</span>
         <span class="ex-active-count">${session.currentIdx+1} / ${totalEx}</span>
       </div>
       <div class="ex-active-body">
@@ -1377,7 +1414,7 @@ function renderSesion(){
           <div class="ex-img-zoom-hint">⛶</div>
         </div>` : ""}
         ${progressionBadgeHtml(ex, getHistory())}
-        ${variantes ? `<button class="variant-btn" data-open-variants>↔️ ${variantes}</button>` : ""}
+        ${hasVariants ? `<button class="variant-btn" data-open-variants>↔️ Sustituir</button>` : ""}
       </div>
       ${instr ? `<button class="ex-instr-btn" data-instr-session-toggle>📖 Instrucciones</button>
       <div class="ex-instr-session" data-instr-session-body>${instr}</div>` : ""}
@@ -1408,11 +1445,8 @@ function updateSessionSetValues(){
     if(kgEl) kgEl.textContent = set.kg;
     if(repsEl) repsEl.textContent = set.reps;
   });
-  const pct = sessionProgress();
-  const pctEl = document.querySelector(".sp-pct");
-  const fillEl = document.querySelector(".sp-fill");
-  if(pctEl) pctEl.textContent = pct.pct + "%";
-  if(fillEl) fillEl.style.width = pct.pct + "%";
+  /* Actualizar el header de sesión (nombre + % + barra de progreso) */
+  updateSessionHeader();
 }
 
 /* STOP + pantalla resumen (guardado automático) */
@@ -1740,9 +1774,10 @@ function renderHistorial(){
       <div class="hist-swipe-bg"><span>🗑 Eliminar</span></div>
       <div class="hist-content">
       <div class="hist-day-top">
-        <div class="hist-tri" style="border-top-color:${color}"></div>
+        <div class="hist-tri"></div>
         <span class="hist-day-name" style="color:${color}">${h.day}</span>
         <span class="hist-day-date">${dateStr} · ${mins}m ${secs}s</span>
+        <button class="hist-edit-btn" data-edit-hist="${escapeHtmlAttr(hi)}" aria-label="Editar sesión">✏️</button>
       </div>
       <div class="hist-day-body">
         <div class="hist-day-stats">${exDone.length} ejercicios · ${h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0)} series</div>
@@ -1821,6 +1856,24 @@ function renderAjustes(){
           <option value="doble" ${tc.tipo_progresion==="doble"?"selected":""}>Doble progresión</option>
           <option value="lineal" ${tc.tipo_progresion==="lineal"?"selected":""}>Lineal</option>
         </select>
+      </div>
+      <div class="prog-info">
+        <details>
+          <summary>ℹ️ ¿Qué tipo de progresión elegir?</summary>
+          <div class="prog-body">
+            <b style="color:var(--accent)">Doble progresión</b>: dentro de un rango de reps (p. ej. 6-10), primero subes repeticiones. Cuando llegas al tope del rango, subes el peso y vuelves a empezar desde el mínimo. Es el estándar de hipertrofia.
+            <br><br>
+            <b style="color:var(--accent)">Lineal</b>: subes peso cada sesión en cuanto alcanzas el tope del rango, sin variar reps. Más simple, pero el progreso se estanca antes.
+          </div>
+        </details>
+      </div>
+      <div class="set-row-item" style="flex-wrap:wrap;">
+        <div style="width:100%;"><div class="label">Días de entrenamiento</div><div class="desc">Elige qué días tienen rutina y se muestran en la semana</div></div>
+        <div class="train-days" style="width:100%;">
+          ${["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"].map(d=>`
+            <button class="train-day-chip ${trainingDays.includes(d)?"on":""}" data-train-day="${escapeHtmlAttr(d)}">${d}</button>
+          `).join("")}
+        </div>
       </div>
       <div class="set-row-item">
         <div><div class="label">Rango reps compuestos</div><div class="desc">Sentadilla, press banca, remo…</div></div>
@@ -2461,6 +2514,38 @@ function attachEvents(){
       }
     });
   });
+  /* Autoseleccionar el número original al enfocar un input numérico de entrenamiento */
+  document.querySelectorAll("[data-train-input]").forEach(input=>{
+    input.addEventListener("focus", ()=>{
+      setTimeout(()=>{ input.select(); }, 0);
+    });
+  });
+  /* Días de entrenamiento (chips) */
+  document.querySelectorAll("[data-train-day]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const d = btn.dataset.trainDay;
+      if(trainingDays.includes(d)){
+        trainingDays = trainingDays.filter(x=>x!==d);
+      } else {
+        trainingDays.push(d);
+      }
+      saveTrainingDays();
+      renderMain();
+      showToast("📅 Días de entrenamiento actualizados");
+    });
+  });
+  /* Editar sesión del historial */
+  document.querySelectorAll("[data-edit-hist]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const hi = parseInt(btn.dataset.editHist);
+      const history = getHistory();
+      const sorted = [...history].sort((a,b)=>new Date(b.date)-new Date(a.date));
+      const h = sorted[hi];
+      if(!h) return;
+      openEditHistSession(h);
+    });
+  });
   /* Guardar configuración de entrenamiento desde ajustes */
   document.querySelectorAll("[data-train-input]").forEach(input=>{
     input.addEventListener("change", ()=>{
@@ -2687,10 +2772,12 @@ function saveSessionState(){
   session.restState = getRestState();
   lsSet(K.session, session);
   renderSessionProgressBar();
+  updateSessionHeader();
 }
 function clearSessionState(){
   localStorage.removeItem(K.session); localStorage.removeItem(K.sets);
   renderSessionProgressBar();
+  updateSessionHeader();
 }
 function restoreRestState(st){
   if(!st) return;
@@ -2795,8 +2882,69 @@ function startSession(day){
 }
 
 /* ================================================================
-   BARRA DE PROGRESO DE SESIÓN EN EL HEADER
+   HEADER DE SESIÓN: nombre del ejercicio + cronómetro + % + barra
    ================================================================ */
+let sessionTimerInterval = null;
+
+function fmtDuration(secs){
+  const m = Math.floor(secs/60), s = Math.floor(secs%60);
+  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+
+function getSessionElapsed(){
+  if(!session) return 0;
+  return Math.floor((Date.now()-session.startTime)/1000)+session.baseElapsed;
+}
+
+function updateSessionHeader(){
+  const exNameEl = document.getElementById("sessionExName");
+  const timerEl = document.getElementById("sessionTimer");
+  const pctEl = document.getElementById("sessPct");
+  const dayEl = document.getElementById("sessDay");
+  const wrapEl = document.getElementById("sessProgressWrap");
+
+  if(!session){
+    if(exNameEl){ exNameEl.style.display = "none"; exNameEl.textContent = ""; }
+    if(timerEl){ timerEl.style.display = "none"; timerEl.textContent = "00:00"; }
+    if(wrapEl){ wrapEl.style.display = "none"; }
+    if(pctEl) pctEl.textContent = "0%";
+    if(dayEl) dayEl.textContent = "";
+    if(sessionTimerInterval){ clearInterval(sessionTimerInterval); sessionTimerInterval = null; }
+    return;
+  }
+
+  /* Nombre del ejercicio actual en el header */
+  const ex = session.exercises[session.currentIdx];
+  if(exNameEl){
+    exNameEl.style.display = "block";
+    exNameEl.textContent = ex ? getApodo(ex) : "";
+  }
+  /* Cronómetro (siempre visible con sesión activa, en todas las pestañas) */
+  if(timerEl){
+    timerEl.style.display = "inline-block";
+  }
+  if(wrapEl) wrapEl.style.display = "block";
+  if(dayEl) dayEl.textContent = session.day || "";
+  if(pctEl){
+    const p = sessionProgress();
+    pctEl.textContent = p.pct + "%";
+  }
+  renderSessionProgressBar();
+
+  if(!sessionTimerInterval){
+    sessionTimerInterval = setInterval(()=>{
+      if(!session){
+        if(sessionTimerInterval){ clearInterval(sessionTimerInterval); sessionTimerInterval = null; }
+        return;
+      }
+      const t = document.getElementById("sessionTimer");
+      if(t) t.textContent = fmtDuration(getSessionElapsed());
+    }, 1000);
+  }
+  const t = document.getElementById("sessionTimer");
+  if(t) t.textContent = fmtDuration(getSessionElapsed());
+}
+
 function renderSessionProgressBar(){
   const bar = document.getElementById("sessBar");
   if(!bar) return;
@@ -2820,6 +2968,12 @@ function renderSessionProgressBar(){
     </div>`;
   }).join("");
   bar.innerHTML = segs;
+  /* Actualizar el % del header */
+  const pctEl = document.getElementById("sessPct");
+  if(pctEl){
+    const p = sessionProgress();
+    pctEl.textContent = p.pct + "%";
+  }
 }
 
 /* ================================================================
@@ -2937,6 +3091,7 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
 
 (async function init(){
   loadTrainingConfig();
+  loadTrainingDays();
   await runMigrations();
   if(DB && !historyLoaded) await loadHistoryFromDB();
   let authenticated = false;

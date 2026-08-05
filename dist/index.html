@@ -8,24 +8,22 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="EyeFit">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://raw.githubusercontent.com; connect-src 'self' https://*.supabase.co https://raw.githubusercontent.com; manifest-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
-</｜｜DSML｜｜>
 <meta name="theme-color" content="#0A0A0A">
-<title>EyeFit — Rutina Lunes-Viernes offline y sincronizada</title>
-<meta name="description" content="EyeFit: app de entrenamiento privada con rutinas Lunes-Viernes, historial con progresión 1RM, racha y sincronización opcional en la nube.">
-<meta name="theme-color" content="#0A0A0A">
+<title>EyeFit — Rutina personalizada y sincronizada</title>
+<meta name="description" content="EyeFit: app de entrenamiento privada con rutinas personalizadas, historial con progresión 1RM, racha y sincronización opcional en la nube.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="EyeFit — Rutina de entrenamiento semanal">
-<meta property="og:description" content="Tus rutinas Lunes-Viernes, historial y progresión 1RM. Funciona offline y se sincroniza en la nube.">
+<meta property="og:description" content="Tus rutinas, historial y progresión 1RM. Funciona offline y se sincroniza en la nube.">
 <meta property="og:image" content="icons/icon-512.png">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="EyeFit — Rutina de entrenamiento semanal">
-<meta name="twitter:description" content="Tus rutinas Lunes-Viernes, historial y progresión 1RM.">
+<meta name="twitter:description" content="Tus rutinas, historial y progresión 1RM.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   "name": "EyeFit",
-  "description": "App de entrenamiento privada con rutinas Lunes-Viernes, historial con progresión 1RM y sincronización en la nube.",
+  "description": "App de entrenamiento privada con rutinas, historial con progresión 1RM y sincronización en la nube.",
   "applicationCategory": "HealthApplication",
   "operatingSystem": "iOS, Android, Web",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
@@ -36,17 +34,31 @@
 <link rel="preconnect" href="https://vkaxxphminfinufitcyp.supabase.co">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.bb221c53.css">
+<link rel="stylesheet" href="styles.c78f04cb.css">
 </head>
 <body>
 <div id="app">
   <header id="appHeader">
     <div class="header-main">
-      <h1>👁️ EyeFit</h1>
-      <button class="stop-btn" id="stopSessionBtn" style="display:none;" aria-label="Detener sesión">⏹ STOP</button>
+      <div class="header-title-wrap">
+        <h1 id="appTitle">👁️ EyeFit</h1>
+        <!-- Apodo del ejercicio en curso (visible solo con sesión activa) -->
+        <span class="session-ex-name" id="sessionExName" style="display:none;" aria-live="polite"></span>
+      </div>
+      <div class="header-actions">
+        <!-- Cronómetro de sesión a la izquierda del botón STOP -->
+        <span class="session-timer" id="sessionTimer" style="display:none;">00:00</span>
+        <button class="stop-btn" id="stopSessionBtn" style="display:none;" aria-label="Detener sesión">⏹ STOP</button>
+      </div>
     </div>
-    <!-- Barra de progreso de sesión (segmentos por ejercicio + marcas de series) -->
-    <div class="sess-bar" id="sessBar" aria-hidden="true"></div>
+    <!-- Barra de progreso de sesión con porcentaje (segmentos por ejercicio + marcas de series) -->
+    <div class="sess-progress-wrap" id="sessProgressWrap" style="display:none;">
+      <div class="sess-pct-row">
+        <span class="sess-pct" id="sessPct">0%</span>
+        <span class="sess-day" id="sessDay"></span>
+      </div>
+      <div class="sess-bar" id="sessBar" aria-hidden="true"></div>
+    </div>
     <!-- Barra de descanso superior: se vacía hacia la izquierda, botones integrados -->
     <div class="rest-bar" id="restBar" style="display:none;">
       <div class="rest-bar-fill" id="restBarFill"></div>
@@ -122,7 +134,7 @@
 
 <!-- Variantes -->
 <div id="varOverlay" role="dialog" aria-modal="true" aria-label="Ejercicios alternativos" tabindex="-1">
-  <div class="var-title">↔️ Ejercicios alternativos</div>
+  <div class="var-title">↔️ Sustituir ejercicio</div>
   <div class="var-sub" id="varCurrentEx"></div>
   <div class="var-grid" id="varList"></div>
   <button class="var-close" id="varClose">Cancelar</button>
@@ -158,6 +170,22 @@
   </div>
 </div>
 
+<!-- Editar sesión del historial -->
+<div id="editHistOverlay" role="dialog" aria-modal="true" aria-label="Editar sesión del historial" tabindex="-1">
+  <div class="edit-hist-card">
+    <div class="edit-hist-header">
+      <span class="edit-hist-title">✏️ Editar sesión</span>
+      <button class="edit-hist-close" id="editHistClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="edit-hist-date" id="editHistDate"></div>
+    <div class="edit-hist-list" id="editHistList"></div>
+    <div class="edit-hist-btns">
+      <button class="btn btn-outline" id="editHistCancel">Cancelar</button>
+      <button class="btn" id="editHistSave">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div id="onboardOverlay" role="dialog" aria-modal="true" aria-label="Bienvenido a EyeFit" tabindex="-1">
   <div class="onb-card">
     <div class="onb-title" id="onbTitle">👁️ Bienvenido a EyeFit</div>
@@ -173,6 +201,6 @@
 <script src="utils.js" defer></script>
 <script src="db.js" defer></script>
 <script src="supabase.js" defer></script>
-<script src="app.a3cd6828.js" defer></script>
+<script src="app.3a8f10b9.js" defer></script>
 </body>
 </html>

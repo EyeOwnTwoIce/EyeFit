@@ -50,7 +50,7 @@ test('T4: la app funciona offline tras la primera visita', async ({ page, contex
   await closeOverlays(page);
 
   await expect(page.locator('.tabbar')).toBeVisible({ timeout: 5000 });
-  await expect(page.locator('.week-grid')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.routine-table')).toBeVisible({ timeout: 5000 });
 
   await context.setOffline(false);
 });

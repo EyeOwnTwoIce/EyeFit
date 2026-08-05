@@ -25,6 +25,8 @@ async function closeOverlays(page) {
 test('T2: iniciar sesión, completar sets y ver la entrada en Historial', async ({ page }) => {
   await closeOverlays(page);
 
+  // Ir a la pestaña Entrenar (lista de días) y empezar Lunes
+  await page.locator('[data-tab="sesion"]').last().click({ force: true });
   await page.locator('[data-start-session="Lunes"]').last().click({ force: true });
 
   // Marcar TODAS las series pendientes. El selector excluye las ya marcadas

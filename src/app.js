@@ -573,7 +573,12 @@ const MIGRATIONS = [
   async (nextVersion) => {
     if(nextVersion < 2 && DB && DB.migrateHistoryFromLocalStorage){
       await loadHistoryFromDB();
-      await DB.migrateHistoryFromLocalStorage(K.history, isValidSessionRecord);
+      const migrated = await DB.migrateHistoryFromLocalStorage(K.history, isValidSessionRecord);
+      /* Recargar después de migrar: historyCache debe reflejar los datos
+         recién migrados (antes quedaba vacío porque IndexedDB estaba vacía) */
+      if(Array.isArray(migrated) && migrated.length > 0){
+        await loadHistoryFromDB();
+      }
       if(DB.setDataVersion) DB.setDataVersion(2);
     }
   }
@@ -1085,7 +1090,8 @@ function renderRutina(){
     <div class="empty-state">No hay rutina cargada.<br>Importa un .xlsx en Ajustes.</div>
   </div>`;
 
-  /* Vista tabla/calendario con 3 columnas: ayer, hoy, mañana + scroll horizontal */
+  /* Carrusel de los 7 días de la semana (F3/F4): cards deslizables horizontalmente.
+     Al hacer swipe, el día del centro se actualiza y el detalle inferior responde. */
   const now = new Date();
   const DAY_NUM = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
   function dayNameOffset(offset){
@@ -1093,33 +1099,34 @@ function renderRutina(){
     d.setDate(d.getDate()+offset);
     return { name: DAY_NUM[d.getDay()], date: d };
   }
-  const days3 = [-1, 0, 1].map(dayNameOffset);
-  const ths = days3.map(({name})=>`<th style="color:${DAY_COLORS[name]||"#888"}">${DAY_SHORT[name]||name.slice(0,3)}</th>`).join("");
-  const tds = days3.map(({name,date})=>{
+  /* Mostrar los 7 días de la semana actual (Lunes a Domingo de la semana actual) */
+  const todayIdx = DAY_NUM.indexOf(todayName);
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - ((todayIdx + 6) % 7)); /* Lunes de esta semana */
+  const weekDays = [0,1,2,3,4,5,6].map(offset=>{
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + offset);
+    return { name: DAY_ORDER[offset] || DAY_NUM[d.getDay()], date: d };
+  });
+
+  const carouselCells = weekDays.map(({name,date})=>{
     const dayEx = routine.filter(e=>e.dia===name).sort((a,b)=>(a.orden||0)-(b.orden||0));
-    const label = name;
     const isToday = name === todayName;
+    const isSel = name === sel;
     const dateLabel = date.toLocaleDateString("es-ES",{day:"numeric",month:"short"});
-    if(dayEx.length===0){
-      return `<td class="day-empty"><div class="rt-day-rest">
-        <span class="rt-day-name">${label} <small>${dateLabel}</small></span>
-        <span>😴 Descanso</span>
+    const color = DAY_COLORS[name] || "#888";
+    const body = dayEx.length===0
+      ? `<div class="rc-rest">😴 Descanso</div>`
+      : `<div class="rc-list">${dayEx.slice(0,4).map(e=>{
+          return `<div class="rc-item">${escapeHtml(getApodo(e))}</div>`;
+        }).join("")}${dayEx.length>4?`<div class="rc-more">+${dayEx.length-4}</div>`:""}</div>`;
+    return `<div class="rc-cell ${isToday?"rc-today":""} ${isSel?"rc-active":""}" data-day="${escapeHtmlAttr(name)}" role="button" tabindex="0" aria-label="${name}">
+      <div class="rc-top">
+        <span class="rc-day" style="color:${color}">${DAY_SHORT[name]||name.slice(0,3)}</span>
+        <span class="rc-date">${dateLabel}</span>
       </div>
-        <button class="rt-edit-btn" data-edit-routine data-edit-routine-day="${escapeHtmlAttr(name)}">✏️ Editar</button></td>`;
-    }
-    const items = dayEx.map(e=>{
-      const img = getExerciseImage(e, datasetCache);
-      return `<li>
-        ${img?`<img class="rt-ex-img" src="${img}" alt="" loading="lazy" decoding="async" data-img-fallback="hide">`:`<span class="rn">${e.orden}</span>`}
-        <span>${escapeHtml(getApodo(e))}</span>
-      </li>`;
-    }).join("");
-    return `<td class="${isToday?"td-today":""}">
-      <div class="rt-day-header">${label} <small>${dateLabel}</small></div>
-      <ul class="rt-day-list">${items}</ul>
-      ${dayEx.length>3?`<div class="rt-more">+${dayEx.length-3} más</div>`:""}
-      <button class="rt-edit-btn" data-edit-routine data-edit-routine-day="${escapeHtmlAttr(name)}">✏️ Editar</button>
-    </td>`;
+      ${body}
+    </div>`;
   }).join("");
 
   /* Cards del día seleccionado: GIF izquierda + datos derecha (series, reps, RM tappable) */
@@ -1154,12 +1161,24 @@ function renderRutina(){
 
   return `<div class="section active">
     <h2 class="title">📅 Rutina Semanal</h2>
-    <div class="routine-table-wrap">
-      <table class="routine-table" aria-label="Rutina semanal (ayer/hoy/mañana)">
-        <thead><tr>${ths}</tr></thead>
-        <tbody><tr>${tds}</tr></tbody>
-      </table>
-      <div class="rt-hscroll-hint">← Desplázate para ver el resto del mes →</div>
+    <div class="routine-carousel" id="routineCarousel" data-routine-carousel>
+      ${weekDays.map(({name,date},wi)=>{
+        const dayEx = routine.filter(e=>e.dia===name).sort((a,b)=>(a.orden||0)-(b.orden||0));
+        const isToday = name === todayName;
+        const isSel = name === sel;
+        const color = DAY_COLORS[name] || "#888";
+        const dateLabel = date.toLocaleDateString("es-ES",{day:"numeric",month:"short"});
+        const body = dayEx.length===0
+          ? `<div class="rc-rest">😴</div>`
+          : `<div class="rc-list">${dayEx.slice(0,4).map(e=>`<div class="rc-item">${escapeHtml(getApodo(e))}</div>`).join("")}${dayEx.length>4?`<div class="rc-more">+${dayEx.length-4}</div>`:""}</div>`;
+        return `<div class="rc-cell ${isToday?"rc-today":""} ${isSel?"rc-active":""}" data-day="${escapeHtmlAttr(name)}" role="button" tabindex="0" aria-label="${name}" aria-pressed="${isSel}">
+          <div class="rc-top">
+            <span class="rc-day" style="color:${color}">${DAY_SHORT[name]||name.slice(0,3)}</span>
+            <span class="rc-date">${dateLabel}</span>
+          </div>
+          ${body}
+        </div>`;
+      }).join("")}
     </div>
     <div class="rt-day-nav">
       <span style="font-weight:800;font-size:13px;color:${DAY_COLORS[sel]||"#fff"};">${sel}</span>
@@ -1654,19 +1673,27 @@ function renderSesion(){
       </div>`;
     }
     const dayColor = DAY_COLORS[todayName] || "#fff";
-    const todayBtn = `<button class="select-day-btn today" data-start-session-confirm="${escapeHtmlAttr(todayName)}">
-      <span style="width:9px;height:9px;border-radius:50%;background:${dayColor};display:inline-block;"></span>
-      ${todayName}
-      <span style="margin-left:auto;color:var(--muted);font-size:10.5px;">${todayEx.length} ejercicios</span>
-      <span class="today-badge">HOY</span>
-    </button>`;
+    const totalSets = todayEx.reduce((a,e)=>a+parseInt(e.series||3,10),0);
+    /* Vista previa directa del entrenamiento de hoy (UX1) */
+    const exPreview = todayEx.map((e,i)=>{
+      const img = getExerciseImage(e, datasetCache);
+      return `<div class="sess-preview-ex">
+        ${img?`<div class="spe-img"><img src="${img}" alt="" loading="lazy" decoding="async" data-img-fallback="hide"></div>`:`<div class="spe-img spe-emoji">🏋️</div>`}
+        <div class="spe-info">
+          <div class="spe-name">${escapeHtml(getApodo(e))}</div>
+          <div class="spe-meta">${e.series}×${e.reps} · ${e.peso_kg}kg</div>
+        </div>
+      </div>`;
+    }).join("");
     return `<div class="section active">
       <h2 class="title">🏋️ Entrenar</h2>
-      <div class="card">
-        <div class="select-days">${todayBtn}</div>
-        <div class="select-day-hint" style="color:var(--muted);font-size:10.5px;margin-top:8px;text-align:center;">
-          Solo puedes entrenar el día de hoy. Otros días permanecen bloqueados.
+      <div class="sess-preview-card">
+        <div class="spc-head">
+          <span class="spc-day" style="color:${dayColor}">Entrenamiento del ${todayName}</span>
+          <span class="spc-sub">${todayEx.length} ejercicios · ${totalSets} series</span>
         </div>
+        <div class="spc-list">${exPreview}</div>
+        <button class="btn spc-start" data-start-session="${escapeHtmlAttr(todayName)}">▶️ Entrenar</button>
       </div>
     </div>`;
   }
@@ -2124,38 +2151,49 @@ function renderHistCalendar(history){
 function renderHistDayDetail(history, dateStr){
   const sessions = history.filter(h=>{ try{ return localDateKey(new Date(h.date)) === dateStr; }catch(e){ return false; } });
   if(!sessions.length) return `<div class="empty-state">No hay sesión registrada en ${dateStr}.</div>`;
-  const h = sessions[0];
-  const color = DAY_COLORS[h.day] || "#fff";
-  const exDone = h.exercises.filter(e=>e.sets.some(s=>s.done)==true);
-  const exHtml = exDone.slice(0,10).map(e=>{
-    const key = String(e.datasetOriginal||e.dataset||e.nombre_es||"").trim().toLowerCase();
-    const prog = getExerciseProgression(key);
-    const bestNow = getHistoricalBest(key);
-    const spark = svgSparkline(prog);
-    const rmLabel = bestNow && bestNow.rm ? `${Math.round(bestNow.rm)}` : "";
-    const rmHint = bestNow && bestNow.rm ? ` title="1RM estimado con fórmula de Epley: ${bestNow.kg}kg × ${bestNow.reps} reps = ${Math.round(bestNow.rm)}kg"` : "";
-    return `<div class="hist-ex-line">
-      <div class="hist-ex">
-        <span class="hist-ex-name">${escapeHtml(getApodo(e))}</span>
-        <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${s.reps}×${s.kg}`).join(" · ")}</span>
+
+  /* Ordenar sesiones por hora de inicio (de más antiguas a más recientes) */
+  const sorted = [...sessions].sort((a,b)=> new Date(a.date) - new Date(b.date));
+
+  /* Renderizar UNA card por sesión del día (BUG FIX: antes solo mostraba sessions[0]) */
+  const cards = sorted.map(h=>{
+    const color = DAY_COLORS[h.day] || "#fff";
+    const exDone = h.exercises.filter(e=>e.sets.some(s=>s.done)==true);
+    const exHtml = exDone.slice(0,10).map(e=>{
+      const key = String(e.datasetOriginal||e.dataset||e.nombre_es||"").trim().toLowerCase();
+      const prog = getExerciseProgression(key);
+      const bestNow = getHistoricalBest(key);
+      const spark = svgSparkline(prog);
+      const rmLabel = bestNow && bestNow.rm ? `${Math.round(bestNow.rm)}` : "";
+      const rmHint = bestNow && bestNow.rm ? ` title="1RM estimado con fórmula de Epley: ${bestNow.kg}kg × ${bestNow.reps} reps = ${Math.round(bestNow.rm)}kg"` : "";
+      return `<div class="hist-ex-line">
+        <div class="hist-ex">
+          <span class="hist-ex-name">${escapeHtml(getApodo(e))}</span>
+          <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${s.reps}×${s.kg}`).join(" · ")}</span>
+        </div>
+        ${spark ? `<div class="hist-ex-prog"><span class="lbl rm-tappable" ${rmHint}>1RM ${rmLabel}</span>${spark}</div>` : ""}
+      </div>`;
+    }).join("");
+    const mins = Math.floor((h.duration||0)/60), secs=(h.duration||0)%60;
+    const timeLabel = new Date(h.date).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"});
+    return `<div class="hist-day open" data-hist-date="${escapeHtmlAttr(dateStr)}">
+      <div class="hist-content">
+        <div class="hist-day-top">
+          <div class="hist-tri open"></div>
+          <span class="hist-day-name" style="color:${color}">${h.day}</span>
+          <span class="hist-day-date">${timeLabel} · ${mins}m ${secs}s</span>
+          <button class="hist-edit-btn" data-edit-hist-date="${escapeHtmlAttr(dateStr)}" data-edit-hist-sessid="${escapeHtmlAttr(h.session_id||"")}" aria-label="Editar sesión">✏️</button>
+        </div>
+        <div class="hist-day-body open">
+          <div class="hist-day-stats">${exDone.length} ejercicios · ${h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0)} series</div>
+          ${exHtml}
+        </div>
       </div>
-      ${spark ? `<div class="hist-ex-prog"><span class="lbl rm-tappable" ${rmHint}>1RM ${rmLabel}</span>${spark}</div>` : ""}
     </div>`;
   }).join("");
-  const mins = Math.floor((h.duration||0)/60), secs=(h.duration||0)%60;
-  return `<div class="hist-day open" data-hist-date="${escapeHtmlAttr(dateStr)}">
-    <div class="hist-content">
-      <div class="hist-day-top">
-        <div class="hist-tri open"></div>
-        <span class="hist-day-name" style="color:${color}">${h.day}</span>
-        <span class="hist-day-date">${new Date(h.date).toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})} · ${mins}m ${secs}s</span>
-        <button class="hist-edit-btn" data-edit-hist-date="${escapeHtmlAttr(dateStr)}" aria-label="Editar sesión">✏️</button>
-      </div>
-      <div class="hist-day-body open">
-        <div class="hist-day-stats">${exDone.length} ejercicios · ${h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0)} series</div>
-        ${exHtml}
-      </div>
-    </div>
+
+  return `<div class="hist-days-mult">
+    ${cards}
   </div>`;
 }
 
@@ -2191,23 +2229,40 @@ function renderHistorial(){
 function openEditHistSession(h){
   if(!h) return;
   const dateEl = document.getElementById("editHistDate");
-  if(dateEl) dateEl.textContent = `${h.day} · ${new Date(h.date).toLocaleString("es-ES")}`;
+  if(dateEl) dateEl.textContent = `${h.day} · ${new Date(h.date).toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}`;
+  /* Hora de inicio y duración */
+  const startEl = document.getElementById("editHistStart");
+  if(startEl){
+    const d = new Date(h.date);
+    if(!isNaN(d.getTime())){
+      startEl.value = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    }
+  }
+  const durEl = document.getElementById("editHistDur");
+  if(durEl){
+    durEl.value = Math.round((h.duration||0)/60) || "";
+  }
   const listEl = document.getElementById("editHistList");
   if(listEl){
     listEl.innerHTML = (h.exercises||[]).map((ex,ei)=>{
-      const doneSets = (ex.sets||[]).filter(s=>s.done);
-      const rows = doneSets.length ? doneSets.map((s,si)=>`
+      const sets = (ex.sets||[]);
+      const rows = sets.length ? sets.map((s,si)=>`
         <div class="edit-hist-set">
           <span class="ehs-num">${si+1}</span>
           <input type="number" class="ehs-input" data-eh-kg="${ei}|${si}" value="${s.kg}" step="0.5" min="0" inputmode="decimal" aria-label="Peso">
           <span class="ehs-label">kg</span>
           <input type="number" class="ehs-input" data-eh-reps="${ei}|${si}" value="${s.reps}" step="1" min="1" inputmode="numeric" aria-label="Reps">
           <span class="ehs-label">reps</span>
+          <button class="ehs-del-set" data-eh-del="${ei}|${si}" aria-label="Eliminar serie ${si+1}">🗑</button>
         </div>`).join("")
-        : `<div style="color:var(--muted);font-size:11px;">Sin series completadas</div>`;
+        : `<div style="color:var(--muted);font-size:11px;">Sin series</div>`;
       return `<div class="edit-hist-ex">
-        <div class="eh-name">${escapeHtml(getApodo(ex))}</div>
+        <div class="eh-name-row">
+          <span class="eh-name">${escapeHtml(getApodo(ex))}</span>
+          <button class="ehs-del-ex" data-eh-del-ex="${ei}" aria-label="Eliminar ejercicio">✕</button>
+        </div>
         ${rows}
+        <button class="ehs-add-set" data-eh-add-set="${ei}">＋ Añadir serie</button>
       </div>`;
     }).join("");
   }
@@ -2226,8 +2281,31 @@ function dismissEditHist(){
 
 function saveEditHist(){
   if(!editingHistRecord) return;
+
+  /* Hora de inicio */
+  const startEl = document.getElementById("editHistStart");
+  if(startEl && startEl.value){
+    const [hh, mm] = startEl.value.split(":").map(Number);
+    if(!isNaN(hh) && !isNaN(mm)){
+      const d = new Date(editingHistRecord.date);
+      if(!isNaN(d.getTime())){
+        d.setHours(hh, mm);
+        editingHistRecord.date = d.toISOString();
+      }
+    }
+  }
+  /* Duración (minutos → segundos) */
+  const durEl = document.getElementById("editHistDur");
+  if(durEl){
+    const mins = parseFloat(durEl.value);
+    if(!isNaN(mins) && mins >= 0) editingHistRecord.duration = Math.round(mins * 60);
+  }
+
   const listEl = document.getElementById("editHistList");
   if(listEl){
+    /* Añadir/restaurar series y ejercicios desde el DOM */
+    /* 1. Operaciones de añadir serie: ya se aplicaron en vivo via añadir-set/del handlers */
+    /* 2. Leer todos los inputs kg/reps y aplicarlos al working copy */
     listEl.querySelectorAll("[data-eh-kg],[data-eh-reps]").forEach(inp=>{
       const [ei, si] = inp.getAttribute(inp.hasAttribute("data-eh-kg")?"data-eh-kg":"data-eh-reps").split("|").map(Number);
       const ex = editingHistRecord.exercises[ei];
@@ -2238,6 +2316,8 @@ function saveEditHist(){
       if(inp.hasAttribute("data-eh-kg")){ if(!isNaN(val)) set.kg = val; }
       else { if(!isNaN(val)) set.reps = Math.max(1, Math.round(val)); }
     });
+    /* Nota: los ejercicios ya se eliminan directamente en editingHistRecord.exercises
+       via el handler [data-eh-del-ex]. No hace falta reconciliación adicional. */
   }
   const history = getHistory();
   const idx = history.findIndex(x=>x.session_id === editingHistRecord.session_id);
@@ -2289,8 +2369,16 @@ function attachHistCalendarEvents(){
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
       const ds = btn.dataset.editHistDate;
+      const sessId = btn.dataset.editHistSessid;
       const history = getHistory();
-      const h = history.find(x=>{ try{ return localDateKey(new Date(x.date)) === ds; }catch(err){ return false; } });
+      /* Buscar por session_id si existe (varias sesiones por día), fallback a date+day */
+      let h;
+      if(sessId){
+        h = history.find(x=>x.session_id === sessId);
+      }
+      if(!h){
+        h = history.find(x=>{ try{ return localDateKey(new Date(x.date)) === ds; }catch(err){ return false; } });
+      }
       if(h) openEditHistSession(h);
     });
   });
@@ -2306,9 +2394,44 @@ function attachEditHistOverlayEvents(){
   if(cancelBtn) cancelBtn.addEventListener("click", dismissEditHist);
   const saveBtn = document.getElementById("editHistSave");
   if(saveBtn) saveBtn.addEventListener("click", saveEditHist);
+
   /* Preseleccionar al enfocar */
   ov.querySelectorAll(".ehs-input").forEach(inp=>{
     inp.addEventListener("focus", ()=>{ setTimeout(()=>{ inp.select(); },0); });
+  });
+
+  /* Añadir serie a un ejercicio (delegación porque se recrean dinámicamente) */
+  ov.addEventListener("click", (e)=>{
+    const addBtn = e.target.closest("[data-eh-add-set]");
+    const delBtn = e.target.closest("[data-eh-del]");
+    const delExBtn = e.target.closest("[data-eh-del-ex]");
+    if(addBtn){
+      const ei = parseInt(addBtn.dataset.ehAddSet);
+      const ex = editingHistRecord && editingHistRecord.exercises && editingHistRecord.exercises[ei];
+      if(!ex) return;
+      const last = ex.sets && ex.sets[ex.sets.length-1];
+      if(!ex.sets) ex.sets = [];
+      ex.sets.push({
+        kg: last && last.kg != null ? last.kg : (parseFloat(ex.peso_kg)||0),
+        reps: last && last.reps != null ? last.reps : (parseInt(ex.reps)||8),
+        done: true
+      });
+      /* Re-renderizar el overlay para mostrar la nueva fila */
+      openEditHistSession(editingHistRecord);
+    }
+    if(delBtn){
+      const [ei, si] = delBtn.dataset.ehDel.split("|").map(Number);
+      const ex = editingHistRecord && editingHistRecord.exercises && editingHistRecord.exercises[ei];
+      if(!ex || !ex.sets) return;
+      ex.sets.splice(si, 1);
+      openEditHistSession(editingHistRecord);
+    }
+    if(delExBtn){
+      const ei = parseInt(delExBtn.dataset.ehDelEx);
+      if(!editingHistRecord || !Array.isArray(editingHistRecord.exercises)) return;
+      editingHistRecord.exercises.splice(ei, 1);
+      openEditHistSession(editingHistRecord);
+    }
   });
 }
 
@@ -2596,6 +2719,40 @@ function attachEvents(){
       }
     });
   });
+  /* Carrusel rutina: detectar día central al deslizar horizontalmente (F3/F4) */
+  const carousel = document.getElementById("routineCarousel");
+  if(carousel){
+    /* Inicialmente centrar en el día seleccionado */
+    const activeCell = carousel.querySelector(".rc-active");
+    if(activeCell){
+      const wrapper = activeCell.parentElement;
+      const left = activeCell.offsetLeft - (wrapper.clientWidth - activeCell.offsetWidth) / 2;
+      requestAnimationFrame(()=>{ wrapper.scrollLeft = Math.max(0, left); });
+    }
+    let _scrollLock = false;
+    carousel.addEventListener("scroll", ()=>{
+      if(_scrollLock) return;
+      _scrollLock = true;
+      clearTimeout(carousel._scrollTimer);
+      carousel._scrollTimer = setTimeout(()=>{
+        const cells = carousel.querySelectorAll(".rc-cell");
+        const centerX = carousel.scrollLeft + carousel.clientWidth / 2;
+        let best = null, bestDist = Infinity;
+        cells.forEach(c=>{
+          const cLeft = c.offsetLeft;
+          const cMid = cLeft + c.offsetWidth / 2;
+          const dist = Math.abs(cMid - centerX);
+          if(dist < bestDist){ bestDist = dist; best = c; }
+        });
+        _scrollLock = false;
+        if(best && best.dataset.day && best.dataset.day !== selectedDay){
+          selectedDay = best.dataset.day;
+          renderMain();
+        }
+      }, 90);
+      _scrollLock = false;
+    }, { passive:true });
+  }
   /* Fallback de imágenes delegado: cualquier <img data-img-fallback> que
      falle se oculta o se sustituye por un emoji sin inline onerror. */
   document.querySelectorAll("img[data-img-fallback]").forEach(img=>{
@@ -2639,10 +2796,10 @@ function attachEvents(){
       modal.className = "session-confirm-overlay";
       modal.innerHTML = `
         <div class="session-confirm-card">
-          <div class="sc-title">Iniciar sesión de ${day}</div>
+          <div class="sc-title">Entrenamiento del ${day}</div>
           <div class="sc-sub">${dayEx.length} ejercicios · ${totalSets} series</div>
           <div class="sc-list">${exList}</div>
-          <button class="btn sc-start" data-sc-start>Iniciar sesión</button>
+          <button class="btn sc-start" data-sc-start>▶️ Entrenar</button>
           <button class="btn btn-outline sc-cancel" data-sc-cancel>Cancelar</button>
         </div>`;
       const mainEl = document.getElementById("main");
@@ -3124,8 +3281,8 @@ function attachEvents(){
       }
     });
   });
-  /* Autoseleccionar el número original al enfocar un input numérico de entrenamiento */
-  document.querySelectorAll("[data-train-input]").forEach(input=>{
+  /* Autoseleccionar el número original al enfocar cualquier input numérico (UX3) */
+  document.querySelectorAll("input[type='number'],input[type='time'],input[inputmode]").forEach(input=>{
     input.addEventListener("focus", ()=>{
       setTimeout(()=>{ input.select(); }, 0);
     });
@@ -3180,7 +3337,134 @@ function attachEvents(){
       showToast("⚙️ Progresión actualizada");
     });
   });
+
+  /* ── Drag & drop táctil para reordenar ejercicios (F1) ── */
+  const dragMain = document.getElementById("main");
+  if(dragMain){
+    let _dragFrom = null, _dragOver = null, _dragStartT = null, _mouseX = 0, _mouseY = 0;
+
+    /* Determina el contexto (editar rutina vs sesión) y las filas hermanas */
+    function dragCells(fromEl){
+      const scope = fromEl.parentElement;
+      if(fromEl.classList.contains("edit-ex-row"))
+        return [scope.querySelectorAll(".edit-ex-row"), "edit-routine"];
+      if(fromEl.classList.contains("up-row"))
+        return [scope.querySelectorAll(".up-row"), "session-up"];
+      return [ [], null ];
+    }
+
+    function startDrag(row, e){
+      if(!(row.classList.contains("edit-ex-row") || row.classList.contains("up-row"))) return false;
+      if(e && e.target.closest("button,input,select,textarea,.edit-mini,.up-arrow,.ehs-input,.es-input,.edit-ex-body,.edit-ex-actions,.edit-set-row")) return false;
+      _dragFrom = row;
+      row.classList.add("dragging");
+      document.body.classList.add("dragging-active");
+      if(e && e.cancelable) e.preventDefault();
+      return true;
+    }
+
+
+    function endDragFn(){
+      if(!_dragFrom) return;
+      if(_dragOver && _dragOver !== _dragFrom){
+        const [cells, ctx] = dragCells(_dragFrom);
+        const fromIdx = Array.prototype.indexOf.call(cells, _dragFrom);
+        const toIdx = Array.prototype.indexOf.call(cells, _dragOver);
+        if(fromIdx>=0 && toIdx>=0 && fromIdx !== toIdx){
+          applyDragReorder(ctx, fromIdx, toIdx);
+        }
+      }
+      _dragFrom.classList.remove("dragging");
+      if(_dragOver){ _dragOver.classList.remove("drag-over"); _dragOver = null; }
+      document.body.classList.remove("dragging-active");
+      _dragFrom = null;
+    }
+
+    function applyDragReorder(ctx, fromIdx, toIdx){
+      if(ctx === "edit-routine"){
+        const routine = getRoutine();
+        const dayEx = routine.filter(e=>e.dia===routineEditDay).sort((a,b)=>(a.orden||0)-(b.orden||0));
+        const moved = dayEx[fromIdx], target = dayEx[toIdx];
+        if(!moved || !target) return;
+        const keyMoved = moved.dia+"|"+moved.nombre_es;
+        const keyTarget = target.dia+"|"+target.nombre_es;
+        const ia = routine.findIndex(e=>e.dia+"|"+e.nombre_es===keyMoved);
+        const ib = routine.findIndex(e=>e.dia+"|"+e.nombre_es===keyTarget);
+        if(ia<0 || ib<0) return;
+        applyRoutineChange(r=>{
+          const arr = r.slice();
+          const [hit] = arr.splice(ia,1);
+          const ib2 = arr.findIndex(e=>e.dia+"|"+e.nombre_es===keyTarget);
+          const insertAt = fromIdx < toIdx ? ib2+1 : ib2;
+          arr.splice(insertAt,0,hit);
+          return arr;
+        });
+        renderMain();
+      } else if(ctx === "session-up" && session){
+        const arr = session.exercises.slice();
+        const absFrom = session.currentIdx+1+fromIdx;
+        const absTo = session.currentIdx+1+toIdx;
+        const [hit] = arr.splice(absFrom,1);
+        arr.splice(absTo,0,hit);
+        session.exercises = arr;
+        session.exercises.forEach((ex,i)=>{ ex.orden = i+1; });
+        saveSessionState();
+        renderMain();
+      }
+    }
+
+    /* Touch events */
+    dragMain.addEventListener("touchstart", (e)=>{
+      const row = e.target.closest(".edit-ex-row, .up-row");
+      if(!row) return;
+      if(startDrag(row, e)){
+        const t = e.touches[0];
+        _dragStartT = { x:t.clientX, y:t.clientY };
+      }
+    }, { passive:true });
+    dragMain.addEventListener("touchmove", (e)=>{
+      if(!_dragFrom) return;
+      const t = e.touches[0];
+      if(_dragStartT){
+        const dy = t.clientY - _dragStartT.y;
+        if(Math.abs(dy) < 3) return;
+      }
+      const targetEl = document.elementFromPoint(t.clientX, t.clientY);
+      const overRow = targetEl ? targetEl.closest(".edit-ex-row, .up-row") : null;
+      if(overRow && overRow !== _dragOver){
+        if(_dragOver) _dragOver.classList.remove("drag-over");
+        _dragOver = overRow;
+        overRow.classList.add("drag-over");
+      }
+    }, { passive:true });
+    dragMain.addEventListener("touchend", ()=>{
+      if(_dragFrom) endDragFn();
+      _dragStartT = null;
+    }, { passive:true });
+
+    /* Mouse fallback escritorio */
+    dragMain.addEventListener("mousedown", (e)=>{
+      const row = e.target.closest(".edit-ex-row, .up-row");
+      if(!row) return;
+      if(startDrag(row, e)){ _mouseX = e.clientX; _mouseY = e.clientY; }
+    });
+    window.addEventListener("mousemove", (e)=>{
+      if(!_dragFrom) return;
+      const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+      const overRow = targetEl ? targetEl.closest(".edit-ex-row, .up-row") : null;
+      if(overRow && overRow !== _dragOver){
+        if(_dragOver) _dragOver.classList.remove("drag-over");
+        _dragOver = overRow;
+        overRow.classList.add("drag-over");
+      }
+    });
+    window.addEventListener("mouseup", ()=>{ if(_dragFrom) endDragFn(); });
+  }
 }
+
+/* ================================================================
+   NUM PAD + SLIDER
+   ================================================================ */
 
 /* ================================================================
    NUM PAD + SLIDER

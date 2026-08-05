@@ -177,6 +177,16 @@
       <button class="edit-hist-close" id="editHistClose" aria-label="Cerrar">✕</button>
     </div>
     <div class="edit-hist-date" id="editHistDate"></div>
+    <div class="edit-hist-meta">
+      <label class="eh-meta-field">
+        <span class="eh-meta-lbl">Hora inicio</span>
+        <input type="time" class="ehs-input" id="editHistStart" aria-label="Hora de inicio">
+      </label>
+      <label class="eh-meta-field">
+        <span class="eh-meta-lbl">Duración (min)</span>
+        <input type="number" class="ehs-input eh-dur" id="editHistDur" min="0" step="1" inputmode="numeric" aria-label="Duración en minutos">
+      </label>
+    </div>
     <div class="edit-hist-list" id="editHistList"></div>
     <div class="edit-hist-btns">
       <button class="btn btn-outline" id="editHistCancel">Cancelar</button>

@@ -407,6 +407,59 @@
   .edit-ex-row.drag-over, .up-row.drag-over{ border-color:var(--accent); box-shadow:0 -2px 0 var(--accent); }
   body.dragging-active{ cursor:grabbing; -webkit-user-select:none; user-select:none; }
 
+  /* ===== Editar rutina: estética homogénea con edición historial (UX5) ===== */
+  .routine-edit-top{
+    display:flex; align-items:center; gap:6px; margin-bottom:12px;
+  }
+  .routine-edit-top .btn{ flex-shrink:0; min-height:38px; padding:8px 14px; font-size:12px; }
+  .edit-ex-row{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:8px 10px; margin-bottom:9px; cursor:grab;
+  }
+  .edit-ex-row:active{ cursor:grabbing; }
+  .edit-ex-top{ display:flex; align-items:center; gap:7px; }
+  .edit-ex-idx{
+    font-size:12px; font-weight:800; color:var(--accent); width:16px; text-align:center; flex-shrink:0;
+  }
+  .edit-ex-name{ font-size:12px; font-weight:800; color:var(--accent); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .edit-ex-actions{ display:flex; align-items:center; gap:4px; flex-shrink:0; }
+  .edit-mini{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; width:28px; height:28px; font-size:11px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .edit-mini:active{ border-color:var(--accent); }
+  .edit-mini.danger{ color:var(--danger); }
+  .edit-mini:disabled{ opacity:.3; pointer-events:none; }
+  .edit-ex-summary{ color:var(--muted); font-size:10.5px; margin-top:5px; margin-left:23px; }
+  .edit-ex-body{ margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
+  .edit-set-row{ display:flex; align-items:center; gap:6px; padding:3px 0; }
+  .es-num{ color:var(--muted); font-size:10px; font-weight:700; width:14px; flex-shrink:0; text-align:center; }
+  .es-input{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:7px; padding:5px 7px; font-size:12px; font-weight:700; width:56px; text-align:center;
+    font-variant-numeric:tabular-nums; outline:none;
+  }
+  .es-input:focus{ border-color:var(--accent); }
+  .es-label{ color:var(--muted); font-size:8.5px; flex-shrink:0; }
+  .edit-set-del{
+    background:var(--surface2); border:1px solid var(--border); color:var(--danger);
+    border-radius:6px; width:26px; height:26px; font-size:11px; cursor:pointer; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; padding:0; margin-left:auto;
+  }
+  .edit-set-del:active{ border-color:var(--danger); }
+  .edit-add-set{
+    background:none; border:1px dashed var(--accent); color:var(--accent); border-radius:8px;
+    padding:7px; width:100%; font-weight:700; font-size:11px; margin-top:6px; cursor:pointer;
+  }
+  .edit-add-set:active{ background:rgba(200,255,0,.12); }
+  .edit-add-ex{
+    display:block; width:100%; background:none; border:1px dashed var(--accent);
+    color:var(--accent); border-radius:12px; padding:12px; font-size:13px; font-weight:800;
+    margin-top:6px; cursor:pointer;
+  }
+  .edit-add-ex:active{ background:rgba(200,255,0,.12); }
+
   /* ===== Vista día de la rutina: tarjetas con GIF a izquierda + datos derecha ===== */
   .rt-day-nav{ display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:10px; }
   .rt-day-nav .btn{ min-height:36px; padding:7px 12px; }

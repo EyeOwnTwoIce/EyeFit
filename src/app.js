@@ -520,6 +520,112 @@ const K = {
   dataset: "eyefit_dataset_v1", pending: "eyefit_pending_v1",
   routineUpdated: "eyefit_routine_updated_v1"
 };
+/* Claves para Web Push / notificaciones */
+const K_NEWS_KEYS = {
+  pushSubscribed: "eyefit_push_subscribed_v1",
+  pushSubJson: "eyefit_push_sub_v1"
+};
+/* VAPID public key (base64url). Se usa para la suscripción al Push Service.
+   Debe coincidir con el public key usado para firmar en el servidor que envía.
+   CONTACTO: sustituir si se rotan las claves. */
+const VAPID_PUBLIC_KEY = "BE7Maa0sIJWmRcSevexc8qDf2ssYEIZyhfuT6-oqkxY8vDpOez4T_PReDLNPObAOu2Wh-kkyFqORKSSeLyIjF_0";
+
+/* ================================================================
+   NOTIFICACIONES PUSH (Web Push / iOS PWA 16.4+)
+   ================================================================ */
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const output = new Uint8Array(raw.length);
+  for(let i=0; i<raw.length; ++i) output[i] = raw.charCodeAt(i);
+  return output;
+}
+
+/* Comprueba si la PWA se ejecuta en modo standalone (requisito iOS) */
+function isStandalonePWA(){
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+    || window.navigator.standalone === true
+    || window.navigator.standalone === 1;
+}
+
+/* Normaliza/crea la suscripción push del SW registrado */
+async function ensurePushSubscription(reg){
+  try{
+    if(!reg || !reg.pushManager) return null;
+    let sub = await reg.pushManager.getSubscription();
+    if(sub) return sub;
+    if(Notification && Notification.permission !== 'granted') return null;
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    return sub;
+  }catch(e){
+    console.warn("[EyeFit] push subscribe error:", e);
+    return null;
+  }
+}
+
+/* Guarda la suscripción en localStorage para el servidor de dispatch */
+function persistPushSubscription(sub){
+  try{
+    if(sub){
+      localStorage.setItem(K_NEWS_KEYS.pushSubscribed, "1");
+      localStorage.setItem(K_NEWS_KEYS.pushSubJson, JSON.stringify(sub.toJSON ? sub.toJSON() : sub));
+    } else {
+      localStorage.setItem(K_NEWS_KEYS.pushSubscribed, "");
+      localStorage.removeItem(K_NEWS_KEYS.pushSubJson);
+    }
+  }catch(e){}
+}
+
+/* Acción del botón "Activar notificaciones" (debe llamarse desde un gesture) */
+async function enablePushNotifications(){
+  if(!('serviceWorker' in navigator)){ showToast("⚠️ Service Worker no soportado"); return; }
+  if(!('PushManager' in window)){ showToast("⚠️ Este navegador no soporta Push"); return; }
+  if(!isStandalonePWA()){
+    showToast("📲 Instala EyeFit en tu pantalla de inicio para activar notificaciones");
+    return;
+  }
+  try{
+    const permission = await Notification.requestPermission();
+    if(permission !== 'granted'){
+      showToast("🔕 Permiso de notificaciones denegado");
+      return;
+    }
+    const reg = window.__swReg || await navigator.serviceWorker.ready;
+    const sub = await ensurePushSubscription(reg);
+    if(sub && sub.endpoint){
+      persistPushSubscription(sub);
+      showToast("🔔 Notificaciones activadas");
+      renderMain();
+    } else {
+      showToast("⚠️ No se pudo suscribir a notificaciones");
+    }
+  }catch(e){
+    console.warn(e);
+    showToast("⚠️ Error al activar notificaciones");
+  }
+}
+
+/* Desactivar notificaciones (elimina suscripción local) */
+async function disablePushNotifications(){
+  try{
+    const reg = window.__swReg || (navigator.serviceWorker ? await navigator.serviceWorker.ready : null);
+    if(reg && reg.pushManager){
+      const sub = await reg.pushManager.getSubscription();
+      if(sub) await sub.unsubscribe();
+    }
+  }catch(e){}
+  persistPushSubscription(null);
+  showToast("🔕 Notificaciones desactivadas");
+  renderMain();
+}
+
+function isPushEnabled(){
+  try{ return !!localStorage.getItem(K_NEWS_KEYS.pushSubscribed); }catch(e){ return false; }
+}
 function lsGet(key, def){ try{ return JSON.parse(localStorage.getItem(key)) ?? def; }catch(e){ return def; } }
 function lsSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
 function getRoutine(){ return lsGet(K.routine, null) || DEFAULT_ROUTINE; }
@@ -2629,6 +2735,18 @@ function renderAjustes(){
       </div>
     </div>
     <div class="set-group">
+      <div class="set-group-title">🔔 Notificaciones</div>
+      <div class="set-row-item">
+        <div>
+          <div class="label">Actualizaciones de la app</div>
+          <div class="desc">${isPushEnabled() ? "Activas: te avisamos cuando hay una versión nueva" : "No activas. Recibirás avisos de nuevas versiones."}</div>
+        </div>
+        ${isPushEnabled()
+          ? `<button class="btn btn-outline" data-disable-push>🔕 Desactivar</button>`
+          : `<button class="btn" data-enable-push>🔔 Activar</button>`}
+      </div>
+    </div>
+    <div class="set-group">
       <div class="set-group-title">Datos</div>
       <div class="set-row-item">
         <div><div class="label">Exportar backup (.json)</div><div class="desc">Rutina + historial</div></div>
@@ -3234,6 +3352,13 @@ function attachEvents(){
   });
   document.querySelectorAll("[data-open-help]").forEach(btn=>{
     btn.addEventListener("click", ()=>showOnboarding(true));
+  });
+  /* Notificaciones push: activar/desactivar (requiere gesture explícito) */
+  document.querySelectorAll("[data-enable-push]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{ enablePushNotifications(); });
+  });
+  document.querySelectorAll("[data-disable-push]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{ disablePushNotifications(); });
   });
   /* Historial colapsable */
   document.querySelectorAll("[data-hist]").forEach(el=>{
@@ -4170,12 +4295,33 @@ setInterval(()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('sw.js').then(reg=>{
+      /* Web Push: si ya suscrito y hay permiso, mantener/normalizar la suscripción */
+      window.__swReg = reg;
+      if(Notification && Notification.permission === 'granted'){
+        ensurePushSubscription(reg);
+      }
       reg.addEventListener('updatefound', ()=>{
         const sw = reg.installing;
         if(!sw) return;
         sw.addEventListener('statechange', ()=>{
           if(sw.state === 'installed' && navigator.serviceWorker.controller){
+            /* Nueva versión desplegada en GitHub → notificar + sugerir recarga */
             showToast("🔄 Nueva versión disponible");
+            const isSubscribed = lsGet(K_NEWS_KEYS.pushSubscribed, false);
+            if(isSubscribed){
+              /* Disparar notificación local via el SW (payload de update) */
+              try {
+                reg.showNotification && reg.showNotification(
+                  "🔄 EyeFit actualizado",
+                  {
+                    body: "Hay una nueva versión de EyeFit. Toca para recargar y ver las novedades.",
+                    icon: './icons/icon-192.png',
+                    badge: './icons/icon-192.png',
+                    data: { url: './', tag: 'eyefit-update' }
+                  }
+                );
+              } catch(_) {}
+            }
             if(confirm("Hay una nueva versión de EyeFit. ¿Recargar ahora?")){
               reg.waiting && reg.waiting.postMessage({ type: 'SKIP_WAITING' });
             }

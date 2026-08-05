@@ -70,6 +70,73 @@ self.addEventListener('message', event => {
   }
 });
 
+/* ============ Web Push (iOS/iPadOS 16.4+ PWA) ============ */
+/* Muestra una notificación cuando llega un payload push (RFC 8030).
+   El payload puede ser JSON (title/body/icon/badge/data) o texto plano. */
+self.addEventListener('push', event => {
+  event.waitUntil((async () => {
+    let title = 'EyeFit';
+    let body = 'Hay novedades en tu app.';
+    let icon = './icons/icon-192.png';
+    let badge = './icons/icon-192.png';
+    let data = { url: './' };
+
+    try {
+      if (event.data) {
+        const text = event.data.text();
+        if (text) {
+          try {
+            const payload = JSON.parse(text);
+            if (payload.title) title = payload.title;
+            if (payload.body) body = payload.body;
+            if (payload.icon) icon = payload.icon;
+            if (payload.badge) badge = payload.badge;
+            if (payload.data) data = { ...data, ...payload.data };
+          } catch (_) {
+            body = text;
+          }
+        }
+      }
+    } catch (_) {}
+
+    try {
+      await self.registration.showNotification(title, {
+        body,
+        icon,
+        badge,
+        data,
+        tag: data.tag || 'eyefit-update',
+        renotify: false,
+        silent: false
+      });
+    } catch (_) {
+      /* Fallback sin icon/badge si algo no se soporta */
+      await self.registration.showNotification(title, { body, data });
+    }
+  })());
+});
+
+/* Al hacer click en la notificación: enfocar (o abrir) la PWA en la ruta indicada */
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || './';
+  event.waitUntil((async () => {
+    const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of allClients) {
+      if ('focus' in client) { try { await client.focus(); } catch(_){} }
+    }
+    if (!allClients.length) {
+      try { await self.clients.openWindow(targetUrl); } catch(_) {}
+    }
+  })());
+});
+
+/* Gestiona clics en actions (p.ej. "Abrir rutina", "Recargar") */
+self.addEventListener('notificationclose', event => {
+  /* opcional: limpiar badge cuando se cierra la notificación */
+  try { self.registration.setAppBadge && self.registration.setAppBadge(0); } catch(_) {}
+});
+
 self.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET') return;

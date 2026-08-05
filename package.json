@@ -7,6 +7,8 @@
     "generate": "node tools/generate_rutina.js",
     "build": "node tools/build.js",
     "gen:slim-data": "node tools/generate_slim_dataset.js",
+    "gen:vapid": "node tools/generate_vapid.js",
+    "push:notify": "node tools/push_notify.js",
     "test": "node --test tests/*.test.js",
     "test:e2e": "npm run build && playwright test",
     "lighthouse": "npm run build && npx http-server dist -p 4173 -c-1 & lhci autorun"
@@ -19,7 +21,8 @@
     "@playwright/test": "^1.62.1",
     "esbuild": "^0.28.1",
     "fake-indexeddb": "^5.0.2",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "web-push": "^3.6.7"
   },
   "allowScripts": {
     "esbuild@0.28.1": true

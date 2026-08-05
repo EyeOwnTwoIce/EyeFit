@@ -3,8 +3,8 @@
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync
    - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
-const CACHE = "eyefit-vmsgk6wiq";
-const CORE_ASSETS = ["./","./index.html","./styles.9da14b7d.css","./app.34d3b03e.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
+const CACHE = "eyefit-vmsgkp605";
+const CORE_ASSETS = ["./","./index.html","./styles.9da14b7d.css","./app.47150d87.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
 
 /* Shell offline: página mínima para un cold-load sin red */
 const OFFLINE_SHELL = `<!DOCTYPE html>
@@ -68,6 +68,73 @@ self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+/* ============ Web Push (iOS/iPadOS 16.4+ PWA) ============ */
+/* Muestra una notificación cuando llega un payload push (RFC 8030).
+   El payload puede ser JSON (title/body/icon/badge/data) o texto plano. */
+self.addEventListener('push', event => {
+  event.waitUntil((async () => {
+    let title = 'EyeFit';
+    let body = 'Hay novedades en tu app.';
+    let icon = './icons/icon-192.png';
+    let badge = './icons/icon-192.png';
+    let data = { url: './' };
+
+    try {
+      if (event.data) {
+        const text = event.data.text();
+        if (text) {
+          try {
+            const payload = JSON.parse(text);
+            if (payload.title) title = payload.title;
+            if (payload.body) body = payload.body;
+            if (payload.icon) icon = payload.icon;
+            if (payload.badge) badge = payload.badge;
+            if (payload.data) data = { ...data, ...payload.data };
+          } catch (_) {
+            body = text;
+          }
+        }
+      }
+    } catch (_) {}
+
+    try {
+      await self.registration.showNotification(title, {
+        body,
+        icon,
+        badge,
+        data,
+        tag: data.tag || 'eyefit-update',
+        renotify: false,
+        silent: false
+      });
+    } catch (_) {
+      /* Fallback sin icon/badge si algo no se soporta */
+      await self.registration.showNotification(title, { body, data });
+    }
+  })());
+});
+
+/* Al hacer click en la notificación: enfocar (o abrir) la PWA en la ruta indicada */
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || './';
+  event.waitUntil((async () => {
+    const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of allClients) {
+      if ('focus' in client) { try { await client.focus(); } catch(_){} }
+    }
+    if (!allClients.length) {
+      try { await self.clients.openWindow(targetUrl); } catch(_) {}
+    }
+  })());
+});
+
+/* Gestiona clics en actions (p.ej. "Abrir rutina", "Recargar") */
+self.addEventListener('notificationclose', event => {
+  /* opcional: limpiar badge cuando se cierra la notificación */
+  try { self.registration.setAppBadge && self.registration.setAppBadge(0); } catch(_) {}
 });
 
 self.addEventListener('fetch', event => {

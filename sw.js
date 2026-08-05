@@ -3,7 +3,7 @@
    - cache versionada (bump manual por release)
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync */
-const CACHE = 'eyefit-v5';
+const CACHE = 'eyefit-v6';
 const CORE_ASSETS = [
   './',
   './index.html',

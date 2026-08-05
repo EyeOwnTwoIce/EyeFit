@@ -1,17 +1,20 @@
-/* EyeFit Service Worker — v5
-   - manifest.json estático en CORE_ASSETS
+/* EyeFit Service Worker — v7 (network-first)
    - cache versionada (bump manual por release)
+   - network-first: SIEMPRE intenta la red antes que la caché,
+     garantizando que cada carga/recarga obtenga la última versión.
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync */
-const CACHE = 'eyefit-v6';
+const CACHE = 'eyefit-v7';
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './utils.js',
-  './xlsx.full.min.js',
   './supabase.js',
   './rutina.xlsx',
+  './src/app.js',
+  './src/styles.css',
+  './src/db.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-180.png'
@@ -47,6 +50,8 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE)
       .then(cache => cache.addAll(CORE_ASSETS))
+      // Ya no nos saltamos la espera: esperamos a que el cliente recargue
+      // así el nuevo SW toma control después de la primera recarga.
       .then(() => self.skipWaiting())
   );
 });
@@ -81,6 +86,9 @@ self.addEventListener('message', event => {
   }
 });
 
+/* Estrategia de red: network-first. Cada petición intenta primero la red,
+   y solo si falla recurre a la caché (o al shell offline para navegaciones).
+   Esto garantiza que SIEMPRE se sirva la última versión desplegada. */
 self.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -100,59 +108,54 @@ self.addEventListener('fetch', event => {
           return response;
         }
         return caches.match(request);
-      }).catch(() => caches.match(request)).then(res => res || OFFLINE_RESPONSE)
+      }).catch(() => caches.match(request).then(res => res || OFFLINE_RESPONSE))
     );
     return;
   }
 
-  // Dataset de ejercicios: stale-while-revalidate (cache + red en paralelo)
+  // GIFs del dataset externo: network-first con fallback a caché
   if (url.hostname === 'raw.githubusercontent.com') {
     event.respondWith(
-      caches.open(CACHE).then(cache =>
-        cache.match(request).then(cached => {
-          const fetched = fetch(request).then(response => {
-            if (response && response.ok) cache.put(request, response.clone());
-            return response;
-          }).catch(() => cached);
-          return (cached || fetched) || OFFLINE_RESPONSE;
+      fetch(request).then(response => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE).then(cache => cache.put(request, clone));
+          return response;
+        }
+        return caches.match(request);
+      }).catch(() => caches.match(request).then(res => res || OFFLINE_RESPONSE))
+    );
+    return;
+  }
+
+  // Navegaciones: network-first; si la red falla, caché; si no hay caché, shell.
+  // Nunca encadenar .catch sobre un valor no-thenable (bug Safari/WebKit).
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).then(response => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE).then(cache => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() =>
+        caches.match(request).then(cached => {
+          if (cached) return cached;
+          return new Response(OFFLINE_SHELL, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         })
       )
     );
     return;
   }
 
-  // Navegaciones: cache-first; si no hay caché, red y si falla → shell offline.
-  // (No devolver `undefined` ni encadenar .catch sobre un valor no-thenable:
-  //  causa "cached || network).catch is not a function" en Safari/WebKit.)
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      caches.match(request).then(cached => {
-        if (cached) return cached;
-        return fetch(request).then(response => {
-          if (response && response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE).then(cache => cache.put(request, clone));
-          }
-          return response;
-        }).catch(() =>
-          new Response(OFFLINE_SHELL, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
-        );
-      })
-    );
-    return;
-  }
-
-  // Resto: cache-first con actualización en red
+  // Resto (JS, CSS, iconos): network-first con fallback a caché
   event.respondWith(
-    caches.match(request).then(cached => {
-      const networkFetch = fetch(request).then(response => {
-        if (response && response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE).then(cache => cache.put(request, clone));
-        }
-        return response;
-      }).catch(() => cached);
-      return (cached || networkFetch) || OFFLINE_RESPONSE;
-    })
+    fetch(request).then(response => {
+      if (response && response.ok) {
+        const clone = response.clone();
+        caches.open(CACHE).then(cache => cache.put(request, clone));
+      }
+      return response;
+    }).catch(() => caches.match(request).then(res => res || OFFLINE_RESPONSE))
   );
 });

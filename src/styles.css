@@ -478,6 +478,12 @@
   .prog-info details[open] summary::before{ transform:rotate(90deg); }
   .prog-info details .prog-body{ padding:2px 15px 12px; color:#ccc; font-size:11px; line-height:1.6; }
 
+  /* M5: detalle músculo/equipamiento en Ajustes */
+  .meta-ex-row{ display:flex; flex-direction:column; gap:1px; padding:6px 0; border-bottom:1px solid var(--border); }
+  .meta-ex-row:last-child{ border-bottom:none; }
+  .meta-ex-row b{ font-size:11px; color:var(--fg); }
+  .meta-ex-tags{ color:var(--muted); font-size:10px; line-height:1.4; }
+
   /* ===== Acerca de colapsado con sub-desplegables ===== */
   .about-details{ background:var(--surface); border:1px solid var(--border); border-radius:11px; margin-bottom:7px; overflow:hidden; }
   .about-details > summary{

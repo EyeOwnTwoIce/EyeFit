@@ -305,33 +305,168 @@ const ALTERNATIVAS = {
   "cable overhead triceps extension (rope attachment)": ["Ext. Tríceps Polea", "Press Frances", "Patada Tríceps"]
 };
 
-/* Mapa de imágenes embebido (corregido: press banca = 0025-EIeI8Vf) */
+/* Mapa de imágenes embebido (ampliado Módulo 5: 120 ejercicios).
+   Las claves provienen de slim-dataset.json (fuente de verdad). */
 const EMBEDDED_IMAGES = {
-  "barbell bench press": "0025-EIeI8Vf", "dumbbell incline bench press": "0314-ns0SIbU",
-  "dumbbell seated shoulder press": "0405-znQUdHY", "cable standing fly": "0227-Pr9Rhf4",
-  "dumbbell lateral raise": "0334-DsgkuIt", "cable pushdown (with rope attachment)": "0200-dU605di",
-  "barbell full squat": "0043-qXTaZnJ", "sled 45° leg press": "0739-10Z2DXU",
-  "lever leg extension": "0585-my33uHU", "lever lying leg curl": "0586-17lJ1kr",
-  "barbell standing calf raise": "1372-8ozhUIZ", "barbell bent over row": "0027-eZyBC3j",
-  "cable pulldown (pro lat bar)": "0197-qdRxqCj", "cable seated row": "0861-fUBheHs",
-  "cable standing rear delt row (with rope)": "0233-ZfyAGhK", "ez barbell curl": "0447-6TG6x2w",
-  "dumbbell hammer curl": "0313-slDvUAU", "barbell deadlift": "0032-ila4NZS",
-  "barbell glute bridge two legs on bench (male)": "3562-qg2PGl6", "barbell good morning": "0044-XlZ4lAC",
-  "cable kickback": "0860-HEJ6DIX", "lever seated calf raise": "0594-bOOdeyc",
-  "barbell incline bench press": "0047-3TZduzM", "pull up (neutral grip)": "0651-0V2YQjW",
-  "dumbbell arnold press": "2137-Xy4jlWA", "cable lateral raise": "0178-goJ6ezq",
-  "cable curl": "0868-G08RZcQ", "cable overhead triceps extension (rope attachment)": "0194-2IxROQ1",
+  "barbell bench press": "0025-EIeI8Vf",
+  "dumbbell incline bench press": "0314-ns0SIbU",
+  "dumbbell seated shoulder press": "0405-znQUdHY",
+  "cable standing fly": "0227-Pr9Rhf4",
+  "dumbbell lateral raise": "0334-DsgkuIt",
+  "cable pushdown (with rope attachment)": "0200-dU605di",
+  "barbell full squat": "0043-qXTaZnJ",
+  "sled 45в° leg press": "0739-10Z2DXU",
+  "lever leg extension": "0585-my33uHU",
+  "lever lying leg curl": "0586-17lJ1kr",
+  "barbell standing calf raise": "1372-8ozhUIZ",
+  "barbell bent over row": "0027-eZyBC3j",
+  "cable pulldown (pro lat bar)": "0197-qdRxqCj",
+  "cable seated row": "0861-fUBheHs",
+  "cable standing rear delt row (with rope)": "0233-ZfyAGhK",
+  "ez barbell curl": "0447-6TG6x2w",
+  "dumbbell hammer curl": "0313-slDvUAU",
+  "barbell deadlift": "0032-ila4NZS",
+  "barbell glute bridge two legs on bench (male)": "3562-qg2PGl6",
+  "barbell good morning": "0044-XlZ4lAC",
+  "cable kickback": "0860-HEJ6DIX",
+  "lever seated calf raise": "0594-bOOdeyc",
+  "barbell incline bench press": "0047-3TZduzM",
+  "pull up (neutral grip)": "0651-0V2YQjW",
+  "dumbbell arnold press": "2137-Xy4jlWA",
+  "cable lateral raise": "0178-goJ6ezq",
+  "cable curl": "0868-G08RZcQ",
+  "cable overhead triceps extension (rope attachment)": "0194-2IxROQ1",
+  "all fours squad stretch": "1512-qBcKorM",
+  "alternate lateral pulldown": "0007-4IKbhHV",
+  "ankle circles": "1368-uL9CsKm",
+  "archer pull up": "3293-72BC5Za",
+  "archer push up": "3294-A9qxk2F",
+  "arms apart circular toe touch (male)": "3214-RtyAsy1",
+  "assisted chest dip (kneeling)": "0009-PAgTVaK",
+  "assisted lying calves stretch": "1708-GxDwDX0",
+  "assisted lying glutes stretch": "1709-yn0LjwL",
+  "assisted lying gluteus and piriformis stretch": "1710-RQNVT10",
+  "assisted parallel close grip pull-up": "0015-vrhHa6D",
+  "assisted prone hamstring": "0016-VedGSby",
+  "assisted prone lying quads stretch": "1713-YUYAMEj",
+  "assisted pull-up": "0017-kiJ4Z2K",
+  "assisted seated pectoralis major stretch with stability ball": "1716-RoV1Rfa",
+  "assisted side lying adductor stretch": "1712-hC6oYY5",
+  "assisted standing chin-up": "1431-7OeHptV",
+  "assisted standing pull-up": "1432-f4xtKBj",
+  "assisted standing triceps extension (with towel)": "0018-7HcfMBP",
+  "assisted triceps dip (kneeling)": "0019-J60bN17",
+  "assisted wide-grip chest dip (kneeling)": "2364-PnZJIrk",
+  "back extension on exercise ball": "1314-qLpO4vV",
+  "back lever": "3297-GaSzzuh",
+  "back pec stretch": "1405-chfnQnM",
+  "backward jump": "1473-SaDOwk7",
+  "balance board": "0020-xAySMB0",
+  "band alternating biceps curl": "0968-3omWx6P",
+  "band assisted pull-up": "0970-r1XNRYB",
+  "band bench press": "1254-khlHMqs",
+  "band bent-over hip extension": "0980-wSScovH",
+  "band close-grip pulldown": "0974-DptumMx",
+  "band close-grip push-up": "0975-ufaxB52",
+  "band concentration curl": "0976-kmVVAfu",
+  "band fixed back close grip pulldown": "3117-4LoWllp",
+  "band fixed back underhand pulldown": "3116-ZH68exZ",
+  "band front lateral raise": "0977-sTg7iys",
+  "band front raise": "0978-TFA88iB",
+  "band hip lift": "1408-E4R8Hz1",
+  "band kneeling one arm pulldown": "0983-pmnrOp0",
+  "band lying hip internal rotation": "0984-vIICElP",
+  "band one arm overhead biceps curl": "0986-UNAB8ak",
+  "band one arm single leg split squat": "0987-arsYEd3",
+  "band one arm standing low row": "0988-km0sQC0",
+  "band one arm twisting chest press": "0989-c16nYGA",
+  "band one arm twisting seated row": "0990-DKBwJrL",
+  "band pull through": "0991-VtTbiP3",
+  "band reverse fly": "0993-sTfvVsG",
+  "band seated hip internal rotation": "0996-9gbyYKk",
+  "band shoulder press": "0997-peAeMR3",
+  "band shrug": "1018-trmte8s",
+  "band side triceps extension": "0998-obe5LMq",
+  "band single leg calf raise": "0999-9JprnPh",
+  "band single leg reverse calf raise": "1000-QsSQWbf",
+  "band single leg split squat": "1001-y8bYM8w",
+  "band squat": "1004-TUZLh71",
+  "band squat row": "1003-w1NOByi",
+  "band standing rear delt row": "1022-tc5dYrf",
+  "band step-up": "1008-d5bTEPV",
+  "band stiff leg deadlift": "1009-kuMiR2T",
+  "band straight back stiff leg deadlift": "1023-lHeUULr",
+  "band straight leg deadlift": "1010-KUaoUV8",
+  "band twisting overhead press": "1012-u4bAmKp",
+  "band two legs calf raise - (band under both legs) v. 2": "1369-jl6uxZV",
+  "band underhand pulldown": "1013-k6tUeqS",
+  "band y-raise": "1017-aHDy5O5",
+  "barbell alternate biceps curl": "0023-Yza7XrQ",
+  "barbell bench front squat": "0024-Y7YcmIJ",
+  "barbell bench squat": "0026-W9pFVv1",
+  "barbell bent arm pullover": "1316-cA9FuWG",
+  "barbell biceps curl (with arm blaster)": "2407-aee2Fcj",
+  "barbell clean and press": "0028-SGY8Zui",
+  "barbell clean-grip front squat": "0029-qi996YS",
+  "barbell close-grip bench press": "0030-J6Dx1Mu",
+  "barbell curl": "0031-25GPyDY",
+  "barbell decline bench press": "0033-GrO65fd",
+  "barbell decline bent arm pullover": "0034-hMEptv0",
+  "barbell decline close grip to skull press": "0035-LMGXZn8",
+  "barbell decline pullover": "1255-9sgNE2O",
+  "barbell decline wide-grip press": "0036-hl8DUh8",
+  "barbell decline wide-grip pullover": "0037-Hj4FOCd",
+  "barbell drag curl": "0038-IENzBdA",
+  "barbell floor calf raise": "1370-2IHEa2T",
+  "barbell front chest squat": "0039-IeTIEqg",
+  "barbell front raise": "0041-b2Uoz54",
+  "barbell front raise and pullover": "0040-33AzZeV",
+  "barbell front squat": "0042-zG0zs85",
+  "barbell full squat (back pov)": "1461-DhMl549",
+  "barbell full squat (side pov)": "1462-iYzB0Cz",
+  "barbell full zercher squat": "1545-vR1vold",
+  "barbell glute bridge": "1409-qKBpF7I",
+  "barbell guillotine bench press": "0045-GXoaSgn",
+  "barbell hack squat": "0046-5VCj6iH",
 };
 const IMG_BASE = "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/";
+
+/* F1/M5: normalización robusta de nombres para las claves del dataset.
+   El dataset fuente (slim-dataset.json) contiene un carácter corrupto "в"
+   en algunos nombres (p. ej. "sled 45в° leg press") que no coincide con el
+   nombre canónico ("sled 45° leg press") usado en la rutina/localStorage.
+   Eliminamos "в", símbolos y normalizamos espacios para que ambas variantes
+   resuelvan al mismo GIF. */
+function imgNorm(s){
+  return String(s||"")
+    .toLowerCase()
+    .replace(/в/g,"")
+    .replace(/[^a-z0-9à-ú ]/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+/* Busca el valor (código GIF) de EMBEDDED_IMAGES para un nombre dado,
+   con coincidencia exacta primero y normalizada (tolerante al "в" corrupto). */
+function findEmbeddedImage(name){
+  if(!name) return null;
+  const exact = EMBEDDED_IMAGES[name];
+  if(exact) return exact;
+  const n = imgNorm(name);
+  for(const [key,val] of Object.entries(EMBEDDED_IMAGES)){
+    if(imgNorm(key)===n) return val;
+  }
+  return null;
+}
 
 /* Devuelve la imagen con prioridad GIF animado (videos/{base}.gif) */
 function getExerciseImage(ex, dataset){
   let base = null;
   /* F1-C2: si se aplicó una variante, buscar la imagen del ejercicio ORIGINAL */
   const datasetKey = ex.datasetOriginal || ex.dataset;
-  if(datasetKey && EMBEDDED_IMAGES[datasetKey]){
-    base = EMBEDDED_IMAGES[datasetKey];
-  } else if(dataset && datasetKey){
+  if(datasetKey){
+    base = findEmbeddedImage(datasetKey) || findEmbeddedImage(ex.nombre_es);
+  }
+  if(!base && dataset && datasetKey){
     const found = findExerciseInDataset(dataset, datasetKey) || findExerciseInDataset(dataset, ex.nombre_es);
     if(found && found.image){
       base = found.image.replace("images/","").replace(".jpg","").replace(".png","");
@@ -348,11 +483,8 @@ function getExerciseImage(ex, dataset){
    y luego cae a coincidencias por palabra. */
 function getExerciseImageForName(name, dataset){
   if(!name) return null;
-  for(const [key,val] of Object.entries(EMBEDDED_IMAGES)){
-    if(normalizeName(key)===normalizeName(name)){
-      return IMG_BASE + "videos/" + val + ".gif";
-    }
-  }
+  const embedded = findEmbeddedImage(name);
+  if(embedded) return IMG_BASE + "videos/" + embedded + ".gif";
   if(dataset){
     const n = normalizeName(name);
     /* Exacta primero */
@@ -552,6 +684,56 @@ async function loadExerciseDataset(){
     }catch(e){}
     return data;
   }catch(e){ return null; }
+}
+/* ================================================================
+   METADATOS (exercise-meta.json, Módulo 5)
+   - equip:  tipo de equipamiento (barbell, dumbbell, cable, machine, …)
+   - muscle: músculo primario
+   - secondary: músculos secundarios
+   Se carga en runtime (cache-first) igual que slim-dataset.json y se usa
+   en el picker de ejercicios y en los Ajustes (mostrar músculo/equip).
+   ================================================================ */
+const META_URL = "./exercise-meta.json";
+const META_CACHE = "eyefit-meta-v1";
+async function loadExerciseMeta(){
+  /* Cache-first: los metadatos son estáticos y viajan en el build. */
+  try{
+    const cache = await caches.open(META_CACHE);
+    const cachedResp = await cache.match(META_URL);
+    if(cachedResp){
+      const cached = await cachedResp.json();
+      if(cached && cached.exercises) return cached;
+    }
+  }catch(e){}
+  try{
+    const resp = await fetch(META_URL);
+    if(!resp.ok) throw new Error("no fetch");
+    const data = await resp.json();
+    try{
+      const cache = await caches.open(META_CACHE);
+      await cache.put(META_URL, resp.clone());
+    }catch(e){}
+    return data;
+  }catch(e){ return null; }
+}
+/* Resuelve los metadatos de un ejercicio por nombre, tolerando la
+   variante corrupta ("в") de slim-dataset.json. Devuelve null si no hay. */
+function getExerciseMeta(name){
+  if(!exerciseMetaCache || !name) return null;
+  const exMap = exerciseMetaCache.exercises || {};
+  const direct = exMap[name];
+  if(direct) return direct;
+  const n = imgNorm(name);
+  if(!n) return null;
+  for(const k of Object.keys(exMap)){
+    if(imgNorm(k)===n) return exMap[k];
+  }
+  /* Fallback por inclusión normalizada: tolera sufijos tipo "(male)" o "(back pov)". */
+  for(const k of Object.keys(exMap)){
+    const nk = imgNorm(k);
+    if(nk && (nk.includes(n) || n.includes(nk))) return exMap[k];
+  }
+  return null;
 }
 /* Fase 1 (P5): índice del dataset con Maps para evitar pasadas O(n) repetidas.
    Normaliza cada nombre una sola vez y agrupa por grupo muscular. */
@@ -787,6 +969,7 @@ async function syncPending(){
 let currentTab = "rutina";
 let selectedDay = null;
 let datasetCache = null;
+let exerciseMetaCache = null; /* metadatos de ejercicios (exercise-meta.json) */
 let session = null;
 
 function setTab(tab){
@@ -1045,18 +1228,18 @@ function renderPickerList(query){
   const shown = items.slice(0, 60);
   list.innerHTML = shown.length
     ? shown.map((d,i)=>{
-        const imgKey = normalizeName(d.name);
-        let imgBase = null;
-        for(const [key,val] of Object.entries(EMBEDDED_IMAGES)){
-          if(normalizeName(key) === imgKey){ imgBase = val; break; }
-        }
+        let imgBase = findEmbeddedImage(d.name);
         if(!imgBase && d.image) imgBase = String(d.image).replace("images/","").replace(".jpg","").replace(".png","");
         const imgUrl = imgBase ? IMG_BASE + "videos/" + imgBase + ".gif" : null;
+        /* M5: metadatos de músculo/equipamiento desde exercise-meta.json */
+        const meta = getExerciseMeta(d.name);
+        const partLabel = escapeHtml(meta && meta.muscle ? meta.muscle : (d.part||""));
+        const equipLabel = meta && meta.equip ? escapeHtml(meta.equip) : "";
         return `<div class="picker-item" data-pick-ex="${escapeHtmlAttr(i)}" data-pick-name="${escapeHtmlAttr(d.name)}" data-pick-image="${escapeHtmlAttr(d.image||"")}" data-pick-part="${escapeHtmlAttr(d.part||"")}">
           ${imgUrl ? `<img class="rt-ex-img" style="width:34px;height:34px;border-radius:6px;" src="${imgUrl}" alt="" loading="lazy" decoding="async" data-img-fallback="hide">` : ""}
           <div style="flex:1;min-width:0;">
             <div class="pi-name">${escapeHtml(d.name)}</div>
-            <div class="pi-sub">${escapeHtml(d.part||"")}</div>
+            <div class="pi-sub">${partLabel}${equipLabel ? ` · ${equipLabel}` : ""}</div>
           </div>
         </div>`;
       }).join("")
@@ -1911,6 +2094,29 @@ function renderAjustes(){
           <div class="label">Rutina actual: <b class="accent">${routineSrc}</b></div>
           <div class="desc">${routine.length} ejercicios · Lunes-Viernes</div>
         </div>
+      </div>
+      <div class="prog-info">
+        <details>
+          <summary>💪 Músculo y equipamiento de los ejercicios</summary>
+          <div class="prog-body">
+            ${routine.length ? routine
+              .slice(0, 40)
+              .map(e=>{
+                const meta = getExerciseMeta(e.dataset || e.nombre_es);
+                if(!meta) return "";
+                const muscle = meta.muscle || e.nombre_es;
+                const equip = meta.equip || "";
+                const secondary = (Array.isArray(meta.secondary) && meta.secondary.length)
+                  ? " · Sec.: " + meta.secondary.join(", ")
+                  : "";
+                return `<div class="meta-ex-row">
+                  <b>${escapeHtml(getApodo(e))}</b>
+                  <span class="meta-ex-tags">${escapeHtml(muscle)}${equip ? " · " + escapeHtml(equip) : ""}${escapeHtml(secondary)}</span>
+                </div>`;
+              }).join("")
+              : "<div class=\"empty-state\">Sin ejercicios</div>"}
+          </div>
+        </details>
       </div>
       <div class="set-row-item">
         <div><div class="label">Importar rutina (.xlsx)</div><div class="desc">Sube tu hoja de cálculo</div></div>
@@ -3112,10 +3318,12 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
   }
 
   const datasetPromise = loadExerciseDataset();
+  const metaPromise = loadExerciseMeta(); /* M5: metadatos músculo/equipamiento */
   getHistory(); /* F2-A2: saneamiento del historial al arrancar */
   restoreSession();
   renderMain();
   datasetCache = await datasetPromise;
+  exerciseMetaCache = await metaPromise.catch(()=>null);
   renderMain();
   updateStopBtn();
   showOnboarding();

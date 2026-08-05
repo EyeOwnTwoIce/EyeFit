@@ -1215,27 +1215,6 @@ function renderRutina(){
     return { name: DAY_ORDER[offset] || DAY_NUM[d.getDay()], date: d };
   });
 
-  const carouselCells = weekDays.map(({name,date})=>{
-    const dayEx = routine.filter(e=>e.dia===name).sort((a,b)=>(a.orden||0)-(b.orden||0));
-    const isToday = name === todayName;
-    const isSel = name === sel;
-    const dateLabel = date.toLocaleDateString("es-ES",{day:"numeric",month:"short"});
-    const color = DAY_COLORS[name] || "#888";
-    const body = dayEx.length===0
-      ? `<div class="rc-rest">😴 Descanso</div>`
-      : `<div class="rc-list">${dayEx.slice(0,4).map(e=>{
-          return `<div class="rc-item">${escapeHtml(getApodo(e))}</div>`;
-        }).join("")}${dayEx.length>4?`<div class="rc-more">+${dayEx.length-4}</div>`:""}</div>`;
-    return `<div class="rc-cell ${isToday?"rc-today":""} ${isSel?"rc-active":""}" data-day="${escapeHtmlAttr(name)}" role="button" tabindex="0" aria-label="${name}">
-      <div class="rc-top">
-        <span class="rc-day" style="color:${color}">${DAY_SHORT[name]||name.slice(0,3)}</span>
-        <span class="rc-date">${dateLabel}</span>
-      </div>
-      ${body}
-    </div>`;
-  }).join("");
-
-  /* Cards del día seleccionado: GIF izquierda + datos derecha (series, reps, RM tappable) */
   const dayEx = routine.filter(e=>e.dia===sel).sort((a,b)=>(a.orden||0)-(b.orden||0));
   const dayCards = dayEx.length===0
     ? `<div class="empty-state">${sel} es día de descanso.<br>Pulsa «Editar» para añadir ejercicios si lo deseas.</div>`
@@ -1256,9 +1235,9 @@ function renderRutina(){
           <div class="rtc-info">
             <div class="rtc-name">${escapeHtml(getApodo(e))}</div>
             <div class="rtc-stats">
-              <div class="rtc-stat" data-rt-edit="series" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0" aria-label="Editar series de ${escapeHtmlAttr(getApodo(e))}"><span class="rtc-stat-val">${e.series}</span><span class="rtc-stat-lbl">series</span></div>
-              <div class="rtc-stat" data-rt-edit="reps" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0" aria-label="Editar reps de ${escapeHtmlAttr(getApodo(e))}"><span class="rtc-stat-val">${e.reps}</span><span class="rtc-stat-lbl">reps</span></div>
-              <div class="rtc-stat" data-rt-edit="kg" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0" aria-label="Editar kg de ${escapeHtmlAttr(getApodo(e))}"><span class="rtc-stat-val">${e.peso_kg}</span><span class="rtc-stat-lbl">kg</span></div>
+              <div class="rtc-stat" data-rt-edit="series" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${e.series}</span><span class="rtc-stat-lbl">series</span></div>
+              <div class="rtc-stat" data-rt-edit="reps" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${e.reps}</span><span class="rtc-stat-lbl">reps</span></div>
+              <div class="rtc-stat" data-rt-edit="kg" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${e.peso_kg}</span><span class="rtc-stat-lbl">kg</span></div>
               ${rmLabel ? `<div class="rtc-stat rm-tappable" ${rmHint}><span class="rtc-stat-val">${rmLabel}</span><span class="rtc-stat-lbl">1RM</span></div>` : ""}
             </div>
           </div>
@@ -1277,7 +1256,7 @@ function renderRutina(){
         const body = dayEx.length===0
           ? `<div class="rc-rest">😴</div>`
           : `<div class="rc-list">${dayEx.slice(0,4).map(e=>`<div class="rc-item">${escapeHtml(getApodo(e))}</div>`).join("")}${dayEx.length>4?`<div class="rc-more">+${dayEx.length-4}</div>`:""}</div>`;
-        return `<div class="rc-cell ${isToday?"rc-today":""} ${isSel?"rc-active":""}" data-day="${escapeHtmlAttr(name)}" role="button" tabindex="0" aria-label="${name}" aria-pressed="${isSel}">
+        return `<div class="rc-cell ${isToday?"rc-today":""} ${isSel?"rc-active":""}" data-day="${escapeHtmlAttr(name)}" role="button" tabindex="0" aria-pressed="${isSel}">
           <div class="rc-top">
             <span class="rc-day" style="color:${color}">${DAY_SHORT[name]||name.slice(0,3)}</span>
             <span class="rc-date">${dateLabel}</span>

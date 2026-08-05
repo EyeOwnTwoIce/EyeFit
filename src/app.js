@@ -567,15 +567,34 @@ async function ensurePushSubscription(reg){
   }
 }
 
-/* Guarda la suscripción en localStorage para el servidor de dispatch */
-function persistPushSubscription(sub){
+/* Guarda la suscripción en localStorage + Supabase (para el dispatch del backend) */
+async function persistPushSubscription(sub){
   try{
     if(sub){
       localStorage.setItem(K_NEWS_KEYS.pushSubscribed, "1");
-      localStorage.setItem(K_NEWS_KEYS.pushSubJson, JSON.stringify(sub.toJSON ? sub.toJSON() : sub));
+      const json = sub.toJSON ? sub.toJSON() : sub;
+      localStorage.setItem(K_NEWS_KEYS.pushSubJson, JSON.stringify(json));
+      /* Subir el endpoint a Supabase para que la Edge Function eyefit-push
+         lo use al acabar cada deploy (flush separado, no bloquea al caller). */
+      if(sbClient && json && json.endpoint){
+        sbClient.from("push_subscriptions").upsert({
+          endpoint: json.endpoint,
+          keys: json.keys || {}
+        }, { onConflict: "endpoint" }).then(({error})=>{
+          if(error) console.warn("[EyeFit] push sub upsert error:", error.message);
+        });
+      }
     } else {
       localStorage.setItem(K_NEWS_KEYS.pushSubscribed, "");
+      /* Recuperar y eliminar el endpoint de Supabase */
+      const jsonStr = localStorage.getItem(K_NEWS_KEYS.pushSubJson);
+      let endpoint = null;
+      try{ if(jsonStr) endpoint = (JSON.parse(jsonStr)||{}).endpoint; }catch(e){}
       localStorage.removeItem(K_NEWS_KEYS.pushSubJson);
+      if(sbClient && endpoint){
+        sbClient.from("push_subscriptions").delete().eq("endpoint", endpoint)
+          .then(({error})=>{ if(error) console.warn("[EyeFit] push sub delete error:", error.message); });
+      }
     }
   }catch(e){}
 }
@@ -597,7 +616,7 @@ async function enablePushNotifications(){
     const reg = window.__swReg || await navigator.serviceWorker.ready;
     const sub = await ensurePushSubscription(reg);
     if(sub && sub.endpoint){
-      persistPushSubscription(sub);
+      await persistPushSubscription(sub);
       showToast("🔔 Notificaciones activadas");
       renderMain();
     } else {
@@ -609,16 +628,20 @@ async function enablePushNotifications(){
   }
 }
 
-/* Desactivar notificaciones (elimina suscripción local) */
+/* Desactivar notificaciones (elimina suscripción local + Supabase) */
 async function disablePushNotifications(){
+  let endpoint = null;
   try{
     const reg = window.__swReg || (navigator.serviceWorker ? await navigator.serviceWorker.ready : null);
     if(reg && reg.pushManager){
       const sub = await reg.pushManager.getSubscription();
-      if(sub) await sub.unsubscribe();
+      if(sub){
+        endpoint = sub.endpoint;
+        await sub.unsubscribe();
+      }
     }
   }catch(e){}
-  persistPushSubscription(null);
+  await persistPushSubscription(null);
   showToast("🔕 Notificaciones desactivadas");
   renderMain();
 }

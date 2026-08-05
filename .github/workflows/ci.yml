@@ -155,3 +155,24 @@ jobs:
           path: dist
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      # Notificar a los usuarios suscritos que la app se actualizó (Web Push).
+      # Llama a la Edge Function de Supabase 'eyefit-push', que lee las
+      # suscripciones de la tabla push_subscriptions y envía el push con VAPID.
+      # Requiere los secretos del repo: SUPABASE_PUSH_FN_URL
+      - name: Notify push update
+        if: github.event_name == 'push' && always()
+        run: |
+          if [ -z "${{ secrets.SUPABASE_PUSH_FN_URL }}" ]; then
+            echo "⚠️ SUPABASE_PUSH_FN_URL no configurado — salto notificación push."
+            exit 0
+          fi
+          curl -sS -X POST "${{ secrets.SUPABASE_PUSH_FN_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_PUSH_FN_KEY }}" \
+            -d '{
+              "title": "🔄 EyeFit actualizado",
+              "body": "Nueva versión disponible. Toca para recargar y ver las novedades.",
+              "url": "./"
+            }' \
+            && echo "Push enviado." || echo "El servicio push no respondió (no bloquea)."

@@ -123,3 +123,32 @@ create trigger set_sesiones_updated_at
 
 -- 5) Limpieza de la antigua tabla mal escrita "routinas" (si existía de versiones previas)
 drop table if exists public.routinas;
+
+-- ════════════════════════════════════════════════════════════════
+-- 6) Push subscriptions (Web Push / iOS 16.4+)
+--    Una fila por dispositivo suscrito. La app hace upsert de su endpoint
+--    y la Edge Function eyefit-push las lee (con service_role) para
+--    enviar notificaciones al acabar cada deploy.
+--    RLS: permitimos a anon insertar/borrar SU endpoint (por dispositivo).
+--    El SELECT lo hace la EF con service_role (ya bypassa RLS).
+-- ════════════════════════════════════════════════════════════════
+create table if not exists public.push_subscriptions (
+  endpoint  text primary key,
+  keys      jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.push_subscriptions enable row level security;
+
+-- Insert/upsert: el dispositivo registra/se actualiza su endpoint
+drop policy if exists "push_subscriptions_upsert" on public.push_subscriptions;
+create policy "push_subscriptions_upsert"
+  on public.push_subscriptions for insert
+  with check (true);
+
+-- Delete: el dispositivo elimina su endpoint al desuscribirse
+drop policy if exists "push_subscriptions_delete" on public.push_subscriptions;
+create policy "push_subscriptions_delete"
+  on public.push_subscriptions for delete
+  using (true);

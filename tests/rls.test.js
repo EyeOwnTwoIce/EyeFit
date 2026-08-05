@@ -91,3 +91,21 @@ test('RLS: ambas tablas tienen primary key uuid con gen_random_uuid()', () => {
 test('RLS: limpieza de la antigua tabla mal escrita routinas', () => {
   assert.match(SQL, /drop table if exists public\.routinas/i);
 });
+
+/* ============ Push subscriptions (Web Push) ============ */
+test('RLS: tabla push_subscriptions con endpoint primary key y keys jsonb', () => {
+  assert.match(SQL, /create table if not exists public\.push_subscriptions/i);
+  assert.match(SQL, /endpoint\s+text primary key/i);
+  assert.match(SQL, /keys\s+jsonb not null default '\{\}'::jsonb/i);
+});
+
+test('RLS: RLS habilitado en push_subscriptions', () => {
+  assert.match(SQL, /alter table public\.push_subscriptions enable row level security/i);
+});
+
+test('RLS: políticas push_subscriptions_upsert y push_subscriptions_delete', () => {
+  assert.match(SQL, /create policy "push_subscriptions_upsert"/i);
+  assert.match(SQL, /create policy "push_subscriptions_delete"/i);
+  assert.match(SQL, /drop policy if exists "push_subscriptions_upsert"/i);
+  assert.match(SQL, /drop policy if exists "push_subscriptions_delete"/i);
+});

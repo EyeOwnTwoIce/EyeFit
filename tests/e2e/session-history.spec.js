@@ -25,18 +25,13 @@ async function closeOverlays(page) {
 test('T2: iniciar sesión, completar sets y ver la entrada en Historial', async ({ page }) => {
   await closeOverlays(page);
 
-  // Ir a la pestaña Entrenar (solo día actual con confirmación)
+  // Ir a la pestaña Entrenar que muestra la vista previa del día de hoy.
   await page.locator('[data-tab="sesion"]').last().click({ force: true });
 
-  // Encontrar y pulsar el botón de confirmación del día de hoy
-  const todayBtn = page.locator('[data-start-session-confirm]').last();
-  await expect(todayBtn).toBeVisible({ timeout: 6000 });
-  await todayBtn.click({ force: true });
-
-  // Confirmar la sesión en el modal
-  const confirmBtn = page.locator('[data-sc-start]');
-  await expect(confirmBtn).toBeVisible({ timeout: 6000 });
-  await confirmBtn.click();
+  // Nueva UX: la vista previa muestra el botón "▶️ Entrenar" directo.
+  const startBtn = page.locator('[data-start-session]').last();
+  await expect(startBtn).toBeVisible({ timeout: 6000 });
+  await startBtn.click({ force: true });
 
   // Marcar TODAS las series pendientes.
   for (let guard = 0; guard < 40; guard++) {

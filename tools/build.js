@@ -15,7 +15,18 @@ const { build } = require('esbuild');
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
+const PUBLIC = path.join(ROOT, 'public');
+const DATA = path.join(ROOT, 'data');
+const VENDOR = path.join(ROOT, 'vendor');
 
+/* Origen de cada arquivo que se copia tal cual a dist/ */
+const STATIC_SOURCES = [
+  'public/manifest.json', 'public/rutina.xlsx', 'data/slim-dataset.json', 'data/exercise-meta.json',
+  'public/robots.txt', 'public/sitemap.xml', 'src/utils.js', 'vendor/supabase.js',
+  'vendor/xlsx.full.min.js'
+];
+
+// Destino en dist/ (nombre archivo)
 const STATIC_FILES = [
   'manifest.json', 'rutina.xlsx', 'slim-dataset.json', 'exercise-meta.json',
   'robots.txt', 'sitemap.xml', 'utils.js', 'supabase.js',
@@ -25,7 +36,8 @@ const STATIC_FILES = [
 // Archivos que viven en src/ y se copian tal cual a dist/
 const SRC_FILES = ['db.js'];
 
-const STATIC_DIRS = ['icons'];
+// Carpetas fuente (relativas a ROOT) cuyo CONTENIDO va a dist/<basename>
+const STATIC_DIRS = ['public/icons'];
 
 function hashSum(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 8);
@@ -37,11 +49,12 @@ function rmDist() {
 }
 
 function copyStatic() {
-  // Archivos static del root → dist/
-  for (const f of STATIC_FILES) {
-    const from = path.join(ROOT, f);
+  // Archivos static organizados → dist/ (mantienen el nombre en dist)
+  for (let i = 0; i < STATIC_FILES.length; i++) {
+    const from = path.join(ROOT, STATIC_SOURCES[i] || STATIC_FILES[i]);
+    const to = path.join(DIST, STATIC_FILES[i]);
     if (!fs.existsSync(from)) continue;
-    fs.copyFileSync(from, path.join(DIST, f));
+    fs.copyFileSync(from, to);
   }
   // Archivos que viven en src/ (db.js) → dist/
   for (const f of SRC_FILES) {
@@ -49,9 +62,12 @@ function copyStatic() {
     if (!fs.existsSync(from)) continue;
     fs.copyFileSync(from, path.join(DIST, f));
   }
-  // Directorios
-  for (const d of STATIC_DIRS) {
-    fs.cpSync(path.join(ROOT, d), path.join(DIST, d), { recursive: true });
+  // Directorios: icons vive en public/ y se copia a la raíz de dist/ (como dist/icons)
+  for (const src of STATIC_DIRS) {
+    const fromDir = path.join(ROOT, src);
+    if (!fs.existsSync(fromDir)) continue;
+    const baseName = path.basename(src); // "icons"
+    fs.cpSync(fromDir, path.join(DIST, baseName), { recursive: true });
   }
 }
 

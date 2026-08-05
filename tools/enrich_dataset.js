@@ -10,8 +10,8 @@
    para ampliar EMBEDDED_IMAGES en src/app.js si se pide --images=N.
 
    Uso:
-     node scripts/enrich_dataset.js                → genera exercise-meta.json
-     node scripts/enrich_dataset.js --images=120   → además imprime bloque EMBEDDED_IMAGES
+     node tools/enrich_dataset.js                → genera exercise-meta.json
+     node tools/enrich_dataset.js --images=120   → además imprime bloque EMBEDDED_IMAGES
 */
 'use strict';
 const fs = require('fs');

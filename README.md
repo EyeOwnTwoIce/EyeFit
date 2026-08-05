@@ -92,23 +92,23 @@ Si quieres editar la rutina en código y regenerar el archivo:
 
 ```bash
 npm install
-node generate_rutina.js
+npm run generate
 ```
 
-Esto modifica la `RUTINA` embebida en `generate_rutina.js` y genera un nuevo `rutina.xlsx`.
+Esto modifica la `RUTINA` embebida en `tools/generate_rutina.js` y genera un nuevo `public/rutina.xlsx`.
 
 ---
 
 ## 🗄️ Backend (Supabase)
 
-La app usa Supabase para autenticación y sincronización. El SQL de setup está en `supabase_setup.sql` (tablas `rutinas`, `sesiones`, RLS y triggers).
+La app usa Supabase para autenticación y sincronización. El SQL de setup está en `supabase/setup.sql` (tablas `rutinas`, `sesiones`, RLS y triggers).
 
 Pasos tras crear un proyecto en Supabase:
 
-1. Ejecuta `supabase_setup.sql` en el SQL Editor del dashboard.
+1. Ejecuta `supabase/setup.sql` en el SQL Editor del dashboard.
 2. En **Authentication → Providers**, deja habilitado el email.
-3. En **Authentication → Emails**, configura la plantilla de confirmación (puedes usar `supabase_email_template.html` como base).
-4. Actualiza `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `index.html` con los valores de tu proyecto.
+3. En **Authentication → Emails**, configura la plantilla de confirmación (puedes usar `data/supabase_email_template.html` como base).
+4. Actualiza `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `src/app.js` con los valores de tu proyecto.
 
 ---
 
@@ -134,22 +134,40 @@ Pasos tras crear un proyecto en Supabase:
 
 ```
 EyeFit/
-├── index.html            ★ La app completa (PWA single-file)
-├── utils.js              Utilidades puras compartidas (navegador + tests)
-├── manifest.json         Manifest PWA estático (instalable)
-├── rutina.xlsx           ★ La hoja de cálculo de la rutina (edítala aquí)
-├── sw.js                 Service Worker (caché offline + Background Sync)
-├── xlsx.full.min.js      Librería SheetJS (parseo de .xlsx)
-├── generate_rutina.js    Script para regenerar rutina.xlsx
-├── generate_icons.js     Script para regenerar los iconos PNG
-├── supabase_setup.sql    Setup SQL del backend (tablas, RLS, triggers)
-├── supabase_email_template.html  Plantilla de email de confirmación (opcional)
-├── tests/                Tests unitarios (node:test → `npm test`)
-├── .eslintrc.json        Config ESLint
-├── .prettierrc           Config Prettier
-├── .github/workflows/ci.yml  CI (test + lint en cada PR/push)
-├── CHANGELOG.md          Registro de cambios
-└── README.md             Esta documentación
+├── src/                    ★ Fuentes de la app
+│   ├── index.html          Plantilla HTML (build inyecta CSS/JS hasheados)
+│   ├── app.js              Lógica principal de la app
+│   ├── styles.css          Estilos (tema iOS dark)
+│   ├── db.js               Persistencia IndexedDB
+│   ├── sw.js               Service Worker (caché offline + Background Sync)
+│   └── utils.js            Utilidades puras compartidas (navegador + tests)
+├── public/                 Archivos publicados tal cual (sin transformar)
+│   ├── manifest.json       Manifest PWA estático (instalable)
+│   ├── rutina.xlsx         ★ La hoja de cálculo de la rutina (edítala aquí)
+│   ├── robots.txt
+│   ├── sitemap.xml
+│   └── icons/              Iconos PNG (icon-180, 192, 512)
+├── data/                   Datasets y plantillas
+│   ├── slim-dataset.json   Dataset de ejercicios (1080)
+│   ├── exercise-meta.json  Metadatos (músculo, equipamiento)
+│   └── supabase_email_template.html  Plantilla de email de confirmación
+├── vendor/                 Librerías de terceros
+│   ├── xlsx.full.min.js    SheetJS (parseo de .xlsx)
+│   └── supabase.js         SDK de Supabase
+├── tools/                  Scripts de build y utilidades CLI
+│   ├── build.js            Pipeline esbuild → dist/
+│   ├── generate_rutina.js  Regenera public/rutina.xlsx
+│   ├── generate_icons.js   Regenera los iconos PNG
+│   ├── generate_slim_dataset.js  Regenera data/slim-dataset.json
+│   └── enrich_dataset.js   Enriquecer metadatos de ejercicios
+├── supabase/               Config del backend
+│   └── setup.sql           Setup SQL (tablas, RLS, triggers)
+├── tests/                  Tests unitarios (node:test → `npm test`)
+│   └── e2e/                Tests end-to-end (Playwright)
+├── dist/                   Build output (generado por `npm run build`)
+├── .github/workflows/ci.yml  CI (test + e2e + deploy Pages)
+├── CHANGELOG.md            Registro de cambios
+└── README.md               Esta documentación
 ```
 
 ---

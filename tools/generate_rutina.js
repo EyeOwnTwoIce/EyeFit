@@ -1,6 +1,6 @@
 /* generate_rutina.js
    Genera rutina.xlsx (hoja de cálculo editable) con la rutina Lunes-Viernes de EyeFit.
-   Uso: node generate_rutina.js
+   Uso: node tools/generate_rutina.js
    Edita los datos aquí y vuelve a ejecutar para regenerar el xlsx.
 */
 const XLSX = require("xlsx");

@@ -3,7 +3,7 @@
 ## [3.0.0] - 2026-04-08
 ### Cambios (Roadmap Fases A–F)
 
-- **Build**: pipeline esbuild (`scripts/build.js`) con `dist/` content-hashed (`app.[hash].js`, `styles.[hash].css`), CSP estricta (`script-src 'self'`, `frame-ancestors 'none'`, `upgrade-insecure-requests`); fuente única en `src/` (index.html, styles.css, app.js, sw.js, db.js); Service Worker generado con cache versionada.
+- **Build**: pipeline esbuild (`tools/build.js`) con `dist/` content-hashed (`app.[hash].js`, `styles.[hash].css`), CSP estricta (`script-src 'self'`, `frame-ancestors 'none'`, `upgrade-insecure-requests`); fuente única en `src/` (index.html, styles.css, app.js, sw.js, db.js, utils.js); Service Worker generado con cache versionada.
 - **Rendimiento**: SheetJS fuera del bundle inicial → carga bajo demanda (`loadXLSX()`) solo al importar/exportar; dataset local `slim-dataset.json` (~0.66 MB) servido offline con stale-while-revalidate (antes localStorage ~5MB límite iOS).
 - **Persistencia**: historial en IndexedDB (`src/db.js`) con caché síncrona en memoria y schema versioning (`eyefit_meta.data_version` v2) + migración one-time desde localStorage; exportar/importar backup JSON (rutina + historial).
 - **Accesibilidad**: focus trap con retorno de foco en los 4 overlays (auth, numPad, variantes, resumen) + Esc-to-close; `aria-label`/`aria-pressed`/`role=button` en week-cells, steppers, set-value, set-done, del/add-set; navegación por teclado (Enter/Space); touch targets 44×44px.

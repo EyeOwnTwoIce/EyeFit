@@ -19,12 +19,12 @@
   body{
     padding-top:env(safe-area-inset-top);
     padding-bottom:calc(60px + env(safe-area-inset-bottom));
-    max-width:393px; margin:0 auto;
+    width:100%; margin:0 auto;
     overscroll-behavior:none;
     -webkit-text-size-adjust:100%; text-size-adjust:100%;
     -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
   }
-  #app{ height:100dvh; display:flex; flex-direction:column; position:relative; }
+  #app{ height:100dvh; max-height:100dvh; width:100vw; display:flex; flex-direction:column; position:relative; }
   main{
     flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
@@ -38,8 +38,9 @@
     background:rgba(20,20,20,.85); backdrop-filter:blur(20px) saturate(180%);
     -webkit-backdrop-filter:blur(20px) saturate(180%);
     border-bottom:1px solid var(--border);
-    padding:12px 18px 8px; position:sticky; top:0; z-index:20;
+    padding:12px 18px 6px; position:sticky; top:0; z-index:20;
     padding-top:calc(12px + env(safe-area-inset-top));
+    flex-shrink:0;
   }
   .header-main{ display:flex; align-items:center; justify-content:space-between; }
   header h1{ font-size:18px; font-weight:800; letter-spacing:-0.3px; }
@@ -50,9 +51,34 @@
   }
   .stop-btn:active{ transform:scale(.94); }
 
+  /* ===== Barra de progreso de sesión (segmentos + marcas de series) ===== */
+  .sess-bar{
+    display:none; margin-top:8px; height:14px; border-radius:7px;
+    background:var(--surface2); position:relative; overflow:hidden; flex-shrink:0;
+  }
+  .sess-bar.show{ display:flex; }
+  .sess-seg{
+    height:100%; position:relative; border-right:1px solid var(--bg);
+    background:var(--surface2); overflow:hidden;
+  }
+  .sess-seg:last-child{ border-right:none; border-radius:0 7px 7px 0; }
+  .sess-seg:first-child{ border-radius:7px 0 0 7px; }
+  .sess-seg .seg-fill{
+    position:absolute; left:0; top:0; bottom:0; width:0%;
+    background:var(--accent); opacity:.85; transition:width .35s ease;
+  }
+  .sess-seg .seg-mark{
+    position:absolute; top:0; bottom:0; width:1.5px; background:rgba(0,0,0,.65); z-index:2;
+  }
+  .sess-seg .seg-label{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:7.5px; font-weight:800; color:rgba(255,255,255,.85); z-index:3;
+    text-shadow:0 1px 2px rgba(0,0,0,.8); pointer-events:none;
+  }
+
   /* ===== Barra de descanso superior (se vacía hacia la izquierda) ===== */
   .rest-bar{
-    margin-top:8px; height:32px; border-radius:9px; background:var(--surface2);
+    margin-top:6px; height:34px; border-radius:9px; background:var(--surface2);
     position:relative; overflow:hidden; flex-shrink:0;
   }
   .rest-bar-fill{
@@ -74,7 +100,7 @@
 
   /* ===== Bottom tab bar ===== */
   .tabbar{
-    position:fixed; bottom:0; left:0; right:0; margin:0 auto; max-width:393px;
+    position:fixed; bottom:0; left:0; right:0; margin:0 auto; width:100%;
     background:rgba(20,20,20,.85); backdrop-filter:blur(20px) saturate(180%);
     -webkit-backdrop-filter:blur(20px) saturate(180%);
     border-top:1px solid var(--border); display:flex; z-index:100;
@@ -213,7 +239,7 @@
   /* ===== Comic bubble (Mortadelo) ===== */
   .comic-overlay{
     position:fixed; inset:0; z-index:400; background:rgba(0,0,0,.88);
-    display:none; align-items:center; justify-content:center; max-width:393px; margin:0 auto;
+    display:none; align-items:center; justify-content:center; width:100%; margin:0 auto;
   }
   .comic-overlay.show{ display:flex; }
   .comic-bubble{
@@ -244,7 +270,7 @@
   /* ===== Summary screen (guardado automático) ===== */
   .summary-overlay{
     position:fixed; inset:0; z-index:350; background:var(--bg);
-    display:none; flex-direction:column; max-width:393px; margin:0 auto; padding:20px; overflow-y:auto;
+    display:none; flex-direction:column; width:100%; margin:0 auto; padding:20px; overflow-y:auto;
   }
   .summary-overlay.show{ display:flex; }
   .sum-title{ font-size:22px; font-weight:900; text-align:center; margin:10px 0 4px; }
@@ -293,6 +319,64 @@
   .hist-stat .v{ font-size:17px; font-weight:800; color:var(--accent); }
   .hist-stat .l{ color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.5px; margin-top:2px; }
 
+  /* ===== Vista tabla/calendario Rutina ===== */
+  .routine-table-wrap{ overflow-x:auto; margin-bottom:12px; -webkit-overflow-scrolling:touch; }
+  .routine-table{ width:100%; border-collapse:separate; border-spacing:4px; table-layout:fixed; }
+  .routine-table th{
+    background:var(--surface2); color:var(--muted); font-size:10px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.4px; border-radius:8px; padding:8px 4px; text-align:center;
+  }
+  .routine-table td{
+    background:var(--surface); border:1px solid var(--border); border-radius:8px;
+    padding:0; vertical-align:top; position:relative; min-height:64px;
+  }
+  .routine-table td.day-empty{ background:transparent; border-style:dashed; border-color:rgba(44,44,46,.5); }
+  .rt-day-list{ list-style:none; padding:6px; margin:0; }
+  .rt-day-list li{
+    font-size:10.5px; font-weight:600; padding:3px 4px; border-radius:5px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; gap:3px; align-items:center;
+  }
+  .rt-day-list li .rn{ color:var(--accent); font-weight:800; font-size:9px; flex-shrink:0; }
+  .rt-more{ color:var(--muted); font-size:9px; padding:2px 4px; }
+  .rt-edit-btn{
+    display:flex; align-items:center; justify-content:center; gap:4px;
+    background:none; border-top:1px solid var(--border); color:var(--accent);
+    font-size:10px; font-weight:700; padding:8px 4px; width:100%; cursor:pointer;
+    border-radius:0 0 7px 7px;
+  }
+  .rt-edit-btn:active{ background:rgba(200,255,0,.08); }
+  .rt-ex-img{ width:16px; height:16px; border-radius:4px; object-fit:cover; flex-shrink:0; display:block; }
+
+  /* ===== Badge de progresión (doble progresión hipertrofia) ===== */
+  .prog-badge{
+    display:inline-flex; align-items:center; gap:4px; border-radius:6px;
+    padding:3px 7px; font-size:9.5px; font-weight:700; margin-top:6px; line-height:1.3;
+  }
+  .prog-badge.up{ background:rgba(48,209,88,.15); border:1px solid var(--green); color:var(--green); }
+  .prog-badge.keep{ background:rgba(255,214,10,.12); border:1px solid var(--orange); color:var(--orange); }
+  .prog-badge.down{ background:rgba(255,69,58,.12); border:1px solid var(--danger); color:var(--danger); }
+  .prog-badge.detail{ display:block; margin-top:4px; font-size:8.5px; opacity:.85; line-height:1.4; }
+
+  /* ===== Triangle historial ===== */
+  .hist-tri{
+    width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent;
+    border-top:9px solid var(--muted); flex-shrink:0; transition:transform .2s ease;
+  }
+  .hist-day.open .hist-tri{ transform:rotate(90deg); }
+
+  /* ===== Swipe-to-delete historial ===== */
+  .hist-day{ position:relative; overflow:hidden; }
+  .hist-swipe-bg{
+    position:absolute; inset:0; background:var(--danger); color:#fff; display:flex;
+    align-items:center; justify-content:flex-end; padding-right:18px;
+    font-size:12px; font-weight:800; border-radius:12px;
+  }
+  .hist-content{
+    position:relative; z-index:1; background:var(--surface);
+    border-radius:12px; transition:transform .2s ease; width:100%;
+  }
+  .hist-day.swiped .hist-content{ transform:translateX(-100px); }
+
   /* ===== Settings ===== */
   .set-group{ margin-bottom:12px; }
   .set-group-title{ color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.8px; font-weight:700; margin-bottom:6px; }
@@ -302,6 +386,25 @@
   }
   .set-row-item .label{ font-size:12.5px; font-weight:600; }
   .set-row-item .desc{ color:var(--muted); font-size:10px; margin-top:2px; line-height:1.4; }
+  .set-input{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:8px 10px; font-size:12px; font-weight:700; width:74px; text-align:center;
+    font-variant-numeric:tabular-nums; outline:none;
+  }
+  .set-input:focus{ border-color:var(--accent); }
+  .set-select{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:8px 10px; font-size:11px; font-weight:700; outline:none;
+  }
+  .about-block{
+    background:var(--surface); border:1px solid var(--border); border-radius:11px;
+    padding:12px 15px; margin-bottom:7px; color:#ccc; font-size:11px; line-height:1.6;
+  }
+  .about-block .ab-title{
+    color:var(--accent); font-size:10px; text-transform:uppercase; letter-spacing:.6px;
+    font-weight:800; margin-bottom:4px;
+  }
+  .about-block a{ color:var(--accent); }
   .btn{ background:var(--accent); color:#000; border:none; border-radius:9px; padding:9px 14px; font-size:12px; font-weight:800; cursor:pointer; flex-shrink:0; }
   .btn:active{ transform:scale(.96); }
   .btn-outline{ background:transparent; color:var(--text); border:1px solid var(--border); }
@@ -360,7 +463,7 @@
   #imgZoomOverlay{
     position:fixed; inset:0; background:rgba(0,0,0,.97); z-index:280;
     display:none; flex-direction:column; align-items:center; justify-content:center;
-    max-width:393px; margin:0 auto; padding:16px;
+    width:100%; margin:0 auto; padding:16px;
   }
   #imgZoomOverlay.show{ display:flex; }
   .zoom-wrap{ position:relative; width:100%; max-width:480px; }
@@ -380,7 +483,7 @@
   #swipeConfirmOverlay{
     position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:290;
     display:none; flex-direction:column; align-items:center; justify-content:center;
-    max-width:393px; margin:0 auto; padding:20px;
+    width:100%; margin:0 auto; padding:20px;
   }
   #swipeConfirmOverlay.show{ display:flex; }
   .swipe-confirm-card{
@@ -396,7 +499,7 @@
   #authOverlay{
     position:fixed; inset:0; background:rgba(0,0,0,.97); z-index:250;
     display:none; flex-direction:column; align-items:center; justify-content:center;
-    max-width:393px; margin:0 auto; padding:24px;
+    width:100%; margin:0 auto; padding:24px;
   }
   #authOverlay.show{ display:flex; }
   .auth-card{ width:100%; max-width:320px; }
@@ -421,7 +524,7 @@
   #numOverlay{
     position:fixed; inset:0; background:rgba(0,0,0,.96); z-index:240;
     display:none; flex-direction:column; align-items:center; justify-content:center;
-    max-width:393px; margin:0 auto; padding:24px;
+    width:100%; margin:0 auto; padding:24px;
   }
   #numOverlay.show{ display:flex; }
   .num-label{ color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:1px; font-weight:700; margin-bottom:12px; }
@@ -441,7 +544,7 @@
   /* ===== Variants (grid 2xN con GIFs) ===== */
   #varOverlay{
     position:fixed; inset:0; background:rgba(0,0,0,.96); z-index:245;
-    display:none; flex-direction:column; max-width:393px; margin:0 auto; padding:20px 16px;
+    display:none; flex-direction:column; width:100%; margin:0 auto; padding:20px 16px;
   }
   #varOverlay.show{ display:flex; }
   .var-title{ font-size:17px; font-weight:800; margin-bottom:4px; }
@@ -499,7 +602,7 @@
   #onboardOverlay{
     position:fixed; inset:0; background:rgba(0,0,0,.97); z-index:300;
     display:none; flex-direction:column; align-items:center; justify-content:center;
-    max-width:393px; margin:0 auto; padding:24px;
+    width:100%; margin:0 auto; padding:24px;
   }
   #onboardOverlay.show{ display:flex; }
   .onb-card{ width:100%; max-width:320px; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px 20px; display:flex; flex-direction:column; gap:14px; }
@@ -600,7 +703,7 @@
   /* ===== Selector de ejercicio nuevo (búsqueda en dataset) ===== */
   #exPickerOverlay{
     position:fixed; inset:0; background:rgba(0,0,0,.97); z-index:260;
-    display:none; flex-direction:column; max-width:393px; margin:0 auto; padding:20px 16px;
+    display:none; flex-direction:column; width:100%; margin:0 auto; padding:20px 16px;
   }
   #exPickerOverlay.show{ display:flex; }
   .picker-title{ font-size:17px; font-weight:800; margin-bottom:4px; }
@@ -614,11 +717,20 @@
   .picker-item{
     background:var(--surface); border:1px solid var(--border); border-radius:11px;
     padding:11px 13px; margin-bottom:7px; cursor:pointer;
+    display:flex; align-items:center; gap:10px;
   }
   .picker-item:active{ border-color:var(--accent); }
   .picker-item .pi-name{ font-size:12.5px; font-weight:700; }
   .picker-item .pi-sub{ color:var(--muted); font-size:9.5px; margin-top:2px; }
   .picker-close{ margin-top:12px; background:var(--surface2); color:var(--text); border:none; border-radius:10px; padding:12px; font-size:13px; font-weight:700; cursor:pointer; }
+
+  /* ===== Fix solapamiento botón ✓ con + reps en sesión ===== */
+  .set-row-content{ gap:4px; padding:4px 6px; }
+  .set-control .stepper{ width:36px; height:36px; font-size:16px; }
+  .set-row .set-done{ margin-left:2px; width:36px; height:36px; font-size:16px; }
+  .set-row-content .set-value{ min-width:28px; padding:1px 3px; font-size:12px; }
+  .set-row-content .set-label{ font-size:7.5px; }
+  .set-num{ width:12px; font-size:11px; }
 
   @media (prefers-reduced-motion: reduce){
     *{ animation:none !important; transition:none !important; }

@@ -32,6 +32,139 @@ const DAY_ORDER = U.DAY_ORDER;
 const DAY_COLORS = U.DAY_COLORS;
 const getApodo = U.getApodo;
 const epley1RM = U.epley1RM;
+
+/* ================================================================
+   CONFIGURACIÓN DE ENTRENAMIENTO (doble progresión + RIR para hipertrofia)
+   ================================================================ */
+const K_CONFIG = "eyefit_training_config_v1";
+const TRAINING_DEFAULTS = {
+  peso_corporal: 70,
+  rango_compuesto_min: 6,
+  rango_compuesto_max: 10,
+  rango_aislamiento_min: 10,
+  rango_aislamiento_max: 15,
+  rir_objetivo: 2,
+  incremento_barra: 2.5,
+  incremento_mancuerna: 2.0,
+  tipo_progresion: "doble"  /* "doble" | "lineal" */
+};
+let trainingConfig = { ...TRAINING_DEFAULTS };
+function loadTrainingConfig(){
+  try{
+    const c = lsGet(K_CONFIG, null);
+    if(c && typeof c === "object") trainingConfig = { ...TRAINING_DEFAULTS, ...c };
+  }catch(e){}
+}
+function saveTrainingConfig(){
+  lsSet(K_CONFIG, trainingConfig);
+}
+const COMPUESTOS = [
+  "barbell bench press","dumbbell incline bench press","barbell incline bench press",
+  "barbell full squat","sled 45° leg press","barbell bent over row","cable pulldown (pro lat bar)",
+  "cable seated row","barbell deadlift","pull up (neutral grip)","dumbbell seated shoulder press",
+  "dumbbell arnold press","barbell glute bridge two legs on bench (male)","barbell good morning"
+];
+function isCompoundExercise(ex){
+  const key = String((ex && (ex.datasetOriginal || ex.dataset)) || (ex && ex.nombre_es) || "").trim().toLowerCase();
+  return COMPUESTOS.includes(key) || COMPUESTOS.some(c=>key.includes(c.split(" ").slice(0,2).join(" ")));
+}
+function getRepRange(ex){
+  const cfg = trainingConfig;
+  const min = isCompoundExercise(ex) ? cfg.rango_compuesto_min : cfg.rango_aislamiento_min;
+  const max = isCompoundExercise(ex) ? cfg.rango_compuesto_max : cfg.rango_aislamiento_max;
+  return { min, max };
+}
+function getIncrementFor(ex){
+  const key = String((ex && (ex.datasetOriginal || ex.dataset)) || (ex && ex.nombre_es) || "").trim().toLowerCase();
+  const esMancuerna = key.includes("dumbbell") || key.includes("mancuerna");
+  return esMancuerna ? trainingConfig.incremento_mancuerna : trainingConfig.incremento_barra;
+}
+
+/* Algoritmo de doble progresión con RIR: evalúa la última sesión del
+   ejercicio y decide subir/mantener/bajar peso con motivo explicado. */
+function computeProgressionDecision(ex, history){
+  const cfg = trainingConfig;
+  const key = String((ex && (ex.datasetOriginal || ex.dataset)) || (ex && ex.nombre_es) || "").trim().toLowerCase();
+  if(!key) return null;
+  const matches = [];
+  for(const h of (Array.isArray(history)?history:getHistory())){
+    for(const e of (h.exercises||[])){
+      const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
+      if(eKey === key){
+        const done = (e.sets||[]).filter(s=>s.done);
+        if(done.length) matches.push({ date:h.date, sets:done, peso:pendingDoneKg(done) });
+        break;
+      }
+    }
+  }
+  if(matches.length === 0) return null;
+  matches.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const last = matches[0];
+  const prev = matches[1] || null;
+  const repsArr = last.sets.map(s=>parseInt(s.reps,10)||0).filter(r=>r>0);
+  if(repsArr.length === 0) return null;
+  const maxReps = Math.max(...repsArr);
+  const minReps = Math.min(...repsArr);
+  const kgs = last.sets
+    .map(s=>parseFloat(s.kg)||0)
+    .filter(k=>k>0);
+  const baseKg = kgs.length ? Math.max(...kgs) : (parseFloat(ex.peso_kg)||0);
+  const { min, max } = getRepRange(ex);
+  const inc = getIncrementFor(ex);
+  /* Usar el peso de la rutina como base si no hay sets */
+  if(cfg.tipo_progresion === "lineal"){
+    /* Progresión lineal simple: si alcanzó el tope, subir siempre */
+    if(maxReps >= max) return { action:"up", delta:inc, reason:`Progresión lineal: alcanzaste el tope del rango (${maxReps} reps). Subimos ${inc} kg para seguir estimulando.`, peso_sugerido: round1(parseFloat(ex.peso_kg)||baseKg + inc) };
+    return { action:"keep", delta:0, reason:`Aún no llegas al tope del rango (${maxReps}/${max} reps). Mantenemos el peso.`, peso_sugerido: baseKg };
+  }
+  /* Doble progresión */
+  if(maxReps >= max){
+    return {
+      action:"up", delta:inc,
+      reason:`Completaste todas las series al máximo del rango de hipertrofia (${maxReps}/${max} reps). Subimos ${inc} kg para mantener la sobrecarga progresiva.`,
+      peso_sugerido: round1(baseKg + inc)
+    };
+  }
+  if(minReps < min){
+    return {
+      action:"down", delta:-inc,
+      reason:`Alguna serie no alcanzó el mínimo de reps efectivas para hipertrofia (${minReps}/${min} reps). Bajamos ${inc} kg para garantizar volumen de calidad.`,
+      peso_sugerido: round1(Math.max(0, baseKg - inc))
+    };
+  }
+  /* Estancamiento: mismo peso que sesión anterior pero menos reps */
+  if(prev){
+    const prevMax = Math.max(...prev.sets.map(s=>parseInt(s.reps,10)||0).filter(r=>r>0), 0);
+    const prevPeso = Math.max(...prev.sets.map(s=>parseFloat(s.kg)||0).filter(k=>k>0), 0);
+    if(prevPeso > 0 && Math.abs(prevPeso - baseKg) < 0.01 && maxReps < prevMax){
+      return {
+        action:"keep", delta:0,
+        reason:`Mismo peso que la sesión anterior pero menos reps (${maxReps} vs ${prevMax}). Mantenemos la carga. Revisa descanso, sueño y alimentación.`,
+        peso_sugerido: baseKg, estancamiento:true
+      };
+    }
+  }
+  return {
+    action:"keep", delta:0,
+    reason:`Estás dentro del rango óptimo de hipertrofia (${min}-${max} reps, hiciste ${minReps}-${maxReps}). Mantenemos el peso para consolidar la adaptación.`,
+    peso_sugerido: baseKg
+  };
+}
+function pendingDoneKg(done){ return done.length ? Math.max(...done.map(s=>parseFloat(s.kg)||0)) : 0; }
+function round1(v){ return Math.round(v*10)/10; }
+
+/* Badge HTML explicando el ajuste automático de progresión */
+function progressionBadgeHtml(ex, history){
+  const dec = computeProgressionDecision(ex, history);
+  if(!dec) return "";
+  const cls = dec.action==="up" ? "up" : (dec.action==="down" ? "down" : "keep");
+  const icon = dec.action==="up" ? "⬆️" : (dec.action==="down" ? "⬇️" : "➡️");
+  const deltaTxt = dec.delta>0 ? "+"+dec.delta+" kg" : dec.delta<0 ? dec.delta+" kg" : "sin cambio";
+  return `<div class="prog-badge ${cls}" title="${escapeHtmlAttr(dec.reason)}">
+    ${icon} ${dec.action==="up" ? "Sube" : dec.action==="down" ? "Baja" : "Mantiene"} · ${deltaTxt}
+    <span class="prog-badge detail">${escapeHtml(dec.reason)}</span>
+  </div>`;
+}
 const formatRest = U.formatRest;
 const normalizeName = U.normalizeName;
 const buildExerciseSets = U.buildExerciseSets;
@@ -682,45 +815,50 @@ function renderRutina(){
   const days = DAY_ORDER.filter(d=>routine.some(e=>e.dia===d));
   const todayName = getTodayName();
   const defaultDay = selectedDay || (days.includes(todayName) ? todayName : days[0]) || "Lunes";
-  if(!days.includes(defaultDay) && days.length) selectedDay = days[0];
-  const sel = days.includes(selectedDay) ? selectedDay : days[0] || "Lunes";
+  const sel = days.includes(defaultDay) ? defaultDay : days[0] || "Lunes";
   selectedDay = sel;
 
-  const weekHtml = days.map(d=>{
-    const isSel = d===sel;
-    const color = DAY_COLORS[d] || "#888";
-    return `<div class="week-cell ${isSel?"active":""}" data-day="${escapeHtmlAttr(d)}" role="button" tabindex="0" aria-pressed="${isSel}" aria-label="Ver rutina de ${escapeHtmlAttr(d)}" style="${isSel?"":`border-color:${color}44;`}">
-      <div class="d">${DAY_SHORT[d]||d.slice(0,3)}</div>
-      <div class="l" style="${isSel?"":`color:${color}`}">${d}</div>
-    </div>`;
-  }).join("");
-
-  const dayEx = routine.filter(e=>e.dia===sel);
-  const totalSets = dayEx.reduce((a,e)=>a+(parseInt(e.series)||0),0);
-
-  const dayHtml = `<div class="day-card" style="border-color:${DAY_COLORS[sel]||"#888"}">
-    <div class="day-header">
-      <div class="day-dot" style="background:${DAY_COLORS[sel]||"#888"}"></div>
-      <div>
-        <div class="day-name">${sel}</div>
-        <div class="day-type">${totalSets} series · ${dayEx.length} ejercicios</div>
-      </div>
-    </div>
-    <div class="day-body open" style="display:block;">
-      ${dayEx.map((ex,i)=>exerciseCard(ex,i,sel)).join("")}
-    </div>
+  const noData = days.length===0;
+  if(noData) return `<div class="section active">
+    <h2 class="title">📅 Rutina Semanal</h2>
+    <div class="empty-state">No hay rutina cargada.<br>Importa un .xlsx en Ajustes.</div>
   </div>`;
 
-  const noData = days.length===0 ? `<div class="empty-state">No hay rutina cargada.<br>Importa un .xlsx en Ajustes.</div>` : "";
+  /* Vista tabla/calendario: columnas Lunes-Viernes, filas con ejercicios por día */
+  const maxEx = Math.max(...days.map(d=>routine.filter(e=>e.dia===d).length), 1);
+  const ths = days.map(d=>`<th style="color:${DAY_COLORS[d]||"#888"}">${DAY_SHORT[d]||d.slice(0,3)}</th>`).join("");
+
+  const tds = days.map(d=>{
+    const dayEx = routine.filter(e=>e.dia===d).sort((a,b)=>(a.orden||0)-(b.orden||0));
+    if(dayEx.length===0){
+      return `<td class="day-empty"><div class="rt-day-list"><li style="color:var(--muted);font-size:9px;text-align:center;">—</li></div>
+        <button class="rt-edit-btn" data-edit-routine data-edit-routine-day="${escapeHtmlAttr(d)}">✏️ Editar</button></td>`;
+    }
+    const items = dayEx.map(e=>{
+      const img = getExerciseImage(e, datasetCache);
+      return `<li>
+        ${img?`<img class="rt-ex-img" src="${img}" alt="" loading="lazy" decoding="async">`:`<span class="rn">${e.orden}</span>`}
+        <span>${escapeHtml(getApodo(e))}</span>
+      </li>`;
+    }).join("");
+    return `<td>
+      <ul class="rt-day-list">${items}</ul>
+      ${dayEx.length>3?`<div class="rt-more">+${dayEx.length-3} más</div>`:""}
+      <button class="rt-edit-btn" data-edit-routine data-edit-routine-day="${escapeHtmlAttr(d)}">✏️ Editar</button>
+    </td>`;
+  }).join("");
 
   return `<div class="section active">
     <h2 class="title">📅 Rutina Semanal</h2>
-    ${noData || `<div class="week-grid">${weekHtml}</div>`}
-    ${noData || dayHtml}
-    ${noData || `<div class="routine-edit-top">
+    <div class="routine-table-wrap">
+      <table class="routine-table" aria-label="Rutina semanal de lunes a viernes">
+        <thead><tr>${ths}</tr></thead>
+        <tbody><tr>${tds}</tr></tbody>
+      </table>
+    </div>
+    <div class="routine-edit-top">
       <button class="btn" style="width:100%;padding:13px;" data-start-session="${escapeHtmlAttr(sel)}">🏋️ Entrenar — ${escapeHtmlAttr(sel)}</button>
-      <button class="btn btn-outline" data-edit-routine>✏️ Editar</button>
-    </div>`}
+    </div>
   </div>`;
 }
 
@@ -825,7 +963,8 @@ function renderEditRoutine(){
   return `<div class="section active">
     <div class="routine-edit-top">
       <h2 class="title" style="flex:1;">✏️ Editar Rutina</h2>
-      <button class="btn btn-outline" data-edit-done>✓ Hecho</button>
+      <button class="btn btn-outline" data-edit-cancel>✕ Cancelar</button>
+      <button class="btn" data-edit-done>✓ Guardar</button>
     </div>
     ${days.length ? `<div class="week-grid">${weekHtml}</div>` : ""}
     ${dayEx.length===0
@@ -858,11 +997,22 @@ function renderPickerList(query){
   }
   const shown = items.slice(0, 60);
   list.innerHTML = shown.length
-    ? shown.map((d,i)=>`
-        <div class="picker-item" data-pick-ex="${escapeHtmlAttr(i)}" data-pick-name="${escapeHtmlAttr(d.name)}" data-pick-image="${escapeHtmlAttr(d.image||"")}" data-pick-part="${escapeHtmlAttr(d.part||"")}">
-          <div class="pi-name">${escapeHtml(d.name)}</div>
-          <div class="pi-sub">${escapeHtml(d.part||"")}</div>
-        </div>`).join("")
+    ? shown.map((d,i)=>{
+        const imgKey = normalizeName(d.name);
+        let imgBase = null;
+        for(const [key,val] of Object.entries(EMBEDDED_IMAGES)){
+          if(normalizeName(key) === imgKey){ imgBase = val; break; }
+        }
+        if(!imgBase && d.image) imgBase = String(d.image).replace("images/","").replace(".jpg","").replace(".png","");
+        const imgUrl = imgBase ? IMG_BASE + "videos/" + imgBase + ".gif" : null;
+        return `<div class="picker-item" data-pick-ex="${escapeHtmlAttr(i)}" data-pick-name="${escapeHtmlAttr(d.name)}" data-pick-image="${escapeHtmlAttr(d.image||"")}" data-pick-part="${escapeHtmlAttr(d.part||"")}">
+          ${imgUrl ? `<img class="rt-ex-img" style="width:34px;height:34px;border-radius:6px;" src="${imgUrl}" alt="" loading="lazy" decoding="async" data-img-fallback="hide">` : ""}
+          <div style="flex:1;min-width:0;">
+            <div class="pi-name">${escapeHtml(d.name)}</div>
+            <div class="pi-sub">${escapeHtml(d.part||"")}</div>
+          </div>
+        </div>`;
+      }).join("")
     : `<div class="empty-state" style="padding:20px;">Sin resultados</div>`;
 }
 function closeExercisePicker(){
@@ -1092,20 +1242,29 @@ function getStreak(){
   for(const h of history){
     try{ days.add(localDateKey(new Date(h.date))); }catch(e){}
   }
-  const todayKey = localDateKey(new Date());
+  /* Empezar desde hoy (o desde el último día laborable si hoy es fin de semana).
+     Las rachas omiten sábado y domingo: entrenar viernes y volver el lunes cuenta. */
   const cursor = new Date();
+  const dow = cursor.getDay();
+  if(dow === 6){ cursor.setDate(cursor.getDate()-1); }   /* sábado → viernes */
+  else if(dow === 0){ cursor.setDate(cursor.getDate()-2); } /* domingo → viernes */
+  else if(!days.has(localDateKey(cursor))){
+    /* Si hoy no hay sesión, mirar el último día laborable anterior */
+    const prev = new Date(cursor);
+    for(let i=0; i<3; i++){
+      prev.setDate(prev.getDate()-1);
+      const pDow = prev.getDay();
+      if(pDow === 6 || pDow === 0) continue;
+      if(days.has(localDateKey(prev))){ cursor.setTime(prev.getTime()); break; }
+      return 0;
+    }
+  }
   let streak = 0;
-  if(days.has(todayKey)){
-    while(days.has(localDateKey(cursor))){
-      streak++;
-      cursor.setDate(cursor.getDate()-1);
-    }
-  } else {
-    cursor.setDate(cursor.getDate()-1);
-    while(days.has(localDateKey(cursor))){
-      streak++;
-      cursor.setDate(cursor.getDate()-1);
-    }
+  const d = new Date(cursor);
+  while(days.has(localDateKey(d))){
+    streak++;
+    /* Retroceder un día laborable, saltando fines de semana */
+    do{ d.setDate(d.getDate()-1); }while(d.getDay() === 6 || d.getDay() === 0);
   }
   return streak;
 }
@@ -1125,12 +1284,8 @@ function renderSesion(){
     const routine = getRoutine();
     const days = DAY_ORDER.filter(d=>routine.some(e=>e.dia===d));
     const todayName = getTodayName();
-    /* Ordenar días: el actual primero si existe */
-    const sortedDays = [...days].sort((a,b)=>{
-      if(a===todayName) return -1;
-      if(b===todayName) return 1;
-      return DAY_ORDER.indexOf(a)-DAY_ORDER.indexOf(b);
-    });
+    /* Mantener el orden L-V y preseleccionar el día actual (sin reordenar) */
+    const sortedDays = [...days].sort((a,b)=>DAY_ORDER.indexOf(a)-DAY_ORDER.indexOf(b));
     const dayBtns = sortedDays.map(d=>{
       const isToday = d===todayName;
       return `<button class="select-day-btn ${isToday?"today":""}" data-start-session="${escapeHtmlAttr(d)}">
@@ -1221,6 +1376,7 @@ function renderSesion(){
           <img class="ex-active-img" src="${imgUrl}" alt="${escapeHtml(apodo)}" loading="lazy" decoding="async" data-img-fallback="hide">
           <div class="ex-img-zoom-hint">⛶</div>
         </div>` : ""}
+        ${progressionBadgeHtml(ex, getHistory())}
         ${variantes ? `<button class="variant-btn" data-open-variants>↔️ ${variantes}</button>` : ""}
       </div>
       ${instr ? `<button class="ex-instr-btn" data-instr-session-toggle>📖 Instrucciones</button>
@@ -1284,10 +1440,14 @@ async function autoSaveSession(){
     day: session.day,
     duration: session.elapsed,
     updated_at: nowIso,
-    exercises: session.exercises.map(e=>({
-      nombre_es: e.nombre_es, dataset: e.dataset, datasetOriginal: e.datasetOriginal, orden: e.orden, completed: e.completed,
-      sets: e.sets.map(s=>({ kg:s.kg, reps:s.reps, done:s.done }))
-    }))
+    exercises: session.exercises.map(e=>{
+      const decid = computeProgressionDecision(e, []);
+      return {
+        nombre_es: e.nombre_es, dataset: e.dataset, datasetOriginal: e.datasetOriginal, orden: e.orden, completed: e.completed,
+        sets: e.sets.map(s=>({ kg:s.kg, reps:s.reps, done:s.done })),
+        progresion: decid ? { accion: decid.action, delta: decid.delta, motivo: decid.reason } : null
+      };
+    })
   };
   const history = getHistory();
   const dupeIdx = history.findIndex(h=>h.session_id && h.session_id === record.session_id);
@@ -1446,6 +1606,10 @@ function restFinished(){
   if(bar) bar.style.display = "none";
   vibrate([150,100,150]);
   showMotivation();
+  /* Auto-navegar a la pantalla del ejercicio si el usuario está en otra pestaña */
+  if(session && currentTab !== "sesion"){
+    setTab("sesion");
+  }
 }
 
 function renderRestTime(){
@@ -1572,13 +1736,13 @@ function renderHistorial(){
     const mins = Math.floor((h.duration||0)/60), secs=(h.duration||0)%60;
     const exDone = h.exercises.filter(e=>e.sets.some(s=>s.done)==true);
     const color = DAY_COLORS[h.day] || "#fff";
-    return `<div class="hist-day" data-hist="${escapeHtmlAttr(hi)}">
+    return `<div class="hist-day" data-hist="${escapeHtmlAttr(hi)}" data-swipable-hist="${escapeHtmlAttr(hi)}" data-del-date="${escapeHtmlAttr(h.date)}" data-del-day="${escapeHtmlAttr(h.day)}">
+      <div class="hist-swipe-bg"><span>🗑 Eliminar</span></div>
+      <div class="hist-content">
       <div class="hist-day-top">
-        <div class="hist-day-dot" style="background:${color}"></div>
+        <div class="hist-tri" style="border-top-color:${color}"></div>
         <span class="hist-day-name" style="color:${color}">${h.day}</span>
         <span class="hist-day-date">${dateStr} · ${mins}m ${secs}s</span>
-        <button class="hist-day-del" data-del-hist="${escapeHtmlAttr(hi)}" data-del-date="${escapeHtmlAttr(h.date)}" data-del-day="${escapeHtmlAttr(h.day)}" aria-label="Borrar sesión">🗑</button>
-        <span class="hist-day-chev">▶</span>
       </div>
       <div class="hist-day-body">
         <div class="hist-day-stats">${exDone.length} ejercicios · ${h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0)} series</div>
@@ -1597,6 +1761,7 @@ function renderHistorial(){
             ${spark ? `<div class="hist-ex-prog"><span class="lbl">1RM ${rmLabel}</span>${spark}</div>` : ""}
           </div>`;
         }).join("")}
+      </div>
       </div>
     </div>`;
   }).join("");
@@ -1628,6 +1793,7 @@ function renderAjustes(){
     ? `${pendingCount} sesión${pendingCount>1?"es":""} pendiente${pendingCount>1?"s":""} de subir`
     : authUser ? "Todo sincronizado" : "Sin conexión a la nube";
   const syncClass = pendingCount>0 ? "pending" : (authUser ? "" : "off");
+  const tc = trainingConfig;
 
   return `<div class="section active">
     <h2 class="title">⚙️ Ajustes</h2>
@@ -1641,6 +1807,48 @@ function renderAjustes(){
         ${authUser
           ? `<button class="btn btn-outline" data-logout>🚪 Salir</button>${pendingCount>0?`<button class="btn" data-sync-now>🔄 Subir</button>`:""}`
           : `<button class="btn" data-open-auth>🔑 Acceder</button>`}
+      </div>
+    </div>
+    <div class="set-group">
+      <div class="set-group-title">🏋️ Entrenamiento</div>
+      <div class="set-row-item">
+        <div><div class="label">Peso corporal</div><div class="desc">Para métricas relativas a tu masa</div></div>
+        <input type="number" class="set-input" value="${tc.peso_corporal}" data-train-input="peso_corporal" data-float="1" step="0.5" min="30">
+      </div>
+      <div class="set-row-item">
+        <div><div class="label">Tipo de progresión</div><div class="desc">Doble progresión (recomendada) o lineal</div></div>
+        <select class="set-select" data-train-select="tipo_progresion">
+          <option value="doble" ${tc.tipo_progresion==="doble"?"selected":""}>Doble progresión</option>
+          <option value="lineal" ${tc.tipo_progresion==="lineal"?"selected":""}>Lineal</option>
+        </select>
+      </div>
+      <div class="set-row-item">
+        <div><div class="label">Rango reps compuestos</div><div class="desc">Sentadilla, press banca, remo…</div></div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <input type="number" class="set-input" style="width:56px;" value="${tc.rango_compuesto_min}" data-train-input="rango_compuesto_min" min="1" max="20">
+          <span style="color:var(--muted);font-size:10px;">–</span>
+          <input type="number" class="set-input" style="width:56px;" value="${tc.rango_compuesto_max}" data-train-input="rango_compuesto_max" min="1" max="30">
+        </div>
+      </div>
+      <div class="set-row-item">
+        <div><div class="label">Rango reps aislamiento</div><div class="desc">Curls, elevaciones, extensiones…</div></div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <input type="number" class="set-input" style="width:56px;" value="${tc.rango_aislamiento_min}" data-train-input="rango_aislamiento_min" min="1" max="20">
+          <span style="color:var(--muted);font-size:10px;">–</span>
+          <input type="number" class="set-input" style="width:56px;" value="${tc.rango_aislamiento_max}" data-train-input="rango_aislamiento_max" min="1" max="30">
+        </div>
+      </div>
+      <div class="set-row-item">
+        <div><div class="label">RIR objetivo</div><div class="desc">Reps en reserva al terminar cada serie (2 = casi al fallo)</div></div>
+        <input type="number" class="set-input" value="${tc.rir_objetivo}" data-train-input="rir_objetivo" min="0" max="5">
+      </div>
+      <div class="set-row-item">
+        <div><div class="label">Incremento barra</div><div class="desc">Kilos a subir en ejercicios con barra</div></div>
+        <input type="number" class="set-input" value="${tc.incremento_barra}" data-train-input="incremento_barra" data-float="1" step="0.5" min="0.5">
+      </div>
+      <div class="set-row-item">
+        <div><div class="label">Incremento mancuerna</div><div class="desc">Kilos a subir en ejercicios con mancuernas</div></div>
+        <input type="number" class="set-input" value="${tc.incremento_mancuerna}" data-train-input="incremento_mancuerna" data-float="1" step="0.5" min="0.5">
       </div>
     </div>
     <div class="set-group">
@@ -1686,8 +1894,29 @@ function renderAjustes(){
         <button class="btn btn-outline" data-reset-routine>↺</button>
       </div>
     </div>
+    <div class="set-group">
+      <div class="set-group-title">Acerca de</div>
+      <div class="about-block">
+        <div class="ab-title">✨ EyeFit v1.4</div>
+        Web app de entrenamiento privada (PWA) con progresión automática basada en doble progresión + RIR (Reps In Reserve), el estándar avalado por la literatura científica de hipertrofia (Schoenfeld, Helms, etc.).
+      </div>
+      <div class="about-block">
+        <div class="ab-title">📄 Changelog v1.4</div>
+        • Vista rutina como calendario L-V<br>
+        • Progresión inteligente con explicación (sube/mantiene/baja)<br>
+        • Rachas que omiten fines de semana<br>
+        • Historial con swipe para eliminar<br>
+        • Layout full-screen optimizado para iOS
+      </div>
+      <div class="about-block">
+        <div class="ab-title">🔗 Referencias</div>
+        • Dataset de ejercicios: <a href="https://github.com/hasaneyldrm/exercises-dataset" target="_blank" rel="noopener">hasaneyldrm/exercises-dataset</a><br>
+        • Fórmula 1RM de Epley<br>
+        • Criterios de doble progresión para hipertrofia
+      </div>
+    </div>
     <div style="text-align:center;color:var(--muted);font-size:10px;padding:12px 0 24px;line-height:1.7;">
-      EyeFit v1.3 · PWA sincronizada en la nube<br>iPhone 15 · 🇪🇸 Español
+      EyeFit v1.4 · PWA sincronizada en la nube<br>🇪🇸 Español
     </div>
   </div>`;
 }
@@ -1706,18 +1935,28 @@ function attachEvents(){
   document.querySelectorAll("[data-edit-routine]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       routineEditMode = true;
-      routineEditDay = selectedDay || null;
+      routineEditDay = btn.dataset.editRoutineDay || selectedDay || null;
       renderMain();
     });
   });
   document.querySelectorAll("[data-edit-day]").forEach(el=>{
     el.addEventListener("click", ()=>{ routineEditDay = el.dataset.editDay; renderMain(); });
   });
+  /* Cancelar edición sin guardar */
+  document.querySelectorAll("[data-edit-cancel]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      routineEditMode = false;
+      routineEditDay = null;
+      renderMain();
+      showToast("✕ Edición cancelada");
+    });
+  });
   document.querySelectorAll("[data-edit-done]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       routineEditMode = false;
       routineEditDay = null;
       renderMain();
+      showToast("💾 Rutina guardada");
     });
   });
   document.querySelectorAll("[data-edit-ex-add],[data-edit-add-ex]").forEach(btn=>{
@@ -2114,37 +2353,133 @@ function attachEvents(){
   });
   /* Historial colapsable */
   document.querySelectorAll("[data-hist]").forEach(el=>{
-    el.addEventListener("click", ()=> el.classList.toggle("open"));
+    el.addEventListener("click", (e)=>{
+      if(e.target.closest("[data-swipable-hist]") && e.target.closest(".hist-swipe-bg")) return;
+      el.classList.toggle("open");
+    });
   });
-  /* Borrar una sesión individual del historial (local + pendientes + nube) */
-  document.querySelectorAll("[data-del-hist]").forEach(btn=>{
-    btn.addEventListener("click", async (e)=>{
-      e.stopPropagation();
-      const date = btn.dataset.delDate;
-      const day = btn.dataset.delDay;
-      if(confirm("¿Borrar esta sesión?")){
-        /* Eliminar del historial local por date+day (identificador único ya usado en sync) */
-        const history = getHistory();
-        const idx = history.findIndex(h=>h.date===date && h.day===day);
-        if(idx !== -1) history.splice(idx, 1);
-        saveHistory(history);
-        /* Eliminar también de la cola de pendientes si aún no se había subido */
-        const p = getPending();
-        p.sessions = p.sessions.filter(s=>!(s.date===date && s.day===day));
-        setPending(p);
-        /* Eliminar de la nube si hay sesión (mismo date + day) */
-        if(sbClient && authUser){
-          try{
-            const { data: rows } = await sbClient.from("sesiones").select("id").eq("user_id", authUser.id);
-            if(Array.isArray(rows)){
-              const matches = rows.filter(r=>r.data && r.data.date===date && r.data.day===day);
-              for(const m of matches) await sbClient.from("sesiones").delete().eq("id", m.id);
-            }
-          }catch(e){}
-        }
-        renderMain();
-        showToast("🗑️ Sesión eliminada");
+  /* Borrar sesión por swipe a la izquierda en el historial */
+  async function deleteHistorySession(date, day){
+    if(confirm("¿Borrar esta sesión?")){
+      /* Eliminar del historial local por date+day (identificador único ya usado en sync) */
+      const history = getHistory();
+      const idx = history.findIndex(h=>h.date===date && h.day===day);
+      if(idx !== -1) history.splice(idx, 1);
+      saveHistory(history);
+      /* Eliminar también de la cola de pendientes si aún no se había subido */
+      const p = getPending();
+      p.sessions = p.sessions.filter(s=>!(s.date===date && s.day===day));
+      setPending(p);
+      /* Eliminar de la nube si hay sesión (mismo date + day) */
+      if(sbClient && authUser){
+        try{
+          const { data: rows } = await sbClient.from("sesiones").select("id").eq("user_id", authUser.id);
+          if(Array.isArray(rows)){
+            const matches = rows.filter(r=>r.data && r.data.date===date && r.data.day===day);
+            for(const m of matches) await sbClient.from("sesiones").delete().eq("id", m.id);
+          }
+        }catch(e){}
       }
+      renderMain();
+      showToast("🗑️ Sesión eliminada");
+    }
+  }
+  document.querySelectorAll("[data-swipable-hist]").forEach(row=>{
+    if(row._histSwipeAttached) return;
+    row._histSwipeAttached = true;
+    const content = row.querySelector(".hist-content");
+    const SWIPE_LIMIT = 100;
+    let startX = 0, startY = 0, dragging = false, locked = false;
+    row.addEventListener("touchstart", (e)=>{
+      const t = e.touches[0];
+      startX = t.clientX; startY = t.clientY; dragging = true; locked = false;
+    }, { passive:true });
+    row.addEventListener("touchmove", (e)=>{
+      if(!dragging) return;
+      const t = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if(!locked){
+        if(Math.abs(dy) > Math.abs(dx)){ dragging = false; return; }
+        locked = true;
+      }
+      if(locked && content){
+        const off = Math.max(-SWIPE_LIMIT, Math.min(0, dx));
+        content.style.transform = `translateX(${off}px)`;
+      }
+    }, { passive:true });
+    row.addEventListener("touchend", ()=>{
+      if(!dragging) return;
+      dragging = false;
+      if(content){
+        const tx = parseFloat(content.style.transform.replace(/[^0-9\-.]/g,"")) || 0;
+        if(tx <= -SWIPE_LIMIT/2){
+          content.style.transform = `translateX(-${SWIPE_LIMIT}px)`;
+          row.classList.add("swiped");
+          deleteHistorySession(row.dataset.delDate, row.dataset.delDay).then(()=>{
+            if(!document.body.contains(row)) return;
+            row.classList.remove("swiped");
+            content.style.transform = "translateX(0)";
+          });
+        } else {
+          content.style.transform = "translateX(0)";
+        }
+      }
+    }, { passive:true });
+    row.addEventListener("mousedown", (e)=>{
+      startX = e.clientX; startY = e.clientY; dragging = true; locked = false;
+    });
+    window.addEventListener("mousemove", (e)=>{
+      if(!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if(!locked){
+        if(Math.abs(dy) > Math.abs(dx)){ dragging = false; return; }
+        locked = true;
+      }
+      if(locked && content){
+        const off = Math.max(-SWIPE_LIMIT, Math.min(0, dx));
+        content.style.transform = `translateX(${off}px)`;
+      }
+    });
+    window.addEventListener("mouseup", ()=>{
+      if(!dragging) return;
+      dragging = false;
+      if(content){
+        const tx = parseFloat(content.style.transform.replace(/[^0-9\-.]/g,"")) || 0;
+        if(tx <= -SWIPE_LIMIT/2){
+          content.style.transform = `translateX(-${SWIPE_LIMIT}px)`;
+          row.classList.add("swiped");
+          deleteHistorySession(row.dataset.delDate, row.dataset.delDay).then(()=>{
+            if(!document.body.contains(row)) return;
+            row.classList.remove("swiped");
+            content.style.transform = "translateX(0)";
+          });
+        } else {
+          content.style.transform = "translateX(0)";
+        }
+      }
+    });
+  });
+  /* Guardar configuración de entrenamiento desde ajustes */
+  document.querySelectorAll("[data-train-input]").forEach(input=>{
+    input.addEventListener("change", ()=>{
+      const k = input.dataset.trainInput;
+      let v;
+      if(input.type === "checkbox") v = input.checked;
+      else if(input.dataset.float === "1") v = parseFloat(input.value);
+      else v = parseFloat(input.value);
+      if(Number.isFinite(v)) trainingConfig[k] = v;
+      else if(input.type === "checkbox") trainingConfig[k] = v;
+      saveTrainingConfig();
+      showToast("⚙️ Ajuste de entrenamiento guardado");
+    });
+  });
+  document.querySelectorAll("[data-train-select]").forEach(sel=>{
+    sel.addEventListener("change", ()=>{
+      trainingConfig[sel.dataset.trainSelect] = sel.value;
+      saveTrainingConfig();
+      showToast("⚙️ Progresión actualizada");
     });
   });
 }
@@ -2170,7 +2505,7 @@ function openNumPad(idx, field){
   slider.value = input.value;
   document.getElementById("numOverlay").classList.add("show");
   setFocusTrap("numOverlay", document.getElementById("numOverlay"));
-  setTimeout(()=>input.focus(), 100);
+  setTimeout(()=>{ input.focus(); input.select(); }, 100);
 }
 function closeNumPad(){ document.getElementById("numOverlay").classList.remove("show"); setFocusTrap("numOverlay", null); }
 function confirmNumPad(){
@@ -2351,8 +2686,12 @@ function saveSessionState(){
   if(!session) return;
   session.restState = getRestState();
   lsSet(K.session, session);
+  renderSessionProgressBar();
 }
-function clearSessionState(){ localStorage.removeItem(K.session); localStorage.removeItem(K.sets); }
+function clearSessionState(){
+  localStorage.removeItem(K.session); localStorage.removeItem(K.sets);
+  renderSessionProgressBar();
+}
 function restoreRestState(st){
   if(!st) return;
   restTotal = st.total || 0;
@@ -2430,18 +2769,57 @@ function startSession(day){
   const dayEx = routine.filter(e=>e.dia===day).sort((a,b)=>(a.orden||0)-(b.orden||0));
   if(dayEx.length===0) return;
   sessionBestByEx = {};
+  const history = getHistory();
   session = {
     session_id: genUUID(),
     day, startTime: Date.now(), elapsed: 0, baseElapsed: 0, currentIdx: 0,
     exercises: dayEx.map(ex=>{
       const lastPerf = getLastExercisePerformance(ex);
-      const sets = buildExerciseSets(ex, lastPerf);
-      return { ...ex, completed:false, currentSet:1, sets };
+      /* Aplicar progresión automática si hay historial */
+      const dec = computeProgressionDecision(ex, history);
+      let exercise = ex;
+      let sets;
+      if(dec && dec.peso_sugerido > 0){
+        exercise = { ...ex, peso_kg: dec.peso_sugerido };
+        sets = buildExerciseSets(exercise, lastPerf);
+      } else {
+        sets = buildExerciseSets(ex, lastPerf);
+      }
+      return { ...exercise, completed:false, currentSet:1, sets };
     })
   };
+  renderSessionProgressBar();
   saveSessionState();
   selectedDay = day;
   setTab("sesion");
+}
+
+/* ================================================================
+   BARRA DE PROGRESO DE SESIÓN EN EL HEADER
+   ================================================================ */
+function renderSessionProgressBar(){
+  const bar = document.getElementById("sessBar");
+  if(!bar) return;
+  if(!session){
+    bar.classList.remove("show");
+    bar.innerHTML = "";
+    return;
+  }
+  const totalSets = session.exercises.reduce((a,e)=>a+e.sets.length,0);
+  if(totalSets === 0){ bar.classList.remove("show"); return; }
+  bar.classList.add("show");
+  const segs = session.exercises.map(e=>{
+    const col = DAY_COLORS[session.day] || "#C8FF00";
+    const doneSets = e.sets.filter(s=>s.done).length;
+    const pct = e.sets.length ? Math.round((doneSets/e.sets.length)*100) : 0;
+    const marks = e.sets.map((_,si)=>`<span class="seg-mark" style="left:${(si+1)/e.sets.length*100}%"></span>`).join("");
+    return `<div class="sess-seg" style="flex:${e.sets.length};">
+      <div class="seg-fill" style="width:${pct}%;background:${col};"></div>
+      ${marks}
+      <span class="seg-label">${e.sets.filter(s=>s.done).length}/${e.sets.length}</span>
+    </div>`;
+  }).join("");
+  bar.innerHTML = segs;
 }
 
 /* ================================================================
@@ -2558,6 +2936,7 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
 })();
 
 (async function init(){
+  loadTrainingConfig();
   await runMigrations();
   if(DB && !historyLoaded) await loadHistoryFromDB();
   let authenticated = false;
@@ -2723,8 +3102,23 @@ function renderOnboarding(){
   document.getElementById("onbDots").innerHTML = ONBOARD_STEPS.map((_,i)=>`<span class="onb-dot${i===onboardStep?" active":""}"></span>`).join("");
   document.getElementById("onbNext").textContent = onboardStep === ONBOARD_STEPS.length-1 ? "¡Empezar!" : "Siguiente";
 }
+const ONBOARD_KEY = "eyefit_onboarding_seen_v2";
+function deviceFingerprint(){
+  try{
+    const nav = navigator.userAgent + "|" + (screen.width||"") + "x" + (screen.height||"") + "|" + (navigator.language||"");
+    let h = 0;
+    for(let i=0; i<nav.length; i++){ h = ((h<<5)-h)+nav.charCodeAt(i); h|=0; }
+    return String(Math.abs(h));
+  }catch(e){ return "unknown"; }
+}
 function showOnboarding(force){
-  if(!force && localStorage.getItem("eyefit_onboarding_seen")) return;
+  const fp = deviceFingerprint();
+  if(!force){
+    try{
+      const seen = JSON.parse(localStorage.getItem(ONBOARD_KEY) || "[]");
+      if(Array.isArray(seen) && seen.includes(fp)) return;
+    }catch(e){}
+  }
   const ov = document.getElementById("onboardOverlay");
   if(!ov) return;
   onboardStep = 0;
@@ -2736,7 +3130,13 @@ function closeOnboarding(){
   const ov = document.getElementById("onboardOverlay");
   if(ov) ov.classList.remove("show");
   setFocusTrap("onboardOverlay", null);
-  localStorage.setItem("eyefit_onboarding_seen", "1");
+  const fp = deviceFingerprint();
+  try{
+    const seen = JSON.parse(localStorage.getItem(ONBOARD_KEY) || "[]");
+    if(!Array.isArray(seen)) seen = [];
+    if(!seen.includes(fp)) seen.push(fp);
+    localStorage.setItem(ONBOARD_KEY, JSON.stringify(seen));
+  }catch(e){}
 }
 document.getElementById("onbNext").addEventListener("click", ()=>{
   if(onboardStep < ONBOARD_STEPS.length-1){

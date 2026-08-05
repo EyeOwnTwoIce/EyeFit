@@ -45,7 +45,9 @@
       <h1>👁️ EyeFit</h1>
       <button class="stop-btn" id="stopSessionBtn" style="display:none;" aria-label="Detener sesión">⏹ STOP</button>
     </div>
-    <!-- Barra de descanso superior: se vacía hacia la izquierda, no oculta el ejercicio siguiente -->
+    <!-- Barra de progreso de sesión (segmentos por ejercicio + marcas de series) -->
+    <div class="sess-bar" id="sessBar" aria-hidden="true"></div>
+    <!-- Barra de descanso superior: se vacía hacia la izquierda, botones integrados -->
     <div class="rest-bar" id="restBar" style="display:none;">
       <div class="rest-bar-fill" id="restBarFill"></div>
       <div class="rest-bar-time" id="restBarTime">1:00</div>
@@ -103,7 +105,6 @@
       <button type="submit" class="auth-btn" id="authSubmit">Acceder</button>
     </form>
     <div class="auth-error" id="authError"></div>
-    <div class="auth-info">🔒 Protegido con cifrado de última generación (bcrypt + JWT)<br>Tu historial se sincroniza entre dispositivos</div>
     <button class="btn btn-outline" id="authSkip" style="width:100%;margin-top:8px;display:none;">📴 Continuar sin conexión</button>
   </div>
 </div>

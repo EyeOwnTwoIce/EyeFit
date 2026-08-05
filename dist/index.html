@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -36,7 +36,7 @@
 <link rel="preconnect" href="https://vkaxxphminfinufitcyp.supabase.co">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.68daba14.css">
+<link rel="stylesheet" href="styles.0d79bbb4.css">
 </head>
 <body>
 <div id="app">
@@ -83,6 +83,7 @@
   <div id="sumExList"></div>
   <div class="sum-btns">
     <button class="sum-save" id="sumAgain">✅ Entrenar de nuevo</button>
+    <button class="sum-done" id="sumDoneToday">👍 Vale por hoy</button>
   </div>
 </div>
 
@@ -130,8 +131,18 @@
 <div id="imgZoomOverlay" role="dialog" aria-modal="true" aria-label="Ejercicio ampliado" tabindex="-1">
   <div class="zoom-wrap">
     <img id="zoomImg" class="zoom-img" alt="" decoding="async">
+    <div class="zoom-instr" id="zoomInstr"></div>
     <button class="zoom-close" id="zoomClose" aria-label="Cerrar imagen ampliada">✕</button>
   </div>
+</div>
+
+<!-- Selector de ejercicio nuevo (editar rutina) -->
+<div id="exPickerOverlay" role="dialog" aria-modal="true" aria-label="Añadir ejercicio" tabindex="-1">
+  <div class="picker-title">➕ Añadir ejercicio</div>
+  <div class="picker-sub" id="pickerDayLabel"></div>
+  <input type="search" class="picker-search" id="pickerSearch" placeholder="Buscar ejercicio…" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <div class="picker-list" id="pickerList"></div>
+  <button class="picker-close" id="pickerClose">Cancelar</button>
 </div>
 
 <!-- Confirmación eliminación por swipe -->
@@ -161,6 +172,6 @@
 <script src="utils.js" defer></script>
 <script src="db.js" defer></script>
 <script src="supabase.js" defer></script>
-<script src="app.687887b7.js" defer></script>
+<script src="app.26cdeb0a.js" defer></script>
 </body>
 </html>

@@ -654,8 +654,18 @@ function updateStopBtn(){
   const btn = document.getElementById("stopSessionBtn");
   if(btn) btn.style.display = (currentTab==="sesion" && session) ? "block" : "none";
 }
+let routineEditMode = false;
+
 function renderMain(){
   const main = document.getElementById("main");
+  if(routineEditMode && currentTab === "rutina"){
+    const html = renderEditRoutine();
+    if(main.innerHTML !== html){
+      main.innerHTML = html;
+      attachEvents();
+    }
+    return;
+  }
   const views = { rutina:renderRutina, sesion:renderSesion, historial:renderHistorial, ajustes:renderAjustes };
   const html = views[currentTab] ? views[currentTab]() : renderRutina();
   if(main.innerHTML !== html){
@@ -707,7 +717,10 @@ function renderRutina(){
     <h2 class="title">📅 Rutina Semanal</h2>
     ${noData || `<div class="week-grid">${weekHtml}</div>`}
     ${noData || dayHtml}
-    ${noData || `<button class="btn" style="width:100%;padding:13px;" data-start-session="${escapeHtmlAttr(sel)}">🏋️ Entrenar — ${escapeHtmlAttr(sel)}</button>`}
+    ${noData || `<div class="routine-edit-top">
+      <button class="btn" style="width:100%;padding:13px;" data-start-session="${escapeHtmlAttr(sel)}">🏋️ Entrenar — ${escapeHtmlAttr(sel)}</button>
+      <button class="btn btn-outline" data-edit-routine>✏️ Editar</button>
+    </div>`}
   </div>`;
 }
 
@@ -717,10 +730,11 @@ function exerciseCard(ex, i, day){
   const apodo = getApodo(ex);
   const instr = formatInstructions(getInstrucciones(ex));
   const variantes = (ALTERNATIVAS[ex.dataset] || []).length;
+  const instrRaw = getInstrucciones(ex);
 
   return `<div class="ex-row">
     <div class="ex-top">
-      <div class="ex-img">
+      <div class="ex-img" ${imgUrl?`data-img-zoom data-ex-name="${escapeHtmlAttr(ex.nombre_es)}" data-ex-dataset="${escapeHtmlAttr(ex.dataset||"")}" data-ex-dataset-original="${escapeHtmlAttr(ex.datasetOriginal||"")}" data-img-instr="${escapeHtmlAttr(instrRaw)}" role="button" tabindex="0" aria-label="Ampliar GIF de ${escapeHtmlAttr(apodo)}"`:""}>
         ${imgUrl
           ? `<img src="${imgUrl}" alt="${escapeHtml(ex.nombre_es)}" loading="lazy" decoding="async" data-img-fallback="emoji">`
           : "🏋️"}
@@ -745,6 +759,246 @@ function exerciseCard(ex, i, day){
   </div>`;
 }
 
+
+/* ================================================================
+   EDITAR RUTINA — CRUD de ejercicios y series
+   ================================================================ */
+let routineEditDay = null;
+
+function applyRoutineChange(updater){
+  const routine = getRoutine();
+  const next = updater(routine);
+  /* Reasignar orden por día */
+  const od = {};
+  for(const ex of next){ od[ex.dia]=(od[ex.dia]||0)+1; ex.orden=od[ex.dia]; }
+  setRoutine(next);
+  if(sbClient && authUser){ pushRoutineToServer(); }
+}
+
+function renderEditRoutine(){
+  const routine = getRoutine();
+  const days = DAY_ORDER.filter(d=>routine.some(e=>e.dia===d));
+  const todayName = getTodayName();
+  const sel = routineEditDay || (days.includes(todayName) ? todayName : days[0]) || "Lunes";
+  const dayEx = routine.filter(e=>e.dia===sel).sort((a,b)=>(a.orden||0)-(b.orden||0));
+
+  /* Semana */
+  const weekHtml = days.map(d=>{
+    const isSel = d===sel;
+    const color = DAY_COLORS[d] || "#888";
+    return `<div class="week-cell ${isSel?"active":""}" data-edit-day="${escapeHtmlAttr(d)}" role="button" tabindex="0" aria-pressed="${isSel}" aria-label="Editar día ${escapeHtmlAttr(d)}" style="${isSel?"":`border-color:${color}44;`}">
+      <div class="d">${DAY_SHORT[d]||d.slice(0,3)}</div>
+      <div class="l" style="${isSel?"":`color:${color}`}">${d}</div>
+    </div>`;
+  }).join("");
+
+  /* Ejercicios del día */
+  const exHtml = dayEx.map((ex,ei)=>{
+    const sets = buildExerciseSets(ex, null);
+    return `<div class="edit-ex-row">
+      <div class="edit-ex-top">
+        <span class="edit-ex-idx">${ex.orden}</span>
+        <span class="edit-ex-name">${escapeHtml(getApodo(ex))}</span>
+        <div class="edit-ex-actions">
+          <button class="edit-mini" data-edit-ex-toggle="${ei}" aria-label="Editar series de ${escapeHtmlAttr(getApodo(ex))}">✏️</button>
+          <button class="edit-mini" data-edit-ex-up="${ei}" ${ei===0?"disabled":""} aria-label="Subir ${escapeHtmlAttr(getApodo(ex))}">↑</button>
+          <button class="edit-mini" data-edit-ex-down="${ei}" ${ei===dayEx.length-1?"disabled":""} aria-label="Bajar ${escapeHtmlAttr(getApodo(ex))}">↓</button>
+          <button class="edit-mini danger" data-edit-ex-del="${ei}" aria-label="Eliminar ${escapeHtmlAttr(getApodo(ex))}">✕</button>
+        </div>
+      </div>
+      <div class="edit-ex-summary">${sets.length} series · ${ex.reps} reps · ${ex.peso_kg} kg · ⏱ ${formatRest(ex.descanso_s)}</div>
+      <div class="edit-ex-body" data-edit-ex-body="${ei}">
+        ${sets.map((s,si)=>`
+          <div class="edit-set-row">
+            <span class="es-num">${si+1}</span>
+            <input type="number" class="es-input" data-edit-set-kg="${ei}|${si}" value="${s.kg}" step="0.5" min="0" inputmode="decimal" aria-label="Peso serie ${si+1}">
+            <span class="es-label">kg</span>
+            <input type="number" class="es-input" data-edit-set-reps="${ei}|${si}" value="${s.reps}" step="1" min="1" inputmode="numeric" aria-label="Reps serie ${si+1}">
+            <span class="es-label">reps</span>
+            <button class="edit-set-del" data-edit-set-del="${ei}|${si}" aria-label="Eliminar serie ${si+1}">🗑</button>
+          </div>`).join("")}
+        <button class="edit-add-set" data-edit-add-set="${ei}">＋ Añadir serie</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  return `<div class="section active">
+    <div class="routine-edit-top">
+      <h2 class="title" style="flex:1;">✏️ Editar Rutina</h2>
+      <button class="btn btn-outline" data-edit-done>✓ Hecho</button>
+    </div>
+    ${days.length ? `<div class="week-grid">${weekHtml}</div>` : ""}
+    ${dayEx.length===0
+      ? `<div class="empty-state">Este día no tiene ejercicios.</div>`
+      : exHtml}
+    <button class="edit-add-ex" data-edit-add-ex>➕ Añadir ejercicio</button>
+  </div>`;
+}
+
+let pickerDay = null;
+function openExercisePicker(day){
+  pickerDay = day;
+  document.getElementById("pickerDayLabel").textContent = "Añadir a: " + (day || "");
+  renderPickerList("");
+  document.getElementById("exPickerOverlay").classList.add("show");
+  setFocusTrap("exPickerOverlay", document.getElementById("exPickerOverlay"));
+  setTimeout(()=>document.getElementById("pickerSearch").focus(), 100);
+}
+function renderPickerList(query){
+  const list = document.getElementById("pickerList");
+  const q = normalizeName(query);
+  let items = datasetCache || [];
+  if(q){
+    const words = q.split(" ").filter(w=>w.length>=2);
+    items = items.filter(d=>{
+      const n = normalizeName(d.name);
+      if(n.includes(q)) return true;
+      return words.some(w=>n.includes(w));
+    });
+  }
+  const shown = items.slice(0, 60);
+  list.innerHTML = shown.length
+    ? shown.map((d,i)=>`
+        <div class="picker-item" data-pick-ex="${escapeHtmlAttr(i)}" data-pick-name="${escapeHtmlAttr(d.name)}" data-pick-image="${escapeHtmlAttr(d.image||"")}" data-pick-part="${escapeHtmlAttr(d.part||"")}">
+          <div class="pi-name">${escapeHtml(d.name)}</div>
+          <div class="pi-sub">${escapeHtml(d.part||"")}</div>
+        </div>`).join("")
+    : `<div class="empty-state" style="padding:20px;">Sin resultados</div>`;
+}
+function closeExercisePicker(){
+  setFocusTrap("exPickerOverlay", null);
+  document.getElementById("exPickerOverlay").classList.remove("show");
+}
+function selectExerciseFromPicker(el){
+  const name = el.getAttribute("data-pick-name") || "";
+  const image = el.getAttribute("data-pick-image") || "";
+  if(!name || !pickerDay) return;
+  applyRoutineChange(routine=>{
+    const ex = { dia:pickerDay, orden:99, nombre_es:name, dataset:name, series:3, reps:10, peso_kg:0, descanso_s:90, notas:"" };
+    /* Si el dataset tiene instrucciones, usarlas como notas */
+    const found = datasetCache ? findExerciseInDataset(datasetCache, name) : null;
+    if(found){
+      if(found.instructions) ex.notas = found.instructions;
+      ex.dataset = found.name;
+    }
+    routine.push(ex);
+    return routine;
+  });
+  closeExercisePicker();
+  renderMain();
+  showToast("➕ Ejercicio añadido: " + name);
+}
+
+function handleEditRoutineEvent(btn){
+  const d = btn.dataset;
+  if(d.editExToggle !== undefined){
+    const body = document.querySelector(`[data-edit-ex-body="${d.editExToggle}"]`);
+    if(body) body.classList.toggle("open");
+    return;
+  }
+  if(d.editExUp !== undefined){
+    const routine = getRoutine();
+    const dayEx = routine.filter(e=>e.dia===routineEditDay).sort((a,b)=>(a.orden||0)-(b.orden||0));
+    const ei = parseInt(d.editExUp);
+    if(ei<=0) return;
+    const cur = dayEx[ei];
+    const prev = dayEx[ei-1];
+    applyRoutineChange(r=>{
+      const a = cur.dia+"|"+cur.nombre_es;
+      const b = prev.dia+"|"+prev.nombre_es;
+      const ia = r.findIndex(e=>e.dia+"|"+e.nombre_es===a);
+      const ib = r.findIndex(e=>e.dia+"|"+e.nombre_es===b);
+      if(ia>=0 && ib>=0){ const t=r[ia]; r[ia]=r[ib]; r[ib]=t; }
+      return r;
+    });
+    renderMain();
+    return;
+  }
+  if(d.editExDown !== undefined){
+    const routine = getRoutine();
+    const dayEx = routine.filter(e=>e.dia===routineEditDay).sort((a,b)=>(a.orden||0)-(b.orden||0));
+    const ei = parseInt(d.editExDown);
+    if(ei>=dayEx.length-1) return;
+    const cur = dayEx[ei];
+    const next = dayEx[ei+1];
+    applyRoutineChange(r=>{
+      const a = cur.dia+"|"+cur.nombre_es;
+      const b = next.dia+"|"+next.nombre_es;
+      const ia = r.findIndex(e=>e.dia+"|"+e.nombre_es===a);
+      const ib = r.findIndex(e=>e.dia+"|"+e.nombre_es===b);
+      if(ia>=0 && ib>=0){ const t=r[ia]; r[ia]=r[ib]; r[ib]=t; }
+      return r;
+    });
+    renderMain();
+    return;
+  }
+  if(d.editExDel !== undefined){
+    const routine = getRoutine();
+    const dayEx = routine.filter(e=>e.dia===routineEditDay).sort((a,b)=>(a.orden||0)-(b.orden||0));
+    const ei = parseInt(d.editExDel);
+    const ex = dayEx[ei];
+    if(!ex) return;
+    if(confirm(`¿Eliminar "${getApodo(ex)}" de ${routineEditDay}?`)){
+      applyRoutineChange(r=>r.filter(e=>!(e.dia===ex.dia && e.nombre_es===ex.nombre_es)));
+      renderMain();
+      showToast("🗑️ Ejercicio eliminado");
+    }
+    return;
+  }
+  if(d.editSetKg !== undefined || d.editSetReps !== undefined){
+    const [ei, si] = (d.editSetKg ?? d.editSetReps).split("|").map(Number);
+    const routine = getRoutine();
+    const dayEx = routine.filter(e=>e.dia===routineEditDay).sort((a,b)=>(a.orden||0)-(b.orden||0));
+    const ex = dayEx[ei];
+    if(!ex) return;
+    const key = d.editSetKg ? "peso_kg" : "reps";
+    const val = parseFloat(btn.value);
+    if(isNaN(val)) return;
+    /* Guardar por serie: usamos un esquema por series mediante kgX/repsX */
+    if(key === "peso_kg") ex["kg"+(si+1)] = val;
+    else ex["reps"+(si+1)] = val;
+    ex[key] = ex[si+1] && ex["kg"+(si+1)] !== undefined ? ex["kg"+(si+1)] : val;
+    setRoutine(routine);
+    if(sbClient && authUser) pushRoutineToServer();
+    return;
+  }
+  if(d.editSetDel !== undefined){
+    const [ei, si] = d.editSetDel.split("|").map(Number);
+    const routine = getRoutine();
+    const dayEx = routine.filter(e=>e.dia===routineEditDay).sort((a,b)=>(a.orden||0)-(b.orden||0));
+    const ex = dayEx[ei];
+    if(!ex) return;
+    ex["kg"+(si+1)] = undefined;
+    ex["reps"+(si+1)] = undefined;
+    /* Recompactar series X*/
+    let maxSet = 0;
+    for(let k=1; k<=20; k++){ if(ex["kg"+k] !== undefined) maxSet = k; }
+    ex.series = Math.max(1, maxSet);
+    setRoutine(routine);
+    if(sbClient && authUser) pushRoutineToServer();
+    renderMain();
+    showToast("🗑️ Serie eliminada");
+    return;
+  }
+  if(d.editAddSet !== undefined){
+    const ei = parseInt(d.editAddSet);
+    const routine = getRoutine();
+    const dayEx = routine.filter(e=>e.dia===routineEditDay).sort((a,b)=>(a.orden||0)-(b.orden||0));
+    const ex = dayEx[ei];
+    if(!ex) return;
+    /* Añadir una nueva serie al final */
+    let next = 1;
+    for(let k=1; k<=20; k++){ if(ex["kg"+k] !== undefined) next = k+1; }
+    if(next > ex.series + 1) ex.series = next;
+    else ex.series = (ex.series||3) + 1;
+    ex["kg"+next] = parseFloat(ex.peso_kg)||0;
+    ex["reps"+next] = parseInt(ex.reps)||10;
+    setRoutine(routine);
+    if(sbClient && authUser) pushRoutineToServer();
+    renderMain();
+    return;
+  }
+}
 
 /* ================================================================
    FASE 2 · MÉTRICAS DE PROGRESIÓN (1RM Epley, PR, sparklines, racha)
@@ -871,13 +1125,21 @@ function renderSesion(){
     const routine = getRoutine();
     const days = DAY_ORDER.filter(d=>routine.some(e=>e.dia===d));
     const todayName = getTodayName();
-    const dayBtns = days.map(d=>
-      `<button class="select-day-btn" data-start-session="${escapeHtmlAttr(d)}">
+    /* Ordenar días: el actual primero si existe */
+    const sortedDays = [...days].sort((a,b)=>{
+      if(a===todayName) return -1;
+      if(b===todayName) return 1;
+      return DAY_ORDER.indexOf(a)-DAY_ORDER.indexOf(b);
+    });
+    const dayBtns = sortedDays.map(d=>{
+      const isToday = d===todayName;
+      return `<button class="select-day-btn ${isToday?"today":""}" data-start-session="${escapeHtmlAttr(d)}">
         <span style="width:9px;height:9px;border-radius:50%;background:${DAY_COLORS[d]||"#888"};display:inline-block;"></span>
         ${d}
         <span style="margin-left:auto;color:var(--muted);font-size:10.5px;">${routine.filter(e=>e.dia===d).length} ejercicios</span>
-      </button>`
-    ).join("");
+        ${isToday?`<span class="today-badge">HOY</span>`:""}
+      </button>`;
+    }).join("");
     return `<div class="section active">
       <h2 class="title">🏋️ Entrenar</h2>
       ${days.length
@@ -1091,6 +1353,16 @@ document.getElementById("sumAgain").addEventListener("click", ()=>{
   clearSessionState();
   setTab("sesion");
   showToast("🏋️ ¿Siguiente ronda?");
+});
+
+/* "Vale por hoy": cerrar resumen y volver a la Rutina */
+document.getElementById("sumDoneToday").addEventListener("click", ()=>{
+  setFocusTrap("summaryOverlay", null);
+  document.getElementById("summaryOverlay").classList.remove("show");
+  session = null;
+  clearSessionState();
+  setTab("rutina");
+  showToast("👍 ¡Buen entrenamiento!");
 });
 
 /* ================================================================
@@ -1341,7 +1613,6 @@ function renderHistorial(){
       <div class="hist-stat"><div class="v">${totalSets}</div><div class="l">Series</div></div>
     </div>
     ${histHtml}
-    <button class="btn btn-danger" style="width:100%;" data-clear-history>🗑️ Borrar historial</button>
   </div>`;
 }
 
@@ -1431,6 +1702,38 @@ function getExerciseBodyPart(ex, dataset){
 }
 
 function attachEvents(){
+  /* --- Modo edición rutina --- */
+  document.querySelectorAll("[data-edit-routine]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      routineEditMode = true;
+      routineEditDay = selectedDay || null;
+      renderMain();
+    });
+  });
+  document.querySelectorAll("[data-edit-day]").forEach(el=>{
+    el.addEventListener("click", ()=>{ routineEditDay = el.dataset.editDay; renderMain(); });
+  });
+  document.querySelectorAll("[data-edit-done]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      routineEditMode = false;
+      routineEditDay = null;
+      renderMain();
+    });
+  });
+  document.querySelectorAll("[data-edit-ex-add],[data-edit-add-ex]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const day = routineEditDay || selectedDay;
+      if(day) openExercisePicker(day);
+    });
+  });
+  /* Todos los botones del editor usando un único selector */
+  document.querySelectorAll("[data-edit-ex-toggle],[data-edit-ex-up],[data-edit-ex-down],[data-edit-ex-del],[data-edit-set-kg],[data-edit-set-reps],[data-edit-set-del],[data-edit-add-set]").forEach(btn=>{
+    if(btn.dataset.editSetKg !== undefined || btn.dataset.editSetReps !== undefined){
+      btn.addEventListener("change", ()=>{ handleEditRoutineEvent(btn); });
+    } else {
+      btn.addEventListener("click", ()=>{ handleEditRoutineEvent(btn); });
+    }
+  });
   document.querySelectorAll("[data-day]").forEach(el=>{
     el.addEventListener("click", ()=>{ selectedDay = el.dataset.day; renderMain(); });
     el.addEventListener("keydown", (e)=>{
@@ -1656,7 +1959,7 @@ function attachEvents(){
     });
     swipeDeleteSet = null;
   });
-  /* Ampliar GIF (overlay) */
+  /* Ampliar GIF (overlay) — todas las miniaturas ampliables */
   document.querySelectorAll("[data-img-zoom]").forEach(el=>{
     el.addEventListener("click", ()=>{
       const img = el.querySelector("img");
@@ -1664,6 +1967,26 @@ function attachEvents(){
       const zoomImg = document.getElementById("zoomImg");
       zoomImg.src = img.src;
       zoomImg.alt = img.alt || "";
+      /* Mostrar instrucciones del ejercicio debajo del GIF */
+      const instrEl = document.getElementById("zoomInstr");
+      if(instrEl){
+        let instrText = el.getAttribute("data-img-instr") || "";
+        if(!instrText){
+          const ds = el.getAttribute("data-ex-dataset-original") || el.getAttribute("data-ex-dataset") || "";
+          const nm = el.getAttribute("data-ex-name") || "";
+          if(ds && INSTRUCCIONES[ds]) instrText = INSTRUCCIONES[ds];
+          else if(nm){
+            /* Buscar en dataset actual */
+            const found = datasetCache ? (findExerciseInDataset(datasetCache, ds||nm)) : null;
+            instrText = (found && found.instructions) ? found.instructions : "";
+          }
+        }
+        if(instrText){
+          instrEl.innerHTML = `<div class="zi-title">📖 Instrucciones</div>` + formatInstructions(instrText);
+        } else {
+          instrEl.innerHTML = "";
+        }
+      }
       document.getElementById("imgZoomOverlay").classList.add("show");
       setFocusTrap("imgZoomOverlay", document.getElementById("imgZoomOverlay"));
     });
@@ -2120,6 +2443,19 @@ function startSession(day){
   selectedDay = day;
   setTab("sesion");
 }
+
+/* ================================================================
+   SELECTOR DE EJERCICIO (static handlers)
+   ================================================================ */
+const pickerSearchEl = document.getElementById("pickerSearch");
+if(pickerSearchEl){
+  pickerSearchEl.addEventListener("input", (e)=>{ renderPickerList(e.target.value); });
+}
+document.getElementById("pickerList").addEventListener("click", (e)=>{
+  const item = e.target.closest("[data-pick-name]");
+  if(item) selectExerciseFromPicker(item);
+});
+document.getElementById("pickerClose").addEventListener("click", closeExercisePicker);
 
 /* ================================================================
    INIT

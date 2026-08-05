@@ -1,8 +1,8 @@
-:root{
-    --accent:#C8FF00; --bg:#0A0A0A; --surface:#141414; --surface2:#1E1E1E;
-    --border:#2A2A2A; --text:#F0F0F0; --muted:#888; --danger:#ff4444;
-    --blue:#4FC3F7; --green:#81C784; --orange:#FFB74D;
-    --purple:#BA68C8; --redm:#F0625C;
+  :root{
+    --accent:#C8FF00; --bg:#000000; --surface:#141414; --surface2:#1C1C1E;
+    --border:#2C2C2E; --text:#F2F2F7; --muted:#8E8E93; --danger:#FF453A;
+    --blue:#0A84FF; --green:#30D158; --orange:#FFD60A;
+    --purple:#BF5AF2; --redm:#FF6961;
   }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0;
      touch-action:manipulation; }
@@ -12,20 +12,32 @@
   }
   html,body{
     background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;
-    font-size:14px; overscroll-behavior-y:none; height:100%; width:100%;
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display',system-ui,sans-serif;
+    font-size:14px; overscroll-behavior:none; height:100%; width:100%;
+    overflow:hidden; position:fixed; inset:0;
   }
   body{
     padding-top:env(safe-area-inset-top);
     padding-bottom:calc(60px + env(safe-area-inset-bottom));
     max-width:393px; margin:0 auto;
     overscroll-behavior:none;
+    -webkit-text-size-adjust:100%; text-size-adjust:100%;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
   }
-  #app{ min-height:100dvh; display:flex; flex-direction:column; position:relative; }
+  #app{ height:100dvh; display:flex; flex-direction:column; position:relative; }
+  main{
+    flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none; -ms-overflow-style:none;
+    padding:14px 14px 26px;
+  }
+  main::-webkit-scrollbar{ display:none; }
 
   /* ===== Header ===== */
   header{
-    background:var(--surface); border-bottom:1px solid var(--border);
+    background:rgba(20,20,20,.85); backdrop-filter:blur(20px) saturate(180%);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);
+    border-bottom:1px solid var(--border);
     padding:12px 18px 8px; position:sticky; top:0; z-index:20;
     padding-top:calc(12px + env(safe-area-inset-top));
   }
@@ -63,7 +75,8 @@
   /* ===== Bottom tab bar ===== */
   .tabbar{
     position:fixed; bottom:0; left:0; right:0; margin:0 auto; max-width:393px;
-    background:rgba(20,20,20,.92); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    background:rgba(20,20,20,.85); backdrop-filter:blur(20px) saturate(180%);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);
     border-top:1px solid var(--border); display:flex; z-index:100;
     padding-bottom:env(safe-area-inset-bottom);
   }
@@ -76,7 +89,6 @@
   .tabbtn.active{ color:var(--accent); }
 
   /* ===== Scroll area ===== */
-  main{ flex:1; padding:14px 14px 26px; padding-bottom:70px; }
   .section{ display:none; animation:fadein .18s ease; }
   .section.active{ display:block; }
   @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
@@ -511,6 +523,102 @@
   .add-set-btn{ min-height:48px; }
   .hist-day-top{ padding:12px 15px; }
   .stop-btn, .btn{ min-height:44px; }
+
+  /* ===== Instrucciones bajo el GIF ampliado ===== */
+  .zoom-instr{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:12px 14px; color:#ccc; font-size:12px; line-height:1.6;
+    margin-top:12px; max-height:26dvh; overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .zoom-instr .zi-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:.6px;
+    color:var(--accent); font-weight:800; margin-bottom:6px;
+  }
+  .zoom-instr .instr-list{ margin:0; }
+  .zoom-instr .instr-list li{ font-size:12px; margin-bottom:5px; }
+
+  /* ===== Botón "Vale por hoy" ===== */
+  .sum-done{ background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+
+  /* ===== Día actual en Entrenar ===== */
+  .select-day-btn.today{ border-color:var(--accent); background:rgba(200,255,0,.08); }
+  .today-badge{
+    background:var(--accent); color:#000; border-radius:5px; padding:2px 6px;
+    font-size:8.5px; font-weight:800; margin-left:auto; flex-shrink:0; letter-spacing:.3px;
+  }
+
+  /* ===== Editar rutina ===== */
+  .routine-edit-top{ display:flex; gap:8px; margin-bottom:12px; }
+  .routine-edit-top .btn{ flex:1; min-height:44px; }
+  .edit-ex-row{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:9px 12px; margin-bottom:7px;
+  }
+  .edit-ex-top{ display:flex; align-items:center; gap:8px; }
+  .edit-ex-idx{ color:var(--accent); font-weight:800; font-size:11px; width:16px; flex-shrink:0; text-align:center; }
+  .edit-ex-name{ flex:1; min-width:0; font-size:12px; font-weight:700; line-height:1.3; overflow:hidden; text-overflow:ellipsis; }
+  .edit-ex-actions{ display:flex; gap:4px; flex-shrink:0; }
+  .edit-mini{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:7px; width:32px; height:32px; font-size:13px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
+  }
+  .edit-mini:active{ background:var(--accent); color:#000; }
+  .edit-mini.danger{ color:var(--danger); }
+  .edit-mini.danger:active{ background:var(--danger); color:#fff; }
+  .edit-ex-summary{ color:var(--muted); font-size:9.5px; margin-top:4px; padding-left:24px; line-height:1.4; }
+  .edit-ex-body{ display:none; margin-top:8px; padding-top:8px; border-top:1px solid var(--border); }
+  .edit-ex-body.open{ display:block; }
+  .edit-set-row{ display:flex; align-items:center; gap:6px; padding:5px 0; }
+  .edit-set-row .es-num{ color:var(--muted); font-size:10px; font-weight:700; width:14px; flex-shrink:0; text-align:center; }
+  .edit-set-row .es-input{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:7px; padding:6px 8px; font-size:12px; font-weight:700; width:64px; text-align:center;
+    font-variant-numeric:tabular-nums; outline:none;
+  }
+  .edit-set-row .es-input:focus{ border-color:var(--accent); }
+  .edit-set-row .es-label{ color:var(--muted); font-size:9px; flex-shrink:0; }
+  .edit-set-del{
+    background:none; border:none; color:var(--danger); font-size:14px; cursor:pointer;
+    width:32px; height:32px; flex-shrink:0; border-radius:7px; display:flex; align-items:center; justify-content:center;
+  }
+  .edit-set-del:active{ background:rgba(255,69,58,.15); }
+  .edit-add-set{
+    background:none; border:1px dashed var(--accent); color:var(--accent); border-radius:7px;
+    font-size:10px; font-weight:800; padding:6px; width:100%; margin-top:6px; cursor:pointer;
+  }
+  .edit-add-set:active{ background:rgba(200,255,0,.1); }
+  .edit-add-ex{
+    background:none; border:1.5px dashed var(--accent); color:var(--accent); border-radius:12px;
+    font-size:12px; font-weight:800; padding:13px; width:100%; cursor:pointer; margin-top:4px;
+  }
+  .edit-add-ex:active{ background:rgba(200,255,0,.1); }
+  .edit-day-title{ font-weight:800; font-size:13px; margin:10px 0 7px; display:flex; align-items:center; gap:6px; }
+  .edit-day-title .dot{ width:8px; height:8px; border-radius:50%; }
+
+  /* ===== Selector de ejercicio nuevo (búsqueda en dataset) ===== */
+  #exPickerOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.97); z-index:260;
+    display:none; flex-direction:column; max-width:393px; margin:0 auto; padding:20px 16px;
+  }
+  #exPickerOverlay.show{ display:flex; }
+  .picker-title{ font-size:17px; font-weight:800; margin-bottom:4px; }
+  .picker-sub{ color:var(--muted); font-size:11px; margin-bottom:12px; }
+  .picker-search{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:12px; outline:none; width:100%;
+  }
+  .picker-search:focus{ border-color:var(--accent); }
+  .picker-list{ flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .picker-item{
+    background:var(--surface); border:1px solid var(--border); border-radius:11px;
+    padding:11px 13px; margin-bottom:7px; cursor:pointer;
+  }
+  .picker-item:active{ border-color:var(--accent); }
+  .picker-item .pi-name{ font-size:12.5px; font-weight:700; }
+  .picker-item .pi-sub{ color:var(--muted); font-size:9.5px; margin-top:2px; }
+  .picker-close{ margin-top:12px; background:var(--surface2); color:var(--text); border:none; border-radius:10px; padding:12px; font-size:13px; font-weight:700; cursor:pointer; }
 
   @media (prefers-reduced-motion: reduce){
     *{ animation:none !important; transition:none !important; }

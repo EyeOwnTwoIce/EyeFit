@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const SQL = fs.readFileSync(path.join(__dirname, '..', 'supabase_setup.sql'), 'utf8');
+const SQL = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'setup.sql'), 'utf8');
 
 test('RLS: row level security habilitado en rutinas y sesiones', () => {
   assert.match(SQL, /alter table\s+public\.rutinas\s+enable row level security/i);

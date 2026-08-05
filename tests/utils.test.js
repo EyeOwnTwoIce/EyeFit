@@ -8,7 +8,7 @@ const {
   buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine,
   escapeHtmlAttr, localDateKey, genUUID, clampNum, isValidDay, sanitizeRoutineRow,
   rebaseElapsed, mergeHistoryBySessionId, DAY_ORDER, DEFAULT_ROUTINE, ALTERNATIVAS
-} = require('../utils.js');
+} = require('../src/utils.js');
 
 /* ============ getApodo ============ */
 test('getApodo: devuelve apodo mapeado', () => {

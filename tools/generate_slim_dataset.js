@@ -9,7 +9,7 @@
    - Solo guarda {id, name, image, instr.es, part} (sin weight_male/etc.)
    - Se ejecuta manualmente (npm run gen:slim-data) o en CI si falta.
 
-   Uso: node scripts/generate_slim_dataset.js
+   Uso: node tools/generate_slim_dataset.js
    Salida: slim-dataset.json
 */
 'use strict';

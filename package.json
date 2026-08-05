@@ -2,11 +2,11 @@
   "name": "eyefit",
   "version": "1.0.0",
   "description": "EyeFit — App de entrenamiento privada y offline (iPhone 15)",
-  "main": "index.html",
+  "main": "dist/index.html",
   "scripts": {
-    "generate": "node generate_rutina.js",
-    "build": "node scripts/build.js",
-    "gen:slim-data": "node scripts/generate_slim_dataset.js",
+    "generate": "node tools/generate_rutina.js",
+    "build": "node tools/build.js",
+    "gen:slim-data": "node tools/generate_slim_dataset.js",
     "test": "node --test tests/*.test.js",
     "test:e2e": "npm run build && playwright test",
     "lighthouse": "npm run build && npx http-server dist -p 4173 -c-1 & lhci autorun"

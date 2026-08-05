@@ -94,8 +94,10 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // slim-dataset.json: stale-while-revalidate (cache + red en paralelo)
-  if (url.pathname.endsWith('/slim-dataset.json')) {
+  // slim-dataset.json + exercise-meta.json: stale-while-revalidate (cache + red en paralelo)
+  const isMetaOrDataset = url.pathname.endsWith('/slim-dataset.json') ||
+    url.pathname.endsWith('/exercise-meta.json');
+  if (isMetaOrDataset) {
     event.respondWith(
       caches.open(CACHE).then(cache =>
         cache.match(request).then(cached => {

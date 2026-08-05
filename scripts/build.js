@@ -17,7 +17,7 @@ const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
 
 const STATIC_FILES = [
-  'manifest.json', 'rutina.xlsx', 'slim-dataset.json',
+  'manifest.json', 'rutina.xlsx', 'slim-dataset.json', 'exercise-meta.json',
   'robots.txt', 'sitemap.xml', 'utils.js', 'supabase.js',
   'xlsx.full.min.js'
 ];
@@ -106,7 +106,7 @@ function buildSw(coreAssets) {
   buildHtml(cssName, jsName);
   const coreAssets = ['./', './index.html', `./${cssName}`, `./${jsName}`,
     './manifest.json', './utils.js', './db.js', './supabase.js', './rutina.xlsx',
-    './slim-dataset.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
+    './slim-dataset.json', './exercise-meta.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
   buildSw(coreAssets);
   console.log(`✔ Build OK → dist/ (${cssName}, ${jsName})`);
 })();

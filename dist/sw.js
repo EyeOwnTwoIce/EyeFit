@@ -3,8 +3,8 @@
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync
    - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
-const CACHE = "eyefit-vmsg24lc3";
-const CORE_ASSETS = ["./","./index.html","./styles.c78f04cb.css","./app.3a8f10b9.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
+const CACHE = "eyefit-vmsg5i41z";
+const CORE_ASSETS = ["./","./index.html","./styles.99d43eec.css","./app.3074a442.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
 
 /* Shell offline: página mínima para un cold-load sin red */
 const OFFLINE_SHELL = `<!DOCTYPE html>
@@ -94,8 +94,10 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // slim-dataset.json: stale-while-revalidate (cache + red en paralelo)
-  if (url.pathname.endsWith('/slim-dataset.json')) {
+  // slim-dataset.json + exercise-meta.json: stale-while-revalidate (cache + red en paralelo)
+  const isMetaOrDataset = url.pathname.endsWith('/slim-dataset.json') ||
+    url.pathname.endsWith('/exercise-meta.json');
+  if (isMetaOrDataset) {
     event.respondWith(
       caches.open(CACHE).then(cache =>
         cache.match(request).then(cached => {

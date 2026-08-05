@@ -49,20 +49,44 @@
 
   function saveHistoryDB(records) {
     const list = Array.isArray(records) ? records : [];
+    const sidSet = new Set(list.map(r => r && r.session_id).filter(Boolean));
     return openDB()
-      .then(db => tx(db, 'readwrite', store => {
-        store.clear();
-        for (const r of list) {
-          if (r && r.session_id) store.put({
-            session_id: r.session_id,
-            date: r.date,
-            day: r.day,
-            duration: r.duration,
-            updated_at: r.updated_at,
-            exercises: r.exercises,
-            record: r
-          });
-        }
+      .then(db => new Promise((resolve, reject) => {
+        const t = db.transaction(STORE, 'readwrite');
+        const store = t.objectStore(STORE);
+
+        /* Estrategia atómica sin clear():
+           1. getAllKeys() para conocer los IDs existentes
+           2. delete() los que ya NO están en la nueva lista
+           3. put() los nuevos/actualizados
+           Todo dentro de la MISMA transacción → o se aplica todo o nada. */
+        const keysReq = store.getAllKeys();
+        keysReq.onsuccess = () => {
+          try {
+            const existingIds = keysReq.result || [];
+            for (const id of existingIds) {
+              if (!sidSet.has(id)) store.delete(id);
+            }
+            for (const r of list) {
+              if (r && r.session_id) {
+                store.put({
+                  session_id: r.session_id,
+                  date: r.date,
+                  day: r.day,
+                  duration: r.duration,
+                  updated_at: r.updated_at,
+                  exercises: r.exercises,
+                  record: r
+                });
+              }
+            }
+          } catch (e) { reject(e); }
+        };
+        keysReq.onerror = () => reject(keysReq.error);
+
+        t.oncomplete = () => resolve();
+        t.onerror = () => reject(t.error);
+        t.onabort = () => reject(t.error);
       }))
       .catch(() => {});
   }

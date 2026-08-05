@@ -529,6 +529,9 @@ function setRoutine(r){ lsSet(K.routine, r); }
 const DB = window.EyeFitDB || null;
 let historyCache = [];
 let historyLoaded = false;
+/* Mutex para operaciones de historial (saveHistory / pullServerData).
+   Evita condiciones de carrera entre autoSaveSession(s), sync, y pull. */
+let historyLock = Promise.resolve();
 async function loadHistoryFromDB(){
   if(!DB) return;
   try{
@@ -537,11 +540,11 @@ async function loadHistoryFromDB(){
   }catch(e){}
   historyLoaded = true;
 }
-async function persistHistory(){
+async function persistHistory(records){
   if(DB){
-    try{ await DB.saveHistoryDB(historyCache); }catch(e){}
+    try{ await DB.saveHistoryDB(records !== undefined ? records : historyCache); }catch(e){}
   }else{
-    lsSet(K.history, historyCache);
+    lsSet(K.history, records !== undefined ? records : historyCache);
   }
 }
 function getHistory(){
@@ -553,8 +556,15 @@ function getHistory(){
   return historyCache;
 }
 async function saveHistory(h){
-  historyCache = Array.isArray(h) ? h.filter(isValidSessionRecord) : [];
-  await persistHistory();
+  /* Actualizar la caché SÍNCRONAMENTE (antes del mutex) para que los
+     callers que no hacen await tengan los datos correctos de inmediato.
+     La persistencia se serializa con el mutex para evitar sobrescrituras. */
+  const sanitized = Array.isArray(h) ? h.filter(isValidSessionRecord) : [];
+  historyCache = sanitized;
+  historyLock = historyLock.then(async ()=>{
+    await persistHistory(sanitized);
+  }).catch(()=>{});
+  return historyLock;
 }
 /* Schema versioning (eyefit_meta.data_version). v1→v2: migración one-time
    del historial de localStorage a IndexedDB (solo si la DB cargó). */
@@ -884,32 +894,73 @@ async function handleAuthSubmit(){
 async function afterLogin(){
   showAuthOverlay(false);
   await scheduleSync();
+  /* Delay para que el servidor procese los upserts antes de pull */
+  await new Promise(r => setTimeout(r, 800));
   await pullServerData();
   renderMain();
 }
 async function pullServerData(){
   if(!sbClient || !authUser) return;
-  try{
-    const { data: routineRow, error: errR } = await sbClient.from("rutinas").select("routine, meta, updated_at").eq("user_id", authUser.id).maybeSingle();
-    if(!errR && routineRow && routineRow.routine && Array.isArray(routineRow.routine)){
-      const localTs = localStorage.getItem(K.routineUpdated);
-      const serverTs = routineRow.updated_at;
-      if(!localTs || !serverTs || new Date(serverTs) > new Date(localTs)){
-        setRoutine(routineRow.routine);
-        if(serverTs) localStorage.setItem(K.routineUpdated, serverTs);
-        selectedDay = null;
-        /* Restaurar config de entrenamiento desde el servidor si viene */
-        if(routineRow.meta && routineRow.meta.config) trainingConfig = { ...TRAINING_DEFAULTS, ...routineRow.meta.config };
-        if(routineRow.meta && Array.isArray(routineRow.meta.trainingDays)) trainingDays = routineRow.meta.trainingDays;
+  /* Usar el mismo mutex que saveHistory para evitar condiciones de carrera:
+     la descarga no debe intersectarse con una escritura concurrente. */
+  historyLock = historyLock.then(async ()=>{
+    try{
+      const { data: routineRow, error: errR } = await sbClient.from("rutinas").select("routine, meta, updated_at").eq("user_id", authUser.id).maybeSingle();
+      if(!errR && routineRow && routineRow.routine && Array.isArray(routineRow.routine)){
+        const localTs = localStorage.getItem(K.routineUpdated);
+        const serverTs = routineRow.updated_at;
+        if(!localTs || !serverTs || new Date(serverTs) > new Date(localTs)){
+          setRoutine(routineRow.routine);
+          if(serverTs) localStorage.setItem(K.routineUpdated, serverTs);
+          selectedDay = null;
+          /* Restaurar config de entrenamiento desde el servidor si viene */
+          if(routineRow.meta && routineRow.meta.config) trainingConfig = { ...TRAINING_DEFAULTS, ...routineRow.meta.config };
+          if(routineRow.meta && Array.isArray(routineRow.meta.trainingDays)) trainingDays = routineRow.meta.trainingDays;
+        }
       }
+      /* Descargar sesiones con paginación (Supabase limita a 1000 filas por
+         request; con range() aseguramos TODAS las sesiones). */
+      const PAGE_SIZE = 500;
+      let allSesRows = [];
+      let from = 0;
+      let to = PAGE_SIZE - 1;
+      let hasMore = true;
+      while(hasMore){
+        const { data: sesRows, error: errS } = await sbClient
+          .from("sesiones")
+          .select("data")
+          .eq("user_id", authUser.id)
+          .order("created_at", { ascending: false })
+          .range(from, to);
+        if(errS){
+          console.error("[EyeFit] pullServerData: error descargando sesiones", errS);
+          break;
+        }
+        if(Array.isArray(sesRows)) allSesRows = allSesRows.concat(sesRows);
+        if(!sesRows || sesRows.length < PAGE_SIZE) hasMore = false;
+        else { from += PAGE_SIZE; to += PAGE_SIZE; }
+      }
+      if(allSesRows.length > 0){
+        const serverHistory = allSesRows.map(r=>r.data).filter(Boolean);
+        const merged = mergeHistoryBySessionId(getHistory(), serverHistory);
+        const sanitized = merged.filter(isValidSessionRecord);
+        /* Actualizar la caché y persistir de forma explícita
+           (ya estamos dentro de historyLock.then → deadlock si llamamos saveHistory) */
+        historyCache = sanitized;
+        await persistHistory(sanitized);
+        console.log(`[EyeFit] pullServerData: ${allSesRows.length} sesiones en servidor → ${merged.length} en historial local`);
+      } else {
+        if(getHistory().length === 0){
+          console.log("[EyeFit] pullServerData: 0 sesiones en el servidor y 0 en local");
+        } else {
+          console.log(`[EyeFit] pullServerData: 0 sesiones en servidor, manteniendo ${getHistory().length} locales`);
+        }
+      }
+    }catch(e){
+      console.error("[EyeFit] pullServerData error:", e);
     }
-    const { data: sesRows, error: errS } = await sbClient.from("sesiones").select("data").eq("user_id", authUser.id);
-    if(!errS && Array.isArray(sesRows)){
-      const serverHistory = sesRows.map(r=>r.data).filter(Boolean);
-      const merged = mergeHistoryBySessionId(getHistory(), serverHistory);
-      saveHistory(merged);
-    }
-  }catch(e){}
+  }).catch(()=>{});
+  return historyLock;
 }
 async function pushRoutineToServer(){
   if(!sbClient || !authUser) return false;
@@ -964,7 +1015,7 @@ async function syncPending(){
   setPending(pending);
   if(changed){
     showToast("🔄 Sincronizado con la nube");
-    if(currentTab === "ajustes") renderMain();
+    if(currentTab === "ajustes" || currentTab === "historial") renderMain();
   }
 }
 
@@ -981,6 +1032,15 @@ function setTab(tab){
   currentTab = tab;
   document.querySelectorAll(".tabbtn").forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
   updateStopBtn();
+  /* Al entrar en el tab "historial" con cuenta + online, refrescar desde
+     el servidor para asegurar que se muestran TODAS las sesiones guardadas
+     (no solo las locales). El refresh es async: renderMain() muestra lo
+     que hay ahora y se re-renderiza cuando lleguen los datos. */
+  if(tab === "historial" && authUser && sbClient && navigator.onLine){
+    pullServerData().then(()=>{
+      if(currentTab === "historial") renderMain();
+    });
+  }
   renderMain();
 }
 function updateStopBtn(){
@@ -2901,8 +2961,8 @@ function attachEvents(){
     btn.addEventListener("click", async ()=>{
       if(confirm("¿Borrar todo el historial?")){
         await saveHistory([]);
-        if(DB && DB.clearHistoryDB){ try{ await DB.clearHistoryDB(); }catch(e){} }
-        /* B2: limpiar también las sesiones pendientes de subir para que no "resuciten" */
+        /* Nota: saveHistory([]) con el mutex ya persiste [] a IndexedDB o localStorage.
+           Eliminar DB.clearHistoryDB() redundante que podría interrumpir el mutex. */
         const p = getPending(); p.sessions = []; setPending(p);
         if(sbClient && authUser){ try{ await sbClient.from("sesiones").delete().eq("user_id", authUser.id); }catch(e){} }
         renderMain(); showToast("🗑️ Historial borrado");
@@ -2953,9 +3013,10 @@ function attachEvents(){
   /* Borrar sesión por swipe a la izquierda en el historial */
   async function deleteHistorySession(date, day){
     if(confirm("¿Borrar esta sesión?")){
-      /* Eliminar del historial local por date+day (identificador único ya usado en sync) */
+      /* Capturar el session_id ANTES de eliminar (se necesita para el servidor) */
       const history = getHistory();
       const idx = history.findIndex(h=>h.date===date && h.day===day);
+      const targetSid = (idx !== -1 && history[idx].session_id) ? history[idx].session_id : null;
       if(idx !== -1) history.splice(idx, 1);
       saveHistory(history);
       /* Eliminar también de la cola de pendientes si aún no se había subido */
@@ -2965,10 +3026,20 @@ function attachEvents(){
       /* Eliminar de la nube si hay sesión (mismo date + day) */
       if(sbClient && authUser){
         try{
-          const { data: rows } = await sbClient.from("sesiones").select("id").eq("user_id", authUser.id);
+          const { data: rows } = await sbClient.from("sesiones").select("id, data").eq("user_id", authUser.id);
           if(Array.isArray(rows)){
-            const matches = rows.filter(r=>r.data && r.data.date===date && r.data.day===day);
-            for(const m of matches) await sbClient.from("sesiones").delete().eq("id", m.id);
+            /* Buscar por session_id (preciso) o fallback por date+day (legacy) */
+            const matches = rows.filter(r=>r.data && (
+              (r.data.session_id && targetSid && r.data.session_id === targetSid) ||
+              (r.data.date===date && r.data.day===day)
+            ));
+            for(const m of matches){
+              if(m.data.session_id){
+                await sbClient.from("sesiones").delete().eq("session_id", m.data.session_id).eq("user_id", authUser.id).catch(()=>{});
+              } else {
+                await sbClient.from("sesiones").delete().eq("id", m.id).catch(()=>{});
+              }
+            }
           }
         }catch(e){}
       }
@@ -3666,6 +3737,9 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
 
   if(authenticated){
     await scheduleSync();
+    /* Pequeño delay para que el servidor procese los upserts antes de
+       descargar y fusionar (evita ver sesiones locales no reflejadas). */
+    await new Promise(r => setTimeout(r, 800));
     await pullServerData();
     renderMain();
   }
@@ -3677,7 +3751,7 @@ setInterval(()=>{
     const pending = getPending();
     if(pending.sessions.length > 0 || pending.routine){
       scheduleSync().then(()=>{
-        if(currentTab === "ajustes") renderMain();
+        if(currentTab === "ajustes" || currentTab === "historial") renderMain();
       });
     }
   }
@@ -3731,6 +3805,8 @@ window.addEventListener("online", async ()=>{
   showToast("🌐 Conexión restablecida");
   if(authUser){
     await scheduleSync();
+    /* Pequeño delay para que el servidor procese los upserts antes del pull */
+    await new Promise(r => setTimeout(r, 800));
     await pullServerData();
     renderMain();
   }
@@ -3758,8 +3834,13 @@ document.addEventListener("visibilitychange", ()=>{
     /* Sincronizar pendientes al volver */
     if(authUser && sbClient && navigator.onLine){
       scheduleSync().then(()=>{
-        if(currentTab === "ajustes") renderMain();
+        if(currentTab === "ajustes" || currentTab === "historial") renderMain();
       });
+      if(currentTab === "historial"){
+        pullServerData().then(()=>{
+          if(currentTab === "historial") renderMain();
+        });
+      }
     }
   }
 });
@@ -3780,7 +3861,10 @@ document.addEventListener("keydown", (e)=>{
 document.addEventListener("pageshow", async ()=>{
   if(authUser && sbClient && navigator.onLine){
     await scheduleSync();
+    /* Pequeño delay para que el servidor procese los upserts antes del pull */
+    await new Promise(r => setTimeout(r, 800));
     await pullServerData();
+    if(currentTab === "historial") renderMain();
   }
 });
 

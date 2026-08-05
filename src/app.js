@@ -528,7 +528,7 @@ const K_NEWS_KEYS = {
 /* VAPID public key (base64url). Se usa para la suscripción al Push Service.
    Debe coincidir con el public key usado para firmar en el servidor que envía.
    CONTACTO: sustituir si se rotan las claves. */
-const VAPID_PUBLIC_KEY = "BE7Maa0sIJWmRcSevexc8qDf2ssYEIZyhfuT6-oqkxY8vDpOez4T_PReDLNPObAOu2Wh-kkyFqORKSSeLyIjF_0";
+const VAPID_PUBLIC_KEY = "BH9FrS4Zkvx_ejQ_upcJrInrRM9rBGXppcJaOrpoRab8kS_VLzslH07x74WAj8hoVV_QocBULV5gNVNVtXr_4pM";
 
 /* ================================================================
    NOTIFICACIONES PUSH (Web Push / iOS PWA 16.4+)

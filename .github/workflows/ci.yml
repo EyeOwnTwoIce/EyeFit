@@ -5,10 +5,6 @@ on:
     branches: [ main ]
   pull_request:
 
-# Mínimo privilegio: los jobs que no despliegan no tocan Pages.
-# npm 11+ (bundled con Node 24) bloquea los scripts de instalación por defecto,
-# así que cada job habilita ignore-scripts=false explícitamente para paquetes
-# con postinstall (p. ej. esbuild en la build).
 permissions:
   contents: read
 
@@ -17,6 +13,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Los jobs comparten la misma key de caché de node_modules
+  # (hash de package-lock.json), así npm ci se hace solo 1 vez y
+  # los demás jobs restauran desde caché (rápido).
+
   build-test:
     runs-on: ubuntu-latest
     steps:
@@ -24,10 +24,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
       - name: Allow install scripts (esbuild/postinstall)
         run: npm config set ignore-scripts=false
-      - run: npm ci
+      - name: Cached npm ci
+        uses: actions/cache@v4
+        id: npm-cache
+        with:
+          path: node_modules
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            npm-${{ runner.os }}-
+      - if: ${{ steps.npm-cache.outputs.cache-hit != 'true' }}
+        run: npm ci
       - run: npm test
+      - name: Build (genera dist)
+        run: npm run build
+      - name: Upload dist artefacto para deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-build
+          path: dist
+          if-no-files-found: error
+          retention-days: 1
 
   e2e:
     runs-on: ubuntu-latest
@@ -37,17 +57,41 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
       - name: Allow install scripts (esbuild/postinstall)
         run: npm config set ignore-scripts=false
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - name: Cached npm ci
+        uses: actions/cache@v4
+        id: npm-cache-e2e
+        with:
+          path: node_modules
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            npm-${{ runner.os }}-
+      - if: ${{ steps.npm-cache-e2e.outputs.cache-hit != 'true' }}
+        run: npm ci
+      # Cache del navegador de Playwright: esto es lo que más tarda
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright deps (solo si no hay caché)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      # Reutilizar el dist ya buildado (e2e necesita la versión servida)
+      - name: Download dist build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-build
+          path: dist
+      - run: npx playwright test
         env:
           CI: 1
 
   # Informativo y no bloqueante: los budgets de Lighthouse dependen del runner.
-  # Se le da statuses:write + checks:write para que LHCI pueda publicar el
-  # estado en el commit y recibir el GITHUB_TOKEN (evita "GitHub token not set").
   lighthouse:
     runs-on: ubuntu-latest
     needs: build-test
@@ -62,10 +106,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
       - name: Allow install scripts (esbuild/postinstall)
         run: npm config set ignore-scripts=false
-      - run: npm ci
-      - run: npm run build
+      - name: Cached npm ci
+        uses: actions/cache@v4
+        id: npm-cache-lh
+        with:
+          path: node_modules
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            npm-${{ runner.os }}-
+      - if: ${{ steps.npm-cache-lh.outputs.cache-hit != 'true' }}
+        run: npm ci
+      # Reutilizar el dist ya buildado
+      - name: Download dist build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-build
+          path: dist
       - run: npx lhci autorun --config=.lighthouserc.js
         env:
           LHCI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -83,13 +143,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Reutilizar el dist ya generado en build-test (sin re-descargar node_modules ni re-buildear)
+      - name: Download dist build
+        uses: actions/download-artifact@v4
         with:
-          node-version: 24
-      - name: Allow install scripts (esbuild/postinstall)
-        run: npm config set ignore-scripts=false
-      - run: npm ci
-      - run: node scripts/build.js
+          name: dist-build
+          path: dist
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -16,3 +16,7 @@ playwright/.cache/
 # Logs de npm
 npm-debug.log*
 npm-error.log*
+
+# Supabase CLI local
+supabase/.temp/
+supabase/config.toml

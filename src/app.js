@@ -1150,9 +1150,9 @@ function renderRutina(){
           <div class="rtc-info">
             <div class="rtc-name">${escapeHtml(getApodo(e))}</div>
             <div class="rtc-stats">
-              <div class="rtc-stat"><span class="rtc-stat-val">${e.series}</span><span class="rtc-stat-lbl">series</span></div>
-              <div class="rtc-stat"><span class="rtc-stat-val">${e.reps}</span><span class="rtc-stat-lbl">reps</span></div>
-              <div class="rtc-stat"><span class="rtc-stat-val">${e.peso_kg}</span><span class="rtc-stat-lbl">kg</span></div>
+              <div class="rtc-stat" data-rt-edit="series" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0" aria-label="Editar series de ${escapeHtmlAttr(getApodo(e))}"><span class="rtc-stat-val">${e.series}</span><span class="rtc-stat-lbl">series</span></div>
+              <div class="rtc-stat" data-rt-edit="reps" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0" aria-label="Editar reps de ${escapeHtmlAttr(getApodo(e))}"><span class="rtc-stat-val">${e.reps}</span><span class="rtc-stat-lbl">reps</span></div>
+              <div class="rtc-stat" data-rt-edit="kg" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0" aria-label="Editar kg de ${escapeHtmlAttr(getApodo(e))}"><span class="rtc-stat-val">${e.peso_kg}</span><span class="rtc-stat-lbl">kg</span></div>
               ${rmLabel ? `<div class="rtc-stat rm-tappable" ${rmHint}><span class="rtc-stat-val">${rmLabel}</span><span class="rtc-stat-lbl">1RM</span></div>` : ""}
             </div>
           </div>
@@ -1353,11 +1353,48 @@ function renderPickerList(query){
 function closeExercisePicker(){
   setFocusTrap("exPickerOverlay", null);
   document.getElementById("exPickerOverlay").classList.remove("show");
+  /* Resetear la sustitución pendiente del historial */
+  editHistSubIdx = -1;
+  pickerDay = null;
 }
+/* Contexto para la sustitución de ejercicio: si editHistSubIdx ≥ 0, el picker
+   sustituye el ejercicio con ese índice en editingHistRecord (historial). */
+let editHistSubIdx = -1;
 function selectExerciseFromPicker(el){
   const name = el.getAttribute("data-pick-name") || "";
   const image = el.getAttribute("data-pick-image") || "";
-  if(!name || !pickerDay) return;
+  if(!name) return;
+  /* ---- Sustituir ejercicio dentro del historial (F5) ---- */
+  if(editHistSubIdx >= 0 && editingHistRecord){
+    const ex = editingHistRecord.exercises[editHistSubIdx];
+    if(ex){
+      const oldSets = ex.sets || [];
+      const oldSeries = ex.series || oldSets.length || 3;
+      const oldReps = ex.reps || (oldSets[0] && oldSets[0].reps) || 10;
+      const oldWeight = ex.peso_kg != null ? ex.peso_kg : (oldSets[0] && oldSets[0].kg) || 0;
+      const found = datasetCache ? findExerciseInDataset(datasetCache, name) : null;
+      /* Conservar el nombre/datos del ejercicio y actualizar dataset */
+      ex.nombre_es = name;
+      if(found){
+        ex.dataset = found.name;
+        ex.datasetOriginal = found.name;
+        if(found.instructions) ex.notas = found.instructions;
+      } else {
+        ex.dataset = name; ex.datasetOriginal = name;
+      }
+      /* Mantener series, reps, kg actuales si ya tenían data */
+      if(!oldSets.length){
+        ex.series = oldSeries; ex.reps = oldReps; ex.peso_kg = oldWeight;
+      }
+    }
+    /* Redibujar el overlay con el ejercicio sustituido */
+    openEditHistSession(editingHistRecord);
+    closeExercisePicker();
+    editHistSubIdx = -1;
+    showToast("↔️ Ejercicio sustituido");
+    return;
+  }
+  if(!pickerDay){ closeExercisePicker(); return; }
   applyRoutineChange(routine=>{
     const ex = { dia:pickerDay, orden:99, nombre_es:name, dataset:name, series:3, reps:10, peso_kg:0, descanso_s:90, notas:"" };
     /* Si el dataset tiene instrucciones, usarlas como notas */
@@ -2165,7 +2202,7 @@ function renderHistDayDetail(history, dateStr){
       const bestNow = getHistoricalBest(key);
       const spark = svgSparkline(prog);
       const rmLabel = bestNow && bestNow.rm ? `${Math.round(bestNow.rm)}` : "";
-      const rmHint = bestNow && bestNow.rm ? ` title="1RM estimado con fórmula de Epley: ${bestNow.kg}kg × ${bestNow.reps} reps = ${Math.round(bestNow.rm)}kg"` : "";
+      const rmHint = bestNow && bestNow.rm ? ` title="1RM: ${bestNow.kg}kg × ${bestNow.reps} reps = ${Math.round(bestNow.rm)}kg (fórmula de Epley)" data-has-rm="1"` : "";
       return `<div class="hist-ex-line">
         <div class="hist-ex">
           <span class="hist-ex-name">${escapeHtml(getApodo(e))}</span>
@@ -2259,7 +2296,10 @@ function openEditHistSession(h){
       return `<div class="edit-hist-ex">
         <div class="eh-name-row">
           <span class="eh-name">${escapeHtml(getApodo(ex))}</span>
-          <button class="ehs-del-ex" data-eh-del-ex="${ei}" aria-label="Eliminar ejercicio">✕</button>
+          <span style="display:flex;gap:4px;">
+            <button class="ehs-swap-ex" data-eh-swap="${ei}" aria-label="Sustituir ejercicio ${escapeHtmlAttr(getApodo(ex))}">↔️</button>
+            <button class="ehs-del-ex" data-eh-del-ex="${ei}" aria-label="Eliminar ejercicio">✕</button>
+          </span>
         </div>
         ${rows}
         <button class="ehs-add-set" data-eh-add-set="${ei}">＋ Añadir serie</button>
@@ -2405,6 +2445,7 @@ function attachEditHistOverlayEvents(){
     const addBtn = e.target.closest("[data-eh-add-set]");
     const delBtn = e.target.closest("[data-eh-del]");
     const delExBtn = e.target.closest("[data-eh-del-ex]");
+    const swapBtn = e.target.closest("[data-eh-swap]");
     if(addBtn){
       const ei = parseInt(addBtn.dataset.ehAddSet);
       const ex = editingHistRecord && editingHistRecord.exercises && editingHistRecord.exercises[ei];
@@ -2432,7 +2473,23 @@ function attachEditHistOverlayEvents(){
       editingHistRecord.exercises.splice(ei, 1);
       openEditHistSession(editingHistRecord);
     }
+    if(swapBtn){
+      const ei = parseInt(swapBtn.dataset.ehSwap);
+      if(!editingHistRecord || !Array.isArray(editingHistRecord.exercises)) return;
+      editHistSubIdx = ei;
+      /* Abrir el picker de ejercicios en modo sustitución */
+      openHistExercisePicker();
+    }
   });
+}
+
+/* Abre el picker de ejercicio para SUSTITUIR dentro del historial (F5) */
+function openHistExercisePicker(){
+  document.getElementById("pickerDayLabel").textContent = "Sustituir ejercicio del historial";
+  renderPickerList("");
+  document.getElementById("exPickerOverlay").classList.add("show");
+  setFocusTrap("exPickerOverlay", document.getElementById("exPickerOverlay"));
+  setTimeout(()=>document.getElementById("pickerSearch").focus(), 100);
 }
 
 
@@ -2753,6 +2810,24 @@ function attachEvents(){
       _scrollLock = false;
     }, { passive:true });
   }
+  /* F2: editar series/reps/kg de la rutina tocando directamente en las cards */
+  document.querySelectorAll("[data-rt-edit]").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      openRoutineNumPad(el);
+    });
+    el.addEventListener("keydown", (e)=>{
+      if(e.key==="Enter" || e.key===" "){ e.preventDefault(); openRoutineNumPad(el); }
+    });
+  });
+
+  /* UX7: al tocar el valor 1RM, mostrar la explicación de Epley (para touch) */
+  document.querySelectorAll("[data-has-rm='1']").forEach(el=>{
+    el.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const tip = el.getAttribute("title") || "1RM estimado";
+      showToast("💡 " + tip);
+    });
+  });
   /* Fallback de imágenes delegado: cualquier <img data-img-fallback> que
      falle se oculta o se sustituye por un emoji sin inline onerror. */
   document.querySelectorAll("img[data-img-fallback]").forEach(img=>{
@@ -3507,7 +3582,57 @@ function confirmNumPad(){
   closeNumPad();
   updateSessionSetValues();
 }
-document.getElementById("numOk").addEventListener("click", confirmNumPad);
+/* F2: numpad para editar series/reps/kg de la rutina (sin sesión activa) */
+let numPadRoutineCtx = null; /* { name, day, field } */
+function openRoutineNumPad(el){
+  const field = el.dataset.rtEdit;
+  const name = el.dataset.rtName;
+  const day = el.dataset.rtDay;
+  if(!name) return;
+  const routine = getRoutine();
+  const ex = routine.find(e=>e.dia===day && e.nombre_es===name);
+  if(!ex) return;
+  const cur = field==="series" ? parseFloat(ex.series||0)
+             : field==="reps"  ? parseFloat(ex.reps||0)
+             : parseFloat(ex.peso_kg||0);
+  numPadRoutineCtx = { name, day, field };
+  const labelMap = { series:"Series", reps:"Reps por serie", kg:"Peso inicial (kg)" };
+  document.getElementById("numLabel").textContent = labelMap[field] || field;
+  const input = document.getElementById("numInput");
+  input.value = isNaN(cur) ? 0 : cur;
+  input.step = (field==="series"||field==="reps") ? "1" : "0.5";
+  input.min = (field==="kg") ? "0" : "1";
+  input.max = (field==="series") ? "20" : (field==="reps" ? "100" : "500");
+  const slider = document.getElementById("numSlider");
+  slider.min = input.min; slider.max = input.max; slider.step = input.step;
+  slider.value = input.value;
+  document.getElementById("numOverlay").classList.add("show");
+  setFocusTrap("numOverlay", document.getElementById("numOverlay"));
+  setTimeout(()=>{ input.focus(); input.select(); }, 100);
+}
+function confirmRoutineNumPad(){
+  if(!numPadRoutineCtx){ closeNumPad(); return; }
+  const val = parseFloat(document.getElementById("numInput").value);
+  if(isNaN(val)){ closeNumPad(); return; }
+  const { name, day, field } = numPadRoutineCtx;
+  applyRoutineChange(r=>{
+    const ex = r.find(e=>e.dia===day && e.nombre_es===name);
+    if(!ex) return r;
+    if(field==="series") ex.series = clampNum(Math.round(val), 1, 20, 3);
+    else if(field==="reps") ex.reps = clampNum(Math.round(val), 1, 100, 8);
+    else if(field==="kg") ex.peso_kg = clampNum(val, 0, 500, 0);
+    return r;
+  });
+  closeNumPad();
+  numPadRoutineCtx = null;
+  renderMain();
+  showToast("💾 Rutina actualizada");
+}
+/* Interceptar el OK del numpad según contexto (sesión vs rutina) */
+document.getElementById("numOk").addEventListener("click", ()=>{
+  if(numPadRoutineCtx){ confirmRoutineNumPad(); }
+  else confirmNumPad();
+});
 document.getElementById("numCancel").addEventListener("click", closeNumPad);
 document.getElementById("numInput").addEventListener("keydown", e=>{
   if(e.key==="Enter") confirmNumPad();
@@ -3518,7 +3643,8 @@ document.getElementById("numSlider").addEventListener("input", e=>{
 });
 document.getElementById("numSlider").addEventListener("change", e=>{
   document.getElementById("numInput").value = e.target.value;
-  confirmNumPad();
+  if(numPadRoutineCtx){ confirmRoutineNumPad(); }
+  else confirmNumPad();
 });
 
 /* Variantes overlay */

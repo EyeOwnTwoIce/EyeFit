@@ -646,6 +646,12 @@
     padding:7px; width:100%; font-weight:700; font-size:11px; margin-top:6px; cursor:pointer;
   }
   .ehs-add-set:active{ background:rgba(200,255,0,.12); }
+  .ehs-swap-ex{
+    background:var(--surface2); border:1px solid var(--border); color:var(--accent);
+    border-radius:6px; width:30px; height:26px; font-size:11px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .ehs-swap-ex:active{ border-color:var(--accent); background:rgba(200,255,0,.12); }
 
   /* ===== Overlays comunes ===== */
   .about-block{

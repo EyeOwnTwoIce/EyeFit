@@ -7,7 +7,9 @@ const {
   getApodo, epley1RM, formatRest, normalizeName,
   buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine,
   escapeHtmlAttr, localDateKey, genUUID, clampNum, isValidDay, sanitizeRoutineRow,
-  rebaseElapsed, mergeHistoryBySessionId, DAY_ORDER, DEFAULT_ROUTINE, ALTERNATIVAS
+  rebaseElapsed, mergeHistoryBySessionId,
+  DAY_ORDER, DEFAULT_ROUTINE, ALTERNATIVAS,
+  DAY_SHORT, WEEKDAY_NAMES, INSTRUCCIONES, EMBEDDED_IMAGES, APODOS
 } = require('../src/utils.js');
 
 /* ============ getApodo ============ */
@@ -358,4 +360,77 @@ test('constantes: ALTERNATIVAS cubre ejercicios de la rutina por defecto', () =>
   for (const ex of DEFAULT_ROUTINE) {
     assert.ok(ALTERNATIVAS[ex.dataset], `ALTERNATIVAS contiene ${ex.dataset}`);
   }
+});
+
+/* ============ Cooperación cross-constantes (fuente única de verdad) ============ */
+test('constantes: WEEKDAY_NAMES tiene 7 días en orden correcto', () => {
+  assert.deepEqual(WEEKDAY_NAMES, ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']);
+});
+
+test('constantes: INSTRUCCIONES cubre todos los datasets de DEFAULT_ROUTINE', () => {
+  for (const ex of DEFAULT_ROUTINE) {
+    assert.ok(INSTRUCCIONES[ex.dataset], `INSTRUCCIONES contiene instrucciones para ${ex.dataset}`);
+  }
+});
+
+test('constantes: EMBEDDED_IMAGES cubre todos los datasets de DEFAULT_ROUTINE', () => {
+  for (const ex of DEFAULT_ROUTINE) {
+    assert.ok(EMBEDDED_IMAGES[ex.dataset], `EMBEDDED_IMAGES contiene imagen para ${ex.dataset}`);
+    /* El formato esperado es "NNNN-XXXXXXXX" (ID de imagen del dataset) */
+    assert.match(EMBEDDED_IMAGES[ex.dataset], /^\d{4}-[A-Za-z0-9]{7}$/, `formato válido para ${ex.dataset}`);
+  }
+});
+
+test('constantes: APODOS cubre todos los datasets de DEFAULT_ROUTINE', () => {
+  for (const ex of DEFAULT_ROUTINE) {
+    assert.ok(APODOS[ex.dataset], `APODOS contiene apodo para ${ex.dataset}`);
+  }
+});
+
+test('constantes: todas las claves de DEFAULT_ROUTINE son únicas por (dia, orden)', () => {
+  const seen = new Set();
+  for (const ex of DEFAULT_ROUTINE) {
+    const key = `${ex.dia}|${ex.orden}`;
+    assert.ok(!seen.has(key), `no hay duplicados de (${ex.dia}, orden ${ex.orden})`);
+    seen.add(key);
+  }
+});
+
+test('constantes: DEFAULT_ROUTINE tiene campos numéricos finitos y > 0', () => {
+  for (const ex of DEFAULT_ROUTINE) {
+    assert.ok(Number.isFinite(ex.series) && ex.series > 0, `${ex.nombre_es}: series válido`);
+    assert.ok(Number.isFinite(ex.reps) && ex.reps > 0, `${ex.nombre_es}: reps válido`);
+    assert.ok(Number.isFinite(ex.peso_kg) && ex.peso_kg >= 0, `${ex.nombre_es}: peso_kg >= 0`);
+    assert.ok(Number.isFinite(ex.descanso_s) && ex.descanso_s > 0, `${ex.nombre_es}: descanso_s > 0`);
+  }
+});
+
+test('constantes: INSTRUCCIONES ordenadas por dataset coinciden con las claves de EMBEDDED_IMAGES', () => {
+  const instrKeys = Object.keys(INSTRUCCIONES).sort();
+  const imgKeys = Object.keys(EMBEDDED_IMAGES).sort();
+  const altKeys = Object.keys(ALTERNATIVAS).sort();
+  assert.deepEqual(instrKeys, imgKeys, 'INSTRUCCIONES y EMBEDDED_IMAGES tienen las mismas claves');
+  assert.deepEqual(instrKeys, altKeys, 'INSTRUCCIONES y ALTERNATIVAS tienen las mismas claves');
+});
+
+/* ============ mergeHistoryBySessionId: edge cases adicionales ============ */
+test('mergeHistoryBySessionId: null/undefined/local y server no-arrays no crashean', () => {
+  assert.deepEqual(mergeHistoryBySessionId(null, null), []);
+  assert.deepEqual(mergeHistoryBySessionId(undefined, []), []);
+  assert.deepEqual(mergeHistoryBySessionId([], 'no-array'), []);
+  assert.deepEqual(mergeHistoryBySessionId({}, {}), []);
+});
+
+test('mergeHistoryBySessionId: dos registros legacy con date+day distinto se mantienen', () => {
+  const local = [{ date: '2026-01-01', day: 'Lunes', exercises: [] }];
+  const server = [{ date: '2026-01-02', day: 'Martes', exercises: [] }];
+  const merged = mergeHistoryBySessionId(local, server);
+  assert.equal(merged.length, 2);
+});
+
+test('mergeHistoryBySessionId: el servidor gana cuando no hay timestamps', () => {
+  const local = [{ session_id: 'a', date: '2026-01-01', day: 'Lunes', exercises: [{ nombre_es: 'LOCAL' }] }];
+  const server = [{ session_id: 'a', date: '2026-01-01', day: 'Lunes', exercises: [{ nombre_es: 'SERVER' }] }];
+  const merged = mergeHistoryBySessionId(local, server);
+  assert.equal(merged[0].exercises[0].nombre_es, 'SERVER');
 });

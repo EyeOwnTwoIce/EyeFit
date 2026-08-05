@@ -35,7 +35,12 @@
       const t = db.transaction(STORE, mode);
       const store = t.objectStore(STORE);
       const out = fn(store);
-      t.oncomplete = () => resolve(out);
+      /* Si fn() devolvió un IDBRequest (p.ej. getAll()), su .result solo
+         está poblado cuando el request completa. Como t.oncomplete se
+         dispara DESPUÉS de que todos los requests han completado, aquí
+         out.result ya contiene los datos. Para operaciones de escritura
+         (put/delete/clear) el .result es undefined y resolvemos con out. */
+      t.oncomplete = () => resolve(out && out !== null && typeof out === 'object' && 'result' in out ? out.result : out);
       t.onerror = () => reject(t.error);
       t.onabort = () => reject(t.error);
     });

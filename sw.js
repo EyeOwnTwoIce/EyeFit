@@ -121,18 +121,20 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Navegaciones: cache-first + red; si falla todo, shell offline
+  // Navegaciones: cache-first; si no hay caché, red y si falla → shell offline.
+  // (No devolver `undefined` ni encadenar .catch sobre un valor no-thenable:
+  //  causa "cached || network).catch is not a function" en Safari/WebKit.)
   if (request.mode === 'navigate') {
     event.respondWith(
       caches.match(request).then(cached => {
-        const network = fetch(request).then(response => {
+        if (cached) return cached;
+        return fetch(request).then(response => {
           if (response && response.ok) {
             const clone = response.clone();
             caches.open(CACHE).then(cache => cache.put(request, clone));
           }
           return response;
-        }).catch(() => cached);
-        return (cached || network).catch(() =>
+        }).catch(() =>
           new Response(OFFLINE_SHELL, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
         );
       })

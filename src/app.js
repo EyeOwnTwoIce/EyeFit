@@ -2557,6 +2557,7 @@ function attachEvents(){
   });
   document.querySelectorAll("[data-start-session]").forEach(btn=>{
     btn.addEventListener("click", ()=>{ startSession(btn.dataset.startSession); });
+  });
   /* Confirmación de inicio de sesión para el día actual */
   document.querySelectorAll("[data-start-session-confirm]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
@@ -2596,7 +2597,6 @@ function attachEvents(){
     });
   });
 
-  });
   /* Steppers: actualización in-place (sin parpadeo) + propagación de kg y reps a las siguientes */
   document.querySelectorAll("[data-kg-plus],[data-kg-minus],[data-reps-plus],[data-reps-minus]").forEach(btn=>{
     btn.addEventListener("click", ()=>{

@@ -15,6 +15,7 @@ App de entrenamiento **privada** para iPhone 15 (estándar), en español, con ru
 | 📈 **Historial + progresión** | Cada sesión se guarda con fecha, día, ejercicios, series × kg × reps. Al repetir un ejercicio, se cargan automáticamente los últimos pesos/reps reales de cada serie |
 | 🔐 **Cuentas con Supabase** | Registro por email + confirmación. Tu rutina e historial se sincronizan entre dispositivos |
 | 📱 **PWA offline** | Instalable en la pantalla de inicio del iPhone y funciona sin conexión |
+| 🔔 **Notificaciones push** | Te avisamos por Web Push (iOS 16.4+) cuando hay una versión nueva de EyeFit tras un deploy |
 | 🇪🇸 **En español** | Interfaz completa en español |
 
 ---

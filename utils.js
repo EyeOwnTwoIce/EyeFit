@@ -52,9 +52,9 @@
   const DAY_ORDER = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
   const DAY_COLORS = {
     Lunes: "#4FC3F7", Martes: "#81C784", Miércoles: "#FFB74D",
-    Jueves: "#BA68C8", Viernes: "#F0625C"
+    Jueves: "#BA68C8", Viernes: "#F0625C", Sábado: "#4DB6AC", Domingo: "#FF8A65"
   };
-  const DAY_SHORT = { Lunes: "LUN", Martes: "MAR", Miércoles: "MIÉ", Jueves: "JUE", Viernes: "VIE" };
+  const DAY_SHORT = { Lunes: "LUN", Martes: "MAR", Miércoles: "MIÉ", Jueves: "JUE", Viernes: "VIE", Sábado: "SÁB", Domingo: "DOM" };
   const WEEKDAY_NAMES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
   /* ---------- Rutina por defecto ---------- */

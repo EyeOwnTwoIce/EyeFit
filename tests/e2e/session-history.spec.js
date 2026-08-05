@@ -25,12 +25,20 @@ async function closeOverlays(page) {
 test('T2: iniciar sesión, completar sets y ver la entrada en Historial', async ({ page }) => {
   await closeOverlays(page);
 
-  // Ir a la pestaña Entrenar (lista de días) y empezar Lunes
+  // Ir a la pestaña Entrenar (solo día actual con confirmación)
   await page.locator('[data-tab="sesion"]').last().click({ force: true });
-  await page.locator('[data-start-session="Lunes"]').last().click({ force: true });
 
-  // Marcar TODAS las series pendientes. El selector excluye las ya marcadas
-  // (.done) porque la app NO las deshabilita tras completarse.
+  // Encontrar y pulsar el botón de confirmación del día de hoy
+  const todayBtn = page.locator('[data-start-session-confirm]').last();
+  await expect(todayBtn).toBeVisible({ timeout: 6000 });
+  await todayBtn.click({ force: true });
+
+  // Confirmar la sesión en el modal
+  const confirmBtn = page.locator('[data-sc-start]');
+  await expect(confirmBtn).toBeVisible({ timeout: 6000 });
+  await confirmBtn.click();
+
+  // Marcar TODAS las series pendientes.
   for (let guard = 0; guard < 40; guard++) {
     const clicked = await page.evaluate(() => {
       const btn = document.querySelector('.set-done:not([disabled]):not(.done)');
@@ -46,7 +54,9 @@ test('T2: iniciar sesión, completar sets y ver la entrada en Historial', async 
   await expect(page.locator('#summaryOverlay.show')).toBeVisible({ timeout: 10000 });
   await expect(page.locator('.sum-title')).toContainText('completado');
 
-  await page.locator('#sumAgain').click();
+  // Cerrar el resumen con "Vale por hoy"
+  await page.locator('#sumDoneToday').click();
   await page.locator('[data-tab="historial"]').last().click({ force: true });
-  await expect(page.locator('.hist-day').first()).toBeVisible({ timeout: 6000 });
+  // El historial ahora muestra un calendario mensual
+  await expect(page.locator('.hist-cal-wrap')).toBeVisible({ timeout: 6000 });
 });

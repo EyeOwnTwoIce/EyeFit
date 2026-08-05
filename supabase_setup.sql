@@ -4,11 +4,12 @@
 -- v2: sesiones idempotentes con session_id + updated_at
 -- ════════════════════════════════════════════════════════════════
 
--- 1) Tabla "rutinas" (una fila por usuario con su rutina en JSONB)
+-- 1) Tabla "rutinas" (una fila por usuario con su rutina en JSONB + metadatos)
 create table if not exists public.rutinas (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references auth.users(id) on delete cascade,
   routine jsonb not null default '[]'::jsonb,
+  meta jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

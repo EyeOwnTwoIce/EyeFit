@@ -59,7 +59,7 @@ function loadTrainingDays(){
 }
 function saveTrainingDays(){
   lsSet(K_TRAIN_DAYS, trainingDays);
-  if(sbClient && authUser) pushRoutineToServer();
+  scheduleRoutineSync();
 }
 let trainingConfig = { ...TRAINING_DEFAULTS };
 function loadTrainingConfig(){
@@ -70,7 +70,17 @@ function loadTrainingConfig(){
 }
 function saveTrainingConfig(){
   lsSet(K_CONFIG, trainingConfig);
-  if(sbClient && authUser) pushRoutineToServer();
+  scheduleRoutineSync();
+}
+/* Helper: intenta subir la rutina al servidor con meta. Si falla,
+   la deja en pending para que el sync de 30s la reintente. */
+function scheduleRoutineSync(){
+  if(!sbClient || !authUser) return;
+  pushRoutineToServer().catch(()=>{
+    const p = getPending();
+    p.routine = getRoutine();
+    setPending(p);
+  });
 }
 const COMPUESTOS = [
   "barbell bench press","dumbbell incline bench press","barbell incline bench press",
@@ -1142,8 +1152,11 @@ async function syncPending(){
     if(ok){ changed = true; } else { remaining.push(...pending.sessions.slice(i)); break; }
   }
   if(pending.routine){
-    const { error } = await sbClient.from("rutinas").upsert({ user_id:authUser.id, routine:pending.routine }, { onConflict:"user_id" }).catch(()=>({error:true}));
-    if(!error){ setRoutine(pending.routine); pending.routine = null; changed = true; }
+    const { error } = await sbClient.from("rutinas").upsert(
+      { user_id:authUser.id, routine:pending.routine, meta:{ config:trainingConfig, trainingDays }, updated_at: new Date().toISOString() },
+      { onConflict:"user_id" }
+    ).catch(()=>({error:true}));
+    if(!error){ setRoutine(pending.routine); pending.routine = null; changed = true; localStorage.setItem(K.routineUpdated, new Date().toISOString()); }
   }
   pending.sessions = remaining;
   setPending(pending);
@@ -1347,7 +1360,7 @@ function applyRoutineChange(updater){
   const od = {};
   for(const ex of next){ od[ex.dia]=(od[ex.dia]||0)+1; ex.orden=od[ex.dia]; }
   setRoutine(next);
-  if(sbClient && authUser){ pushRoutineToServer(); }
+  scheduleRoutineSync();
 }
 
 function renderEditRoutine(){
@@ -2427,7 +2440,7 @@ function dismissEditHist(){
   editingHistRecord = null;
 }
 
-function saveEditHist(){
+async function saveEditHist(){
   if(!editingHistRecord) return;
 
   /* Hora de inicio */
@@ -2477,12 +2490,29 @@ function saveEditHist(){
   } else {
     history[idx] = editingHistRecord;
   }
-  saveHistory(history);
+  /* Sincronización correcta: la edición local debe "ganarle" al servidor en el
+     Last-Write-Wins (mergeHistoryBySessionId compara updated_at). Si no se
+     actualiza, un pullServerData posterior (al entrar en Historial, en pageshow
+     o en el reintento de 30s) bajaría la versión vieja del servidor y REVERTIRÍA
+     la edición local. Actualizamos updated_at antes de persistir/subir. */
+  const editedNowIso = new Date().toISOString();
+  editingHistRecord.updated_at = editedNowIso;
+  const updated = history.map(r =>
+    r === editingHistRecord ? { ...r, updated_at: editedNowIso } : r
+  );
+  saveHistory(updated);
   if(sbClient && authUser){
-    /* Subir todas las sesiones actualizadas al servidor */
-    for(const rec of history){
-      pushSessionToServer(rec);
+    /* Subir SOLO la sesión editada al servidor, esperando el resultado. Si el
+       envío falla, dejarla en pending para que el sync de 30s la reintente. */
+    const ok = await pushSessionToServer(editingHistRecord);
+    if(!ok){
+      const p = getPending(); p.sessions.push(editingHistRecord); setPending(p);
     }
+    await scheduleSync();
+    /* Refrescar desde el servidor ya con la sesión editada subida, para que un
+       render posterior (p.ej. al volver a Historial) no muestre una versión
+       obsoleta del servidor que revierta la edición. */
+    await pullServerData();
   }
   dismissEditHist();
   renderMain();
@@ -3517,7 +3547,11 @@ function attachEvents(){
   });
   /* Calendario historial: navegación de mes y selección de día */
   attachHistCalendarEvents();
-  attachEditHistOverlayEvents();
+  /* NOTA: attachEditHistOverlayEvents() se registra UNA sola vez en init().
+     Debe quedarse fuera de attachEvents() (que se ejecuta en cada renderMain)
+     para no duplicar el listener de click del overlay de edición de historial
+     — antes, cada render añadía otro listener y "Añadir serie" sumaba tantas
+     series como listeners acumulados. */
   /* Guardar configuración de entrenamiento desde ajustes */
   document.querySelectorAll("[data-train-input]").forEach(input=>{
     input.addEventListener("change", ()=>{
@@ -4242,6 +4276,10 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
 (async function init(){
   loadTrainingConfig();
   loadTrainingDays();
+  /* Registrar UNA sola vez los handlers del overlay de edición de historial.
+     (No puede estar en attachEvents(): ese se llama en cada renderMain y
+     duplicaría el listener, provocando que "Añadir serie" añadiera muchas.) */
+  attachEditHistOverlayEvents();
   await runMigrations();
   if(DB && !historyLoaded) await loadHistoryFromDB();
   let authenticated = false;

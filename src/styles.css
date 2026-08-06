@@ -226,12 +226,20 @@
   .instr-list li{ margin-bottom:3px; }
   .instr-list li::marker{ color:var(--accent); font-weight:800; }
 
-  /* ===== Session: sin scroll, GIF protagonista, series compactas =====
+  /* ===== Session: scroll vertical completo, GIF protagonista, series compactas =====
+     El session-view es su propia área de scroll (overflow-y:auto): así TODO el
+     contenido —tarjeta del ejercicio, todas las series y la lista de Pendientes—
+     es alcanzable desplazando hacia abajo, sin que nada quede recortado.
+     height:100% hace que la vista ocupe solo el área útil de main (que ya reserva
+     su padding-bottom de 80px para la tabbar), evitando que el final del scroll
+     quede oculto detrás de la tabbar flotante.
      Usamos .section.active.session-view (especificidad 0,3,0) para que
-     display:flex venza a .section.active{ display:block } — si no, el
-     session-view se renderiza como bloque (no flex), las series desbordan
-     y no hay scroll a las últimas, impidiendo marcarlas como hechas. */
-  .section.active.session-view{ height:calc(100dvh - 160px); display:flex; flex-direction:column; overflow:hidden; }
+     display:flex venza a .section.active{ display:block }. */
+  .section.active.session-view{
+    height:100%; display:flex; flex-direction:column;
+    overflow-y:auto; overflow-x:clip; -webkit-overflow-scrolling:touch;
+    padding-bottom:12px;
+  }
 
   .ex-active-card{
     background:var(--surface); border:2px solid var(--accent); border-radius:14px;
@@ -252,7 +260,7 @@
   }
   .variant-btn:active{ background:rgba(200,255,0,.12); }
 
-  .sets-grid{ display:flex; flex-direction:column; gap:4px; overflow-y:auto; flex:1; min-height:0; padding:0 14px 8px; -webkit-overflow-scrolling:touch; }
+  .sets-grid{ display:flex; flex-direction:column; gap:4px; flex:0 0 auto; padding:0 14px 8px; }
 
   /* ===== Swipe-to-delete en series (el eliminado solo por swipe, sin rojo visible) ===== */
   .set-row{ position:relative; overflow:hidden; display:flex; align-items:center; gap:8px; background:var(--surface2); border-radius:8px; padding:3px 8px; flex-shrink:0; }
@@ -769,7 +777,7 @@
   .sess-next-hint{
     text-align:center; color:var(--muted); font-size:10px; padding:4px 0 8px;
   }
-  .up-list{ margin:4px 14px 0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px; }
+  .up-list{ margin:4px 14px 0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px; flex-shrink:0; }
   .up-title{ color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.6px; font-weight:700; margin-bottom:6px; }
   .up-row{ display:flex; align-items:center; gap:7px; padding:5px 0; border-bottom:1px solid var(--border); }
   .up-row:last-child{ border-bottom:none; }

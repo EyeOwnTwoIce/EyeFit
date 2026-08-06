@@ -48,6 +48,17 @@ async function loadSubscriptionsFromDB() {
   return Array.isArray(data) ? data : []
 }
 
+// Elimina de la base de datos una suscripción expirada (Push Service 404/410).
+// Mantiene la tabla limpia y evita reintentos inútiles en futuros envíos.
+async function removeExpiredSubscription(endpoint) {
+  if (!SUPABASE_URL || !SERVICE_ROLE || !endpoint) return
+  try {
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE)
+    const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
+    if (error) console.warn('[eyefit-push] delete expired sub error:', error.message)
+  } catch (e) { console.warn('[eyefit-push] delete expired sub:', e && e.message || e) }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: CORS })
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: CORS })
@@ -84,6 +95,9 @@ serve(async (req) => {
         const status = err && err.statusCode
         if (status === 404 || status === 410) {
           results.push({ ok: false, expired: true, endpoint })
+          // La suscripción ya no es válida → la quitamos de la BD para no
+          // enviarle más en futuros deploys.
+          await removeExpiredSubscription(endpoint)
         } else {
           results.push({ ok: false, error: String(err && err.message || err), endpoint })
         }

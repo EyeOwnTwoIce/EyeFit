@@ -609,11 +609,19 @@ async function persistPushSubscription(sub){
   }catch(e){}
 }
 
+/* iOS PWA (16.4+) exige estar instalada (standalone) para recibir push.
+   En Android/desktop Chrome el push funciona sin instalar. */
+function isIOS(){
+  return /iP(hone|ad|od)/.test(navigator.userAgent);
+}
+
 /* Acción del botón "Activar notificaciones" (debe llamarse desde un gesture) */
 async function enablePushNotifications(){
   if(!('serviceWorker' in navigator)){ showToast("⚠️ Service Worker no soportado"); return; }
   if(!('PushManager' in window)){ showToast("⚠️ Este navegador no soporta Push"); return; }
-  if(!isStandalonePWA()){
+  /* Solo en iOS es obligatorio estar en modo standalone (PWA instalada) para
+     que el Push Service entregue notificaciones con la app cerrada. */
+  if(isIOS() && !isStandalonePWA()){
     showToast("📲 Instala EyeFit en tu pantalla de inicio para activar notificaciones");
     return;
   }
@@ -4335,26 +4343,32 @@ setInterval(()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('sw.js').then(reg=>{
-      /* Web Push: si ya suscrito y hay permiso, mantener/normalizar la suscripción */
+      /* Web Push: si ya suscrito y hay permiso, mantener/normalizar y PERSISTIR
+         la suscripción (localStorage + Supabase). Sin persistir, el CI no tiene
+         el endpoint y la notificación push nunca llega con la app cerrada. */
       window.__swReg = reg;
       if(Notification && Notification.permission === 'granted'){
-        ensurePushSubscription(reg);
+        ensurePushSubscription(reg).then(sub => {
+          if(sub && sub.endpoint) persistPushSubscription(sub);
+        });
       }
       reg.addEventListener('updatefound', ()=>{
         const sw = reg.installing;
         if(!sw) return;
         sw.addEventListener('statechange', ()=>{
           if(sw.state === 'installed' && navigator.serviceWorker.controller){
-            /* Nueva versión desplegada en GitHub → notificar + sugerir recarga */
+            /* Nueva versión desplegada en GitHub. Si el usuario está suscrito a
+               push, el CI ya le ha enviado la notificación (que llega aunque la
+               app esté cerrada). Aquí, con la app abierta, avisamos y recargamos
+               automáticamente SIN bloquear con confirm(). */
             showToast("🔄 Nueva versión disponible");
             const isSubscribed = lsGet(K_NEWS_KEYS.pushSubscribed, false);
             if(isSubscribed){
-              /* Disparar notificación local via el SW (payload de update) */
               try {
                 reg.showNotification && reg.showNotification(
                   "🔄 EyeFit actualizado",
                   {
-                    body: "Hay una nueva versión de EyeFit. Toca para recargar y ver las novedades.",
+                    body: "Hay una nueva versión de EyeFit. Recargando…",
                     icon: './icons/icon-192.png',
                     badge: './icons/icon-192.png',
                     data: { url: './', tag: 'eyefit-update' }
@@ -4362,8 +4376,12 @@ if('serviceWorker' in navigator){
                 );
               } catch(_) {}
             }
-            if(confirm("Hay una nueva versión de EyeFit. ¿Recargar ahora?")){
-              reg.waiting && reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            /* Activar la nueva versión: recarga automática no intrusiva.
+               Si hay una sesión de entrenamiento en curso, esperamos a que el
+               usuario termine (persistActiveSession guarda el estado en pagehide). */
+            if(!session){
+              setTimeout(()=>{ reg.waiting && reg.waiting.postMessage({ type: 'SKIP_WAITING' }); }, 500);
+              /* controllerchange dispara window.location.reload() */
             }
           }
         });

@@ -1,6 +1,6 @@
 # 👁️ EyeFit
 
-App de entrenamiento **privada** para iPhone 15 (estándar), en español, con rutinas **Lunes–Viernes** editables desde una **hoja de cálculo (.xlsx)** y sincronización opcional en la nube.
+App de entrenamiento **privada** para iPhone 15 (estándar) y Android, en español, con rutinas personalizadas editables desde una **hoja de cálculo (.xlsx)**, historial con progresión 1RM y sincronización opcional en la nube.
 
 ---
 
@@ -8,15 +8,16 @@ App de entrenamiento **privada** para iPhone 15 (estándar), en español, con ru
 
 | Funcionalidad | Descripción |
 |---|---|
-| 📅 **Rutina semanal** | Lunes → Viernes, con ejercicios, series, reps, peso (kg) y descanso |
-| 📊 **Hoja de cálculo editable** | La rutina vive en `rutina.xlsx` — edítala en Excel/Numbers/Google Sheets |
-| 🏋️ **Sesión de entrenamiento** | Cronómetro de sesión + cronómetro secundario de descanso entre series |
-| 📸 **Visuales de ejercicios** | Imágenes e instrucciones en español del [exercises-dataset](https://github.com/hasaneyldrm/exercises-dataset) (1.324 ejercicios) |
-| 📈 **Historial + progresión** | Cada sesión se guarda con fecha, día, ejercicios, series × kg × reps. Al repetir un ejercicio, se cargan automáticamente los últimos pesos/reps reales de cada serie |
-| 🔐 **Cuentas con Supabase** | Registro por email + confirmación. Tu rutina e historial se sincronizan entre dispositivos |
-| 📱 **PWA offline** | Instalable en la pantalla de inicio del iPhone y funciona sin conexión |
-| 🔔 **Notificaciones push** | Te avisamos por Web Push (iOS 16.4+) cuando hay una versión nueva de EyeFit tras un deploy |
-| 🇪🇸 **En español** | Interfaz completa en español |
+| 📅 **Rutina semanal** | Carrusel de 7 días con listado completo de ejercicios, series, reps, peso (kg) y descanso. Preselecciona automáticamente el día actual |
+| 📊 **Hoja de cálculo editable** | La rutina vive en `rutina.xlsx` — edítala en Excel/Numbers/Google Sheets e impórtala |
+| 🏋️ **Sesión de entrenamiento** | Cronómetro de sesión + descanso entre series, carga automática de pesos/reps de tu última sesión |
+| 📸 **Visuales de ejercicios** | GIFs y miniaturas en color invertido para coherencia visual con el tema oscuro |
+| 📈 **Historial + progresión** | Sesiones con fecha, día, ejercicios y series. Elimina sesiones individuales con sincronización automática en la nube. Muestra el día actual por defecto |
+| 🏆 **1RM con fórmula Epley** | `1RM = peso × (1 + reps/30)` — la fórmula completa se muestra en cada dato |
+| 🔐 **Cuentas con Supabase** | Registro por email + confirmación. Rutina e historial sincronizados entre dispositivos |
+| 📱 **PWA offline** | Instalable en pantalla de inicio (iOS y Android), funciona sin conexión |
+| 🔔 **Notificaciones push** | Aviso por Web Push (iOS 16.4+) cuando hay una versión nueva tras un deploy |
+| 🇪🇸 **En español** | Interfaz, fechas y números con formato español (semana empieza en lunes, coma decimal) |
 
 ---
 
@@ -32,34 +33,26 @@ python3 -m http.server 8000
 # Luego abre http://localhost:8000
 ```
 
-> ⚠️ La app usa Supabase y el Service Worker; para probar el registro/sincronización es recomendable servirla por HTTPS o localhost (`http://localhost` también funciona con los flujos de Supabase).
->
-> ℹ️ Desde la **v1.3.1** el dataset se cachea en la **Cache API** (no en `localStorage`), evitando el límite de ~5MB de iOS.
->
-> ℹ️ Desde la **v2.0.0** el manifest es un archivo estático (`manifest.json`), la app es instalable en Chromium/Android y el Service Worker incluye un offline shell y Background Sync para la subida de sesiones pendientes.
+> ⚠️ La app usa Supabase y el Service Worker; para probar registro/sincronización es recomendable servirla por HTTPS o localhost.
 
-### 2. Instalar en iPhone 15 (pantalla de inicio)
+### 2. Instalar en iPhone / Android
 
-1. Abre la app en Safari
-2. Toca el botón **Compartir** (cuadro con flecha ↑)
-3. Desplázate y toca **Añadir a pantalla de inicio**
-4. Toca **Añadir**
-
-La app se abre como una aplicación nativa, en modo standalone, sin barra del navegador.
+1. Abre la app en Safari o Chrome
+2. Toca **Compartir** → **Añadir a pantalla de inicio**
+3. La app se abre como aplicación nativa, standalone
 
 ### 3. Cuenta (opcional)
 
 - **Acceder / Registrarse**: crea una cuenta con email y contraseña para sincronizar en la nube.
-- **Continuar sin conexión**: la app funciona 100% local en este dispositivo, sin cuenta.
+- **Continuar sin conexión**: funciona 100% local, sin cuenta.
 
 ### 4. Entrenar
 
-1. Ves a **Rutina** para ver el día seleccionado (Lunes–Viernes)
-2. Toca **🏋️ Iniciar sesión**
-3. Al empezar cada ejercicio, los **pesos/reps se cargan de tu última sesión** de ese ejercicio (si existe historial)
-4. Marca cada serie completada → se lanza el **cronómetro de descanso** automáticamente
-5. Ajusta peso/reps por serie con los botones **− / +** (los cambios quedan guardados para la próxima vez)
-6. Al terminar la última serie del último ejercicio, la sesión se guarda en **Historial**
+1. Ve a **Rutina** — el día actual se selecciona automáticamente
+2. Toca **🏋️ Entrenar**
+3. Los pesos/reps se cargan de tu última sesión de cada ejercicio
+4. Marca cada serie completada → cronómetro de descanso automático
+5. Al terminar la última serie, la sesión se guarda en **Historial**
 
 ---
 
@@ -67,67 +60,59 @@ La app se abre como una aplicación nativa, en modo standalone, sin barra del na
 
 ### Archivo: `rutina.xlsx`
 
-Abre `rutina.xlsx` en **Microsoft Excel**, **Numbers (Mac/iPhone)** o **Google Sheets** y edita las filas.
+Abre `rutina.xlsx` en **Excel**, **Numbers** o **Google Sheets** y edita las filas.
 
 | Columna | Tipo | Ejemplo | Descripción |
 |---|---|---|---|
 | `dia` | texto | `Lunes` | Día de la semana (Lunes → Viernes) |
 | `orden` | número | `1` | Posición del ejercicio dentro del día |
-| `nombre_es` | texto | `Press banca plano con barra` | Nombre mostrado en la app |
-| `dataset` | texto | `barbell bench press` | Nombre en inglés del ejercicio (para la imagen) |
-| `series` | número | `3` | Series por ejercicio |
+| `nombre_es` | texto | `Press banca` | Nombre visible en la app |
+| `dataset` | texto | `barbell bench press` | Clave del dataset de ejercicios |
+| `series` | número | `3` | Series del ejercicio |
 | `reps` | número | `8` | Repeticiones objetivo |
-| `peso_kg` | número | `40` | Peso inicial en kg (solo se usa si no hay historial) |
+| `peso_kg` | número | `40` | Peso inicial en kg |
 | `descanso_s` | número | `180` | Descanso entre series (segundos) |
-| `notas` | texto | `Codos a 45°` | Nota opcional |
+| `notas` | texto | `Codos a 45°` | Notas de técnica |
 
-### ¿Cómo aplicar los cambios?
+> ℹ️ El archivo `rutina.xlsx` se genera desde `src/utils.js` (constante `DEFAULT_ROUTINE`) con el script `tools/generate_rutina.js`.
 
-- **Opción A (local):** Reemplaza el archivo `rutina.xlsx` de la carpeta y recarga la app.
-- **Opción B (desde el móvil):** En **Ajustes** → **Importar rutina (.xlsx)**, sube el archivo editado desde Archivos/Drive.
-- **Opción C (descargar):** En **Ajustes** → **Descargar rutina (.xlsx)** obtienes la plantilla actual para editarla donde quieras.
+### Importar / Exportar
 
-### Regenerar la hoja de cálculo
+- **Importar**: en la app ve a **Ajustes → Rutina → 📥 Importar**
+- **Exportar**: en la app ve a **Ajustes → Rutina → 📤 Exportar**
 
-Si quieres editar la rutina en código y regenerar el archivo:
+---
+
+## 🔧 Desarrollo
+
+### Requisitos
+
+- **Node.js 18+**
+- npm
+
+### Instalar dependencias
 
 ```bash
 npm install
-npm run generate
 ```
 
-Esto modifica la `RUTINA` embebida en `tools/generate_rutina.js` y genera un nuevo `public/rutina.xlsx`.
+### Ejecutar tests
 
----
+```bash
+npm test
+```
 
-## 🗄️ Backend (Supabase)
+### Build de producción
 
-La app usa Supabase para autenticación y sincronización. El SQL de setup está en `supabase/setup.sql` (tablas `rutinas`, `sesiones`, RLS y triggers).
+```bash
+npm run build
+```
 
-Pasos tras crear un proyecto en Supabase:
+El build genera la carpeta `dist/` lista para desplegar.
 
-1. Ejecuta `supabase/setup.sql` en el SQL Editor del dashboard.
-2. En **Authentication → Providers**, deja habilitado el email.
-3. En **Authentication → Emails**, configura la plantilla de confirmación (puedes usar `data/supabase_email_template.html` como base).
-4. Actualiza `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `src/app.js` con los valores de tu proyecto.
+### Deploy
 
----
-
-## 🔍 Cómo se encuentran los visuales
-
-1. La app busca la imagen/instrucción del ejercicio usando la columna `dataset` (nombre en inglés).
-2. Consulta el dataset remoto `exercises.json` (1.324 ejercicios) desde `github.com/hasaneyldrm/exercises-dataset`.
-3. El resultado se cachea en la **Cache API** para funcionamiento offline.
-4. Un mapa embebido de imágenes cubre la rutina por defecto como fallback.
-
----
-
-## 🔒 Privacidad
-
-- ✅ Sin cuenta = 100% local: tus datos (rutina, historial) viven en `localStorage` del dispositivo.
-- ✅ Con cuenta = sincronización en la nube (Supabase) usando autenticación segura (bcrypt + JWT).
-- ✅ Al borrar los datos del sitio en Safari, todo desaparece definitivamente.
-- ✅ Funcionamiento **100% offline** opcional (Service Worker).
+El CI (`.github/workflows/ci.yml`) ejecuta tests + e2e + build y despliega a **GitHub Pages** automáticamente al hacer push a `main`.
 
 ---
 
@@ -142,31 +127,31 @@ EyeFit/
 │   ├── db.js               Persistencia IndexedDB
 │   ├── sw.js               Service Worker (caché offline + Background Sync)
 │   └── utils.js            Utilidades puras compartidas (navegador + tests)
-├── public/                 Archivos publicados tal cual (sin transformar)
+├── public/                 Archivos publicados tal cual
 │   ├── manifest.json       Manifest PWA estático (instalable)
-│   ├── rutina.xlsx         ★ La hoja de cálculo de la rutina (edítala aquí)
+│   ├── rutina.xlsx         ★ Hoja de cálculo de la rutina (edítala aquí)
 │   ├── robots.txt
 │   ├── sitemap.xml
-│   └── icons/              Iconos PNG (icon-180, 192, 512)
+│   └── icons/              Iconos PNG
 ├── data/                   Datasets y plantillas
-│   ├── slim-dataset.json   Dataset de ejercicios (1080)
+│   ├── slim-dataset.json   Dataset de ejercicios (1.080)
 │   ├── exercise-meta.json  Metadatos (músculo, equipamiento)
-│   └── supabase_email_template.html  Plantilla de email de confirmación
+│   └── supabase_email_template.html
 ├── vendor/                 Librerías de terceros
-│   ├── xlsx.full.min.js    SheetJS (parseo de .xlsx)
+│   ├── xlsx.full.min.js    SheetJS
 │   └── supabase.js         SDK de Supabase
 ├── tools/                  Scripts de build y utilidades CLI
 │   ├── build.js            Pipeline esbuild → dist/
 │   ├── generate_rutina.js  Regenera public/rutina.xlsx
 │   ├── generate_icons.js   Regenera los iconos PNG
-│   ├── generate_slim_dataset.js  Regenera data/slim-dataset.json
-│   └── enrich_dataset.js   Enriquecer metadatos de ejercicios
+│   ├── generate_slim_dataset.js
+│   └── enrich_dataset.js
 ├── supabase/               Config del backend
 │   └── setup.sql           Setup SQL (tablas, RLS, triggers)
 ├── tests/                  Tests unitarios (node:test → `npm test`)
 │   └── e2e/                Tests end-to-end (Playwright)
 ├── dist/                   Build output (generado por `npm run build`)
-├── .github/workflows/ci.yml  CI (test + e2e + deploy Pages)
+├── .github/workflows/ci.yml
 ├── CHANGELOG.md            Registro de cambios
 └── README.md               Esta documentación
 ```
@@ -180,8 +165,8 @@ EyeFit/
 - **Supabase** para auth (email + contraseña) y sincronización de rutina/historial
 - **SheetJS** ([SheetJS Community Edition](https://sheetjs.com/)) para leer/escribir .xlsx
 - **exercises-dataset** ([GitHub](https://github.com/hasaneyldrm/exercises-dataset)) — CC-BY-4.0, 1.324 ejercicios con imágenes e instrucciones multilingües
-- **PWA**: manifest.json estático (instalable en Chromium) + Service Worker con offline shell y Background Sync
-- **Diseño iPhone 15**: max-width 393px, safe-areas (Dynamic Island + home indicator), bottom tab bar, haptics
+- **PWA**: manifest.json estático + Service Worker con offline shell y Background Sync
+- **Diseño iOS dark**: botonera al ras del borde inferior, safe-areas, tema oscuro
 
 ---
 
@@ -196,5 +181,9 @@ EyeFit/
 | **Viernes** | Tren Superior C (Híbrido) | Press inclinado, Dominadas, Press Arnold, Elev. polea, Curl polea, Ext. overhead |
 
 ---
+
+## 📦 Versiones
+
+Ver [CHANGELOG.md](CHANGELOG.md) para el historial completo de versiones.
 
 *Hecho con 💪 para el gimnasio · Local y sincronizado en la nube*

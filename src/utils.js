@@ -165,7 +165,7 @@
     "cable standing rear delt row (with rope)": "0233-ZfyAGhK", "ez barbell curl": "0447-6TG6x2w",
     "dumbbell hammer curl": "0313-slDvUAU", "barbell deadlift": "0032-ila4NZS",
     "barbell glute bridge two legs on bench (male)": "3562-qg2PGl6", "barbell good morning": "0044-XlZ4lAC",
-    "cable kickback": "0860-HEJ6DIX", "lever seated calf raise": "0594-bOOdeyc",
+    "cable kickback": "0228-Kpajagk", "lever seated calf raise": "0594-bOOdeyc",
     "barbell incline bench press": "0047-3TZduzM", "pull up (neutral grip)": "0651-0V2YQjW",
     "dumbbell arnold press": "2137-Xy4jlWA", "cable lateral raise": "0178-goJ6ezq",
     "cable curl": "0868-G08RZcQ", "cable overhead triceps extension (rope attachment)": "0194-2IxROQ1"

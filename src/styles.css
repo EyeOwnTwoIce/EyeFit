@@ -29,9 +29,8 @@
     flex:1; min-height:0; overflow-y:auto; overflow-x:clip;
     -webkit-overflow-scrolling:touch;
     scrollbar-width:none; -ms-overflow-style:none;
-    /* max(90px, ...): mantener mínimo para la tabbar; aprovecar más espacio
-       cuando Safari oculta su barra inferior (safe-area-inset-bottom = 0) */
-    padding:12px 14px max(80px, calc(80px + env(safe-area-inset-bottom)));
+    /* La tabbar está pegada al borde inferior: padding fijo para no tapar contenido */
+    padding:12px 14px calc(110px + env(safe-area-inset-bottom));
   }
   main::-webkit-scrollbar{ display:none; }
   main.no-scroll{ overflow:hidden; }
@@ -122,9 +121,11 @@
   /* Barra flotante tipo píldora con vidrio: fuerte desenfoque + saturación,
      resaltados de «refracción» (radial-gradients) y borde translúcido. */
   .tabbar{
-    position:fixed; bottom:max(10px, env(safe-area-inset-bottom)); left:0; right:0;
-    margin:0 auto; width:calc(100% - 24px); max-width:540px;
-    display:flex; padding:7px 8px; border-radius:27px;
+    position:fixed; bottom:0; left:0; right:0;
+    margin:0 auto; width:100%; max-width:540px;
+    display:flex; padding:7px 8px calc(7px + env(safe-area-inset-bottom));
+    border-radius:27px 27px 0 0;
+    border-bottom:none;
     background:
       linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.04)),
       rgba(30,30,34,.28);
@@ -191,13 +192,12 @@
   .week-cell.active .d{ color:#000; }
   .week-cell.active .l{ color:#000; }
 
-  /* ===== Invertir todos los GIFs de ejercicios para coherencia visual ===== */
-  .ex-img img, .rtc-img, .ex-active-img, .rt-ex-img{
+  /* ===== Invertir TODOS los GIFs y miniaturas de ejercicios ===== */
+  .ex-img img, .rtc-img, .rtc-img-wrap img, .ex-active-img, .rt-ex-img,
+  .zoom-img, .confirm-ex-img, .spe-img img, .picker-item img, .rc-cell img,
+  .up-row img, .var-row img, .variant-btn img, .edit-ex-row img{
     filter:invert(1) hue-rotate(180deg);
   }
-  /* En sesión activa, el GIF grande también se invierte */
-  .ex-active-img{ filter:invert(1) hue-rotate(180deg); }
-  .zoom-img{ filter:invert(1) hue-rotate(180deg); }
 
   /* ===== Exercise rows (editor) ===== */
   .ex-row{ padding:10px 15px; border-bottom:1px solid var(--border); }
@@ -379,6 +379,11 @@
     padding:4px; opacity:.8; flex-shrink:0; margin-left:4px;
   }
   .hist-edit-btn:active{ opacity:1; transform:scale(.92); }
+  .hist-del-btn{
+    background:none; border:none; color:var(--danger); font-size:13px; cursor:pointer;
+    padding:4px; opacity:.7; flex-shrink:0; margin-left:2px;
+  }
+  .hist-del-btn:active{ opacity:1; transform:scale(.92); }
   .hist-day-body{ display:none; border-top:1px solid var(--border); padding:10px 15px; }
   .hist-day.open .hist-day-body{ display:block; }
   .hist-day-stats{ color:var(--muted); font-size:10px; margin-bottom:7px; }
@@ -430,7 +435,8 @@
   .rc-top{ display:flex; flex-direction:column; align-items:center; gap:1px; }
   .rc-day{ font-weight:900; font-size:13px; }
   .rc-date{ color:var(--muted); font-size:8px; }
-  .rc-list{ display:flex; flex-direction:column; gap:2px; width:100%; }
+  .rc-list{ display:flex; flex-direction:column; gap:2px; width:100%; max-height:120px; overflow-y:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .rc-list::-webkit-scrollbar{ display:none; }
   .rc-item{
     font-size:7.5px; color:var(--muted); font-weight:600; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; max-width:60px;
@@ -598,8 +604,8 @@
   .train-days{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
   .train-day-chip{
     background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
-    border-radius:18px; padding:8px 14px; font-size:11px; font-weight:800; cursor:pointer;
-    transition:all .15s;
+    border-radius:18px; padding:8px 0; width:42px; text-align:center;
+    font-size:13px; font-weight:900; cursor:pointer; transition:all .15s; flex-shrink:0;
   }
   .train-day-chip.on{ background:var(--accent); border-color:var(--accent); color:#000; }
   .train-day-chip:active{ transform:scale(.94); }
@@ -1024,7 +1030,7 @@
     display:flex; align-items:center; gap:8px; font-size:12px;
     background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:6px 8px;
   }
-  .confirm-ex-img{ width:28px; height:28px; border-radius:6px; object-fit:cover; filter:invert(1) hue-rotate(180deg); flex-shrink:0; }
+  .confirm-ex-img{ width:28px; height:28px; border-radius:6px; object-fit:cover; flex-shrink:0; }
   .confirm-ex-name{ flex:1; font-weight:600; }
   .confirm-ex-meta{ color:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; }
   .confirm-ex-meta b{ color:var(--accent); }

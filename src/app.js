@@ -1,7 +1,7 @@
 "use strict";
 /* ════════════════════════════════════════════════════════════════
-   EyeFit v1.3 — descanso en barra superior, alternativas con GIF,
-   guardado automático, control de series, sin parpadeos
+   EyeFit v2.1.0 — botonera al ras, GIFs invertidos, formato español,
+   fórmula 1RM completa, historial con eliminación y día actual por defecto
    ════════════════════════════════════════════════════════════════ */
 
 /* ---------- Utilidades compartidas (utils.js, sin duplicar) ----------
@@ -217,6 +217,12 @@ try{ if(window.supabase) sbClient = window.supabase.createClient(SUPABASE_URL, S
 const DAY_SHORT = { Lunes:"LUN", Martes:"MAR", Miércoles:"MIÉ", Jueves:"JUE", Viernes:"VIE", Sábado:"SÁB", Domingo:"DOM" };
 const WEEKDAY_NAMES = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 function getTodayName(){ return WEEKDAY_NAMES[new Date().getDay()]; }
+/* Formato español para kilos: 18.5 → "18,5" (coma decimal, punto de miles) */
+function formatKg(n){
+  const v = Number(n);
+  if(!Number.isFinite(v)) return "0";
+  return v.toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
 
 /* Rutina por defecto */
 const DEFAULT_ROUTINE = [
@@ -340,7 +346,7 @@ const EMBEDDED_IMAGES = {
   "barbell deadlift": "0032-ila4NZS",
   "barbell glute bridge two legs on bench (male)": "3562-qg2PGl6",
   "barbell good morning": "0044-XlZ4lAC",
-  "cable kickback": "0860-HEJ6DIX",
+  "cable kickback": "0228-Kpajagk",
   "lever seated calf raise": "0594-bOOdeyc",
   "barbell incline bench press": "0047-3TZduzM",
   "pull up (neutral grip)": "0651-0V2YQjW",
@@ -1267,9 +1273,9 @@ function renderRutina(){
         const instrRaw = getInstrucciones(e);
         const key = String(e.datasetOriginal||e.dataset||e.nombre_es||"").trim().toLowerCase();
         const best = getHistoricalBest(key);
-        const rmLabel = best && best.rm ? `${Math.round(best.rm)}kg` : "";
+        const rmLabel = best && best.rm ? `${formatKg(Math.round(best.rm))}kg` : "";
         const rmHint = best && best.rm
-          ? ` title="1RM por fórmula de Epley: ${best.kg}kg × ${best.reps} reps = ${Math.round(best.rm)}kg" data-has-rm="1"`
+          ? ` title="1RM = ${formatKg(best.kg)} × (1 + ${best.reps}/30) = ${formatKg(Math.round(best.rm))} kg (Epley)" data-has-rm="1"`
           : ` data-has-rm="0"`;
         return `<div class="rt-ex-card">
           ${img ? `<div class="rtc-img-wrap" data-img-zoom data-ex-name="${escapeHtmlAttr(e.nombre_es)}" data-ex-dataset="${escapeHtmlAttr(e.dataset||"")}" data-ex-dataset-original="${escapeHtmlAttr(e.datasetOriginal||"")}" data-img-instr="${escapeHtmlAttr(instrRaw)}" role="button" tabindex="0" aria-label="Ampliar GIF de ${escapeHtmlAttr(getApodo(e))}">
@@ -1281,7 +1287,7 @@ function renderRutina(){
             <div class="rtc-stats">
               <div class="rtc-stat" data-rt-edit="series" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${e.series}</span><span class="rtc-stat-lbl">series</span></div>
               <div class="rtc-stat" data-rt-edit="reps" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${e.reps}</span><span class="rtc-stat-lbl">reps</span></div>
-              <div class="rtc-stat" data-rt-edit="kg" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${e.peso_kg}</span><span class="rtc-stat-lbl">kg</span></div>
+              <div class="rtc-stat" data-rt-edit="kg" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${formatKg(e.peso_kg)}</span><span class="rtc-stat-lbl">kg</span></div>
               ${rmLabel ? `<div class="rtc-stat rm-tappable" ${rmHint}><span class="rtc-stat-val">${rmLabel}</span><span class="rtc-stat-lbl">1RM</span></div>` : ""}
             </div>
           </div>
@@ -1299,7 +1305,7 @@ function renderRutina(){
         const dateLabel = date.toLocaleDateString("es-ES",{day:"numeric",month:"short"});
         const body = dayEx.length===0
           ? `<div class="rc-rest">😴</div>`
-          : `<div class="rc-list">${dayEx.slice(0,4).map(e=>`<div class="rc-item">${escapeHtml(getApodo(e))}</div>`).join("")}${dayEx.length>4?`<div class="rc-more">+${dayEx.length-4}</div>`:""}</div>`;
+          : `<div class="rc-list">${dayEx.map(e=>`<div class="rc-item">${escapeHtml(getApodo(e))}</div>`).join("")}</div>`;
         return `<div class="rc-cell ${isToday?"rc-today":""} ${isSel?"rc-active":""}" data-day="${escapeHtmlAttr(name)}" role="button" tabindex="0" aria-pressed="${isSel}">
           <div class="rc-top">
             <span class="rc-day" style="color:${color}">${DAY_SHORT[name]||name.slice(0,3)}</span>
@@ -1313,7 +1319,7 @@ function renderRutina(){
       <span style="font-weight:800;font-size:13px;color:${DAY_COLORS[sel]||"#fff"};">${sel}</span>
       <div style="display:flex;gap:6px;">
         <button class="btn btn-outline" data-edit-routine data-edit-routine-day="${escapeHtmlAttr(sel)}" style="min-height:36px;">✏️ Editar</button>
-        ${dayEx.length>0?`<button class="btn" style="min-height:36px;" data-start-session="${escapeHtmlAttr(sel)}" ${sel===todayName?"":"disabled"}>🏋️ Entrenar${sel!==todayName?" (solo hoy)":""}</button>`:""}
+        ${dayEx.length>0?`<button class="btn" style="min-height:36px;" data-start-session="${escapeHtmlAttr(sel)}">🏋️ Entrenar</button>`:""}
       </div>
     </div>
     <div class="rt-day-view">${dayCards}</div>
@@ -1343,7 +1349,7 @@ function exerciseCard(ex, i, day){
         <div class="ex-stats">
           <span class="stat-chip"><b>${ex.series}</b> series</span>
           <span class="stat-chip"><b>${ex.reps}</b> reps</span>
-          <span class="stat-chip">⚖️ <b>${ex.peso_kg}</b> kg</span>
+          <span class="stat-chip">⚖️ <b>${formatKg(ex.peso_kg)}</b> kg</span>
           <span class="stat-chip">⏱ <b>${formatRest(ex.descanso_s)}</b></span>
           <span class="stat-chip">↔️ <b>${variantes}</b> alt.</span>
         </div>
@@ -1847,7 +1853,7 @@ function renderSesion(){
         ${img?`<div class="spe-img"><img src="${img}" alt="" loading="lazy" decoding="async" data-img-fallback="hide"></div>`:`<div class="spe-img spe-emoji">🏋️</div>`}
         <div class="spe-info">
           <div class="spe-name">${escapeHtml(getApodo(e))}</div>
-          <div class="spe-meta">${e.series}×${e.reps} · ${e.peso_kg}kg</div>
+          <div class="spe-meta">${e.series}×${e.reps} · ${formatKg(e.peso_kg)}kg</div>
         </div>
       </div>`;
     }).join("");
@@ -2256,7 +2262,7 @@ function selectVariant(i){
    HISTORIAL colapsable con apodos
    ================================================================ */
 let histMonthCursor = null;
-let histActiveDate = null;
+let histActiveDate = localDateKey(new Date());
 let editingHistRecord = null;
 
 function getHistMonthSessions(history, year, month){
@@ -2292,10 +2298,10 @@ function renderHistCalendar(history){
   const byDay = getHistMonthSessions(history, y, m);
   const firstDay = new Date(y, m, 1);
   const daysInMonth = new Date(y, m+1, 0).getDate();
-  const startOffset = firstDay.getDay();
+  const startOffset = (firstDay.getDay() + 6) % 7; /* Lunes como primer día (convención ES) */
   const todayStr = localDateKey(new Date());
   const cells = [];
-  const dayNames = ["D","L","M","X","J","V","S"];
+  const dayNames = ["L","M","X","J","V","S","D"];
   for(const dn of dayNames) cells.push(`<div class="hist-cal-dow">${dn}</div>`);
   for(let i=0; i<startOffset; i++) cells.push(`<div class="hist-cal-cell empty"></div>`);
   for(let d=1; d<=daysInMonth; d++){
@@ -2330,12 +2336,12 @@ function renderHistDayDetail(history, dateStr){
       const prog = getExerciseProgression(key);
       const bestNow = getHistoricalBest(key);
       const spark = svgSparkline(prog);
-      const rmLabel = bestNow && bestNow.rm ? `${Math.round(bestNow.rm)}` : "";
-      const rmHint = bestNow && bestNow.rm ? ` title="1RM: ${bestNow.kg}kg × ${bestNow.reps} reps = ${Math.round(bestNow.rm)}kg (fórmula de Epley)" data-has-rm="1"` : "";
+      const rmLabel = bestNow && bestNow.rm ? `${formatKg(Math.round(bestNow.rm))}` : "";
+      const rmHint = bestNow && bestNow.rm ? ` title="1RM = ${formatKg(bestNow.kg)} × (1 + ${bestNow.reps}/30) = ${formatKg(Math.round(bestNow.rm))} kg (Epley)" data-has-rm="1"` : "";
       return `<div class="hist-ex-line">
         <div class="hist-ex">
           <span class="hist-ex-name">${escapeHtml(getApodo(e))}</span>
-          <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${s.reps}×${s.kg}`).join(" · ")}</span>
+          <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${s.reps}×${formatKg(s.kg)}`).join(" · ")}</span>
         </div>
         ${spark ? `<div class="hist-ex-prog"><span class="lbl rm-tappable" ${rmHint}>1RM ${rmLabel}</span>${spark}</div>` : ""}
       </div>`;
@@ -2349,6 +2355,7 @@ function renderHistDayDetail(history, dateStr){
           <span class="hist-day-name" style="color:${color}">${h.day}</span>
           <span class="hist-day-date">${timeLabel} · ${mins}m ${secs}s</span>
           <button class="hist-edit-btn" data-edit-hist-date="${escapeHtmlAttr(dateStr)}" data-edit-hist-sessid="${escapeHtmlAttr(h.session_id||"")}" aria-label="Editar sesión">✏️</button>
+          <button class="hist-del-btn" data-del-session="${escapeHtmlAttr(dateStr)}" data-del-sessid="${escapeHtmlAttr(h.session_id||"")}" aria-label="Eliminar sesión">🗑️</button>
         </div>
         <div class="hist-day-body open">
           <div class="hist-day-stats">${exDone.length} ejercicios · ${h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0)} series</div>
@@ -2568,6 +2575,23 @@ function attachHistCalendarEvents(){
       if(h) openEditHistSession(h);
     });
   });
+  /* Eliminar sesión del historial (botón explícito) */
+  document.querySelectorAll("[data-del-session]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const ds = btn.dataset.delSession;
+      const sessId = btn.dataset.delSessid;
+      const history = getHistory();
+      let h;
+      if(sessId){
+        h = history.find(x=>x.session_id === sessId);
+      }
+      if(!h){
+        h = history.find(x=>{ try{ return localDateKey(new Date(x.date)) === ds; }catch(err){ return false; } });
+      }
+      if(h) deleteHistorySession(h.date, h.day);
+    });
+  });
 }
 
 /* Handlers de guardado/cancelado del overlay de edición historial */
@@ -2691,10 +2715,10 @@ function renderAjustes(){
         </details>
       </div>
       <div class="set-row-item" style="flex-wrap:wrap;">
-        <div style="width:100%;"><div class="label">Días de entrenamiento</div><div class="desc">Elige qué días tienen rutina y se muestran en la semana</div></div>
+        <div style="width:100%;"><div class="label">Días de entrenamiento</div><div class="desc">L M X J V S D</div></div>
         <div class="train-days" style="width:100%;">
-          ${["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"].map(d=>`
-            <button class="train-day-chip ${trainingDays.includes(d)?"on":""}" data-train-day="${escapeHtmlAttr(d)}">${d}</button>
+          ${[["L","Lunes"],["M","Martes"],["X","Miércoles"],["J","Jueves"],["V","Viernes"],["S","Sábado"],["D","Domingo"]].map(([lbl,full])=>`
+            <button class="train-day-chip ${trainingDays.includes(full)?"on":""}" data-train-day="${full}" aria-label="${full}">${lbl}</button>
           `).join("")}
         </div>
       </div>
@@ -2759,12 +2783,11 @@ function renderAjustes(){
         </details>
       </div>
       <div class="set-row-item">
-        <div><div class="label">Importar rutina (.xlsx)</div><div class="desc">Sube tu hoja de cálculo</div></div>
-        <button class="btn" data-import-xlsx>📥 Importar</button>
-      </div>
-      <div class="set-row-item">
-        <div><div class="label">Descargar rutina (.xlsx)</div><div class="desc">Edítala y vuelve a importarla</div></div>
-        <button class="btn btn-outline" data-export-xlsx>📤 Exportar</button>
+        <div><div class="label">Rutina (.xlsx)</div><div class="desc">Importa o descarga tu hoja de cálculo</div></div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="btn" data-import-xlsx>📥 Importar</button>
+          <button class="btn btn-outline" data-export-xlsx>📤 Exportar</button>
+        </div>
       </div>
     </div>
     <div class="set-group">
@@ -2798,13 +2821,11 @@ function renderAjustes(){
     <div class="set-group danger-zone">
       <div class="set-group-title danger-zone-title">⚠️ Danger Zone</div>
       <div class="set-row-item">
-        <div><div class="label">Borrar historial</div><div class="desc">Elimina todas las sesiones (local y nube)</div></div>
-        <button class="btn btn-danger" data-clear-history>🗑️</button>
-        &nbsp;
-        <button class="btn btn-outline" data-reset-routine>↺</button>
-      </div>
-      <div class="set-row-item">
-        <div><div class="label">Restablecer rutina</div><div class="desc">Vuelve a la rutina integrada</div></div>
+        <div><div class="label">Datos</div><div class="desc">Borrar historial o restablecer la rutina</div></div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="btn btn-danger" data-clear-history>🗑️ Borrar historial</button>
+          <button class="btn btn-outline" data-reset-routine>↺ Restablecer</button>
+        </div>
       </div>
     </div>
     <div class="set-group">
@@ -2821,7 +2842,7 @@ function renderAjustes(){
             </details>
             <details>
               <summary>Versión</summary>
-              <div class="about-body">v1.4 · PWA sincronizada en la nube</div>
+              <div class="about-body">v2.1.0 · PWA sincronizada en la nube</div>
             </details>
             <details>
               <summary>Referencias</summary>
@@ -3021,7 +3042,7 @@ function attachEvents(){
         return `<div class="confirm-ex-row">
           ${img?`<img src="${img}" alt="" class="confirm-ex-img" data-img-fallback="hide">`:""}
           <span class="confirm-ex-name">${escapeHtml(getApodo(e))}</span>
-          <span class="confirm-ex-meta">${e.series}×${e.reps} <b>${e.peso_kg}</b>kg</span>
+          <span class="confirm-ex-meta">${e.series}×${e.reps} <b>${formatKg(e.peso_kg)}</b>kg</span>
         </div>`;
       }).join("");
       const totalSets = dayEx.reduce((a,e)=>a+parseInt(e.series||3,10),0);
@@ -3440,8 +3461,10 @@ function attachEvents(){
           }
         }catch(e){}
       }
+      /* Forzar sincronización para confirmar el borrado en la nube */
+      if(sbClient && authUser) scheduleSync();
       renderMain();
-      showToast("🗑️ Sesión eliminada");
+      showToast("🗑️ Sesión eliminada" + (sbClient && authUser ? " · sincronizada" : ""));
     }
   }
   document.querySelectorAll("[data-swipable-hist]").forEach(row=>{

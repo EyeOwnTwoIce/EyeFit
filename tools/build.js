@@ -85,6 +85,25 @@ async function buildCss() {
   return name;
 }
 
+/* Extrae el CSS crítico (shell visible: header + tabbar) y lo minifica
+   para inyectarlo inline en <head> (evita render-blocking del CSS completo). */
+async function buildCriticalCss() {
+  const css = fs.readFileSync(path.join(SRC, 'styles.css'), 'utf8');
+  const markerIdx = css.indexOf('EYEFIT_CRITICAL_END');
+  // Incluir el cierre del comentario que contiene el marcador
+  const commentEnd = markerIdx >= 0 ? css.indexOf('*/', markerIdx) : -1;
+  const critical = commentEnd >= 0
+    ? css.slice(0, commentEnd + 2)
+    : (markerIdx >= 0 ? css.slice(0, markerIdx) : css);
+  const minResult = await build({
+    stdin: { contents: critical, loader: 'css', resolveDir: SRC },
+    minify: true,
+    write: false,
+    logLevel: 'silent'
+  });
+  return minResult.outputFiles[0].text;
+}
+
 async function buildJs() {
   const result = await build({
     entryPoints: [path.join(SRC, 'app.js')],
@@ -100,9 +119,11 @@ async function buildJs() {
   return name;
 }
 
-function buildHtml(cssName, jsName) {
+function buildHtml(cssName, jsName, criticalCss) {
   let html = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
-  html = html.replace('<!--EYEFIT_CSS-->', cssName);
+  html = html.replace('/*EYEFIT_CRITICAL_CSS*/', criticalCss);
+  /* Reemplazar TODAS las ocurrencias del CSS filename (link + noscript) */
+  html = html.split('<!--EYEFIT_CSS-->').join(cssName);
   html = html.replace('<!--EYEFIT_APP_JS-->', `<script src="${jsName}" defer></script>`);
   fs.writeFileSync(path.join(DIST, 'index.html'), html);
 }
@@ -118,11 +139,11 @@ function buildSw(coreAssets) {
 (async () => {
   rmDist();
   copyStatic();
-  const [cssName, jsName] = await Promise.all([buildCss(), buildJs()]);
-  buildHtml(cssName, jsName);
+  const [cssName, jsName, criticalCss] = await Promise.all([buildCss(), buildJs(), buildCriticalCss()]);
+  buildHtml(cssName, jsName, criticalCss);
   const coreAssets = ['./', './index.html', `./${cssName}`, `./${jsName}`,
     './manifest.json', './utils.js', './db.js', './supabase.js', './rutina.xlsx',
     './slim-dataset.json', './exercise-meta.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
   buildSw(coreAssets);
-  console.log(`✔ Build OK → dist/ (${cssName}, ${jsName})`);
+  console.log(`✔ Build OK → dist/ (${cssName}, ${jsName}, critical ${criticalCss.length} bytes)`);
 })();

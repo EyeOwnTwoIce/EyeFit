@@ -34,14 +34,18 @@
 <link rel="preconnect" href="https://vkaxxphminfinufitcyp.supabase.co">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="<!--EYEFIT_CSS-->">
+<!-- Critical CSS inline: el shell (header+tabbar) se pinta sin esperar al CSS completo -->
+<style>/*EYEFIT_CRITICAL_CSS*/</style>
+<!-- CSS completo: media="print" evita render-blocking; app.js lo activa a media="all" -->
+<link id="fullCssLink" rel="stylesheet" href="<!--EYEFIT_CSS-->" media="print">
+<noscript><link rel="stylesheet" href="<!--EYEFIT_CSS-->"></noscript>
 </head>
 <body>
 <div id="app">
   <header id="appHeader">
     <div class="header-main">
       <div class="header-title-wrap">
-        <h1 id="appTitle">EyeFit</h1>
+        <h1 id="appTitle" fetchpriority="high">EyeFit</h1>
         <!-- Apodo del ejercicio en curso (visible solo con sesión activa) -->
         <span class="session-ex-name" id="sessionExName" style="display:none;" aria-live="polite"></span>
       </div>
@@ -209,7 +213,6 @@
 
 <script src="utils.js" defer></script>
 <script src="db.js" defer></script>
-<script src="supabase.js" defer></script>
 <!--EYEFIT_APP_JS-->
 </body>
 </html>

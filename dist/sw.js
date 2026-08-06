@@ -3,8 +3,8 @@
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync
    - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
-const CACHE = "eyefit-vmshdssrh";
-const CORE_ASSETS = ["./","./index.html","./styles.1b8950c2.css","./app.e02d9d5c.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
+const CACHE = "eyefit-vmshu3khm";
+const CORE_ASSETS = ["./","./index.html","./styles.461361c2.css","./app.bbfc4a7c.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
 
 /* Shell offline: página mínima para un cold-load sin red */
 const OFFLINE_SHELL = `<!DOCTYPE html>
@@ -43,7 +43,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && k !== 'eyefit-img-v1').map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -145,6 +145,24 @@ self.addEventListener('fetch', event => {
 
   // Supabase: siempre en red (auth + datos)
   if (isSupabaseUrl(url)) return;
+
+  // Imágenes de ejercicios externas (raw.githubusercontent.com):
+  // stale-while-revalidate con caché persistente (mejora cache policy y offline)
+  if (url.hostname === 'raw.githubusercontent.com' && url.pathname.includes('exercises-dataset')) {
+    const IMG_CACHE = 'eyefit-img-v1';
+    event.respondWith(
+      caches.open(IMG_CACHE).then(cache =>
+        cache.match(request).then(cached => {
+          const fetched = fetch(request).then(response => {
+            if (response && response.ok) cache.put(request, response.clone());
+            return response;
+          }).catch(() => cached);
+          return (cached || fetched) || OFFLINE_RESPONSE;
+        })
+      )
+    );
+    return;
+  }
 
   // rutina.xlsx: network-first con fallback a caché
   if (url.pathname.endsWith('/rutina.xlsx')) {

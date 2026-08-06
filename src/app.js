@@ -203,12 +203,33 @@ const sanitizeRoutineRow = U.sanitizeRoutineRow;
 const rebaseElapsed = U.rebaseElapsed;
 const mergeHistoryBySessionId = U.mergeHistoryBySessionId;
 
-/* ---------- Supabase ---------- */
+/* ---------- Supabase (lazy: el SDK ~180KB solo se carga si hace falta) ---------- */
 const SUPABASE_URL = "https://vkaxxphminfinufitcyp.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_9mIRx8rfkAtHv9w57cbCKw_P_btyOou";
 let sbClient = null;
 let authUser = null;
-try{ if(window.supabase) sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }catch(e){}
+let supabasePromise = null;
+/* Carga bajo demanda del SDK de Supabase (igual que xlsx: solo al hacer login/
+   registro). El archivo supabase.js existe en dist/ pero NO se ejecuta en el
+   arranque, reduciendo JS ejecutado ~180KB y el main-thread work. */
+function loadSupabaseSDK(){
+  if(window.supabase) return Promise.resolve(window.supabase);
+  if(supabasePromise) return supabasePromise;
+  supabasePromise = new Promise((resolve, reject)=>{
+    const s = document.createElement("script");
+    s.src = "./supabase.js";
+    s.onload = ()=> resolve(window.supabase);
+    s.onerror = ()=>{ supabasePromise = null; reject(new Error("supabase SDK load error")); };
+    document.head.appendChild(s);
+  });
+  return supabasePromise;
+}
+async function ensureSupabaseClient(){
+  if(sbClient) return sbClient;
+  const sb = await loadSupabaseSDK();
+  sbClient = sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return sbClient;
+}
 
 /* ================================================================
    DATOS
@@ -1006,7 +1027,20 @@ async function handleAuthSubmit(){
   const errEl = document.getElementById("authError");
   const btn = document.getElementById("authSubmit");
   errEl.textContent = "";
-  if(!sbClient){ errEl.textContent = "🌐 Sin conexión al servidor. No puedes acceder ahora."; return; }
+  /* Lazy Supabase: si el SDK no se cargó (no había sesión guardada), se carga
+     aquí antes de intentar autenticar. */
+  if(!sbClient){
+    try{
+      errEl.textContent = "⏳ Conectando…";
+      await ensureSupabaseClient();
+      errEl.textContent = "";
+      const skipBtn = document.getElementById("authSkip");
+      if(skipBtn) skipBtn.style.display = "none";
+    }catch(e){
+      errEl.textContent = "🌐 Sin conexión al servidor. No puedes acceder ahora.";
+      return;
+    }
+  }
   if(!email || !pass){ errEl.textContent = "Introduce email y contraseña"; return; }
   if(pass.length < 6){ errEl.textContent = "La contraseña debe tener al menos 6 caracteres"; return; }
   btn.disabled = true; btn.textContent = "…";
@@ -1268,7 +1302,7 @@ function renderRutina(){
   const dayEx = routine.filter(e=>e.dia===sel).sort((a,b)=>(a.orden||0)-(b.orden||0));
   const dayCards = dayEx.length===0
     ? `<div class="empty-state">${sel} es día de descanso.<br>Pulsa «Editar» para añadir ejercicios si lo deseas.</div>`
-    : dayEx.map(e=>{
+    : dayEx.map((e,ei)=>{
         const img = getExerciseImage(e, datasetCache);
         const instrRaw = getInstrucciones(e);
         const key = String(e.datasetOriginal||e.dataset||e.nombre_es||"").trim().toLowerCase();
@@ -1277,9 +1311,13 @@ function renderRutina(){
         const rmHint = best && best.rm
           ? ` title="1RM = ${formatKg(best.kg)} × (1 + ${best.reps}/30) = ${formatKg(Math.round(best.rm))} kg (Epley)" data-has-rm="1"`
           : ` data-has-rm="0"`;
+        /* Primer ejercicio: above-the-fold — sin lazy y alta prioridad (LCP) */
+        const imgAttrs = ei === 0
+          ? `fetchpriority="high" decoding="async"`
+          : `loading="lazy" decoding="async"`;
         return `<div class="rt-ex-card">
           ${img ? `<div class="rtc-img-wrap" data-img-zoom data-ex-name="${escapeHtmlAttr(e.nombre_es)}" data-ex-dataset="${escapeHtmlAttr(e.dataset||"")}" data-ex-dataset-original="${escapeHtmlAttr(e.datasetOriginal||"")}" data-img-instr="${escapeHtmlAttr(instrRaw)}" role="button" tabindex="0" aria-label="Ampliar GIF de ${escapeHtmlAttr(getApodo(e))}">
-            <img class="rtc-img" src="${img}" alt="${escapeHtml(getApodo(e))}" loading="lazy" decoding="async" data-img-fallback="hide">
+            <img class="rtc-img" src="${img}" alt="${escapeHtml(getApodo(e))}" ${imgAttrs} data-img-fallback="hide">
             <div class="rtc-zoom-hint">⛶</div>
           </div>` : ""}
           <div class="rtc-info">
@@ -1333,12 +1371,17 @@ function exerciseCard(ex, i, day){
   const instr = formatInstructions(getInstrucciones(ex));
   const variantes = (ALTERNATIVAS[ex.dataset] || []).length;
   const instrRaw = getInstrucciones(ex);
+  /* Primer ejercicio del día: imagen above-the-fold — sin lazy, alta prioridad
+     (LCP image). El resto mantiene loading="lazy" para no competir. */
+  const imgAttrs = i === 0
+    ? `fetchpriority="high" decoding="async"`
+    : `loading="lazy" decoding="async"`;
 
   return `<div class="ex-row">
     <div class="ex-top">
       <div class="ex-img" ${imgUrl?`data-img-zoom data-ex-name="${escapeHtmlAttr(ex.nombre_es)}" data-ex-dataset="${escapeHtmlAttr(ex.dataset||"")}" data-ex-dataset-original="${escapeHtmlAttr(ex.datasetOriginal||"")}" data-img-instr="${escapeHtmlAttr(instrRaw)}" role="button" tabindex="0" aria-label="Ampliar GIF de ${escapeHtmlAttr(apodo)}"`:""}>
         ${imgUrl
-          ? `<img src="${imgUrl}" alt="${escapeHtml(ex.nombre_es)}" loading="lazy" decoding="async" data-img-fallback="emoji">`
+          ? `<img src="${imgUrl}" alt="${escapeHtml(ex.nombre_es)}" ${imgAttrs} data-img-fallback="emoji">`
           : "🏋️"}
       </div>
       <div class="ex-info">
@@ -3869,7 +3912,18 @@ function updateAuthTabs(){
   document.getElementById("authPass").autocomplete = authMode==="register" ? "new-password" : "current-password";
 }
 document.querySelectorAll("[data-auth-tab]").forEach(btn=>{
-  btn.addEventListener("click", ()=>{ authMode = btn.dataset.authTab; document.getElementById("authError").textContent = ""; updateAuthTabs(); });
+  btn.addEventListener("click", ()=>{
+    authMode = btn.dataset.authTab;
+    document.getElementById("authError").textContent = "";
+    updateAuthTabs();
+    /* Lazy Supabase: precargar el SDK al entrar en la pestaña de auth */
+    if(!sbClient && !authBlocked){
+      ensureSupabaseClient().then(()=>{
+        const skipBtn = document.getElementById("authSkip");
+        if(skipBtn) skipBtn.style.display = "none";
+      }).catch(()=>{});
+    }
+  });
 });
 const authForm = document.getElementById("authForm");
 if(authForm){
@@ -4305,6 +4359,10 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
 })();
 
 (async function init(){
+  /* CSS completo: pasa de media="print" (no bloquea render) a media="all" */
+  const fullCssLink = document.getElementById("fullCssLink");
+  if(fullCssLink && fullCssLink.media === "print"){ fullCssLink.media = "all"; }
+
   loadTrainingConfig();
   loadTrainingDays();
   /* Registrar UNA sola vez los handlers del overlay de edición de historial.
@@ -4314,8 +4372,15 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
   await runMigrations();
   if(DB && !historyLoaded) await loadHistoryFromDB();
   let authenticated = false;
-  if(sbClient){
+  /* Lazy Supabase: solo cargar el SDK (~180KB) si hay sesión previa guardada.
+     Sin sesión guardada, se salta el SDK y se muestra el overlay con "Continuar
+     sin conexión" disponible. El SDK se carga bajo demanda al hacer login. */
+  const supabaseRef = (()=>{ try{ return new URL(SUPABASE_URL).hostname.split(".")[0]; }catch(e){ return "vkaxxphminfinufitcyp"; } })();
+  const supabaseStorageKey = `sb-${supabaseRef}-auth-token`;
+  const hasStoredSession = (()=>{ try{ return !!localStorage.getItem(supabaseStorageKey); }catch(e){ return false; } })();
+  if(hasStoredSession){
     try{
+      await ensureSupabaseClient();
       const { data: authData } = await sbClient.auth.getSession();
       authUser = authData.session ? authData.session.user : null;
       /* Solo permitir acceso si el email está verificado */

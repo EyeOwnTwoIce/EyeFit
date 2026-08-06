@@ -43,7 +43,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && k !== 'eyefit-img-v1').map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -145,6 +145,24 @@ self.addEventListener('fetch', event => {
 
   // Supabase: siempre en red (auth + datos)
   if (isSupabaseUrl(url)) return;
+
+  // Imágenes de ejercicios externas (raw.githubusercontent.com):
+  // stale-while-revalidate con caché persistente (mejora cache policy y offline)
+  if (url.hostname === 'raw.githubusercontent.com' && url.pathname.includes('exercises-dataset')) {
+    const IMG_CACHE = 'eyefit-img-v1';
+    event.respondWith(
+      caches.open(IMG_CACHE).then(cache =>
+        cache.match(request).then(cached => {
+          const fetched = fetch(request).then(response => {
+            if (response && response.ok) cache.put(request, response.clone());
+            return response;
+          }).catch(() => cached);
+          return (cached || fetched) || OFFLINE_RESPONSE;
+        })
+      )
+    );
+    return;
+  }
 
   // rutina.xlsx: network-first con fallback a caché
   if (url.pathname.endsWith('/rutina.xlsx')) {

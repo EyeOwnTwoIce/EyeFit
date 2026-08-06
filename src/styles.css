@@ -104,6 +104,7 @@
     position:absolute; inset:0; width:100%;
     background:linear-gradient(90deg,#4CAF50,var(--green));
     transform:scaleX(1); transform-origin:left center; transition:transform 1s linear;
+    will-change:transform; /* promover a capa compositor para animación fluida */
   }
   .rest-bar-time{
     position:absolute; left:10px; top:50%; transform:translateY(-50%);
@@ -171,8 +172,11 @@
 
   /* ===== Scroll area ===== */
   .section{ display:none; animation:fadein .18s ease; }
-  .section.active{ display:block; }
+  .section.active{ display:block; content-visibility:auto; contain-intrinsic-size:auto 400px; }
   @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+  /* ===== FIN CSS CRITICO ===== */
+  /*EYEFIT_CRITICAL_END*/
 
   h2.title{
     font-size:16px; font-weight:800; margin:0 0 10px; padding-bottom:6px;
@@ -1075,6 +1079,18 @@
   .add-set-btn{ min-height:48px; }
   .hist-day-top{ padding:11px 13px; }
   .stop-btn, .btn{ min-height:44px; }
+
+  /* ===== Performance: compositing y CLS ===== */
+  .hist-content, .set-row-content{ will-change:transform; }
+  .ex-img img, .rtc-img-wrap img, .ex-active-img, .rt-ex-img,
+  .zoom-img, .confirm-ex-img, .spe-img img, .picker-item img{
+    image-rendering:-webkit-optimize-contrast; image-rendering:crisp-edges;
+    background:var(--surface2);
+  }
+  .rt-ex-card .rtc-img-wrap{ aspect-ratio:1; height:auto; }
+  .week-cell, .rc-cell{ transition:transform .15s ease; will-change:transform; }
+  .tabbtn .ic{ will-change:transform; }
+  .tabbtn.active::after{ will-change:transform; }
 
   @media (prefers-reduced-motion: reduce){
     *{ animation:none !important; transition:none !important; }

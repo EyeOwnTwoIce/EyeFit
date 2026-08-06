@@ -226,8 +226,12 @@
   .instr-list li{ margin-bottom:3px; }
   .instr-list li::marker{ color:var(--accent); font-weight:800; }
 
-  /* ===== Session: sin scroll, GIF protagonista, series compactas ===== */
-  .session-view{ height:calc(100dvh - 160px); display:flex; flex-direction:column; overflow:hidden; }
+  /* ===== Session: sin scroll, GIF protagonista, series compactas =====
+     Usamos .section.active.session-view (especificidad 0,3,0) para que
+     display:flex venza a .section.active{ display:block } — si no, el
+     session-view se renderiza como bloque (no flex), las series desbordan
+     y no hay scroll a las últimas, impidiendo marcarlas como hechas. */
+  .section.active.session-view{ height:calc(100dvh - 160px); display:flex; flex-direction:column; overflow:hidden; }
 
   .ex-active-card{
     background:var(--surface); border:2px solid var(--accent); border-radius:14px;
@@ -248,10 +252,10 @@
   }
   .variant-btn:active{ background:rgba(200,255,0,.12); }
 
-  .sets-grid{ display:flex; flex-direction:column; gap:4px; overflow-y:auto; flex:1; padding:0 14px 8px; -webkit-overflow-scrolling:touch; }
+  .sets-grid{ display:flex; flex-direction:column; gap:4px; overflow-y:auto; flex:1; min-height:0; padding:0 14px 8px; -webkit-overflow-scrolling:touch; }
 
   /* ===== Swipe-to-delete en series (el eliminado solo por swipe, sin rojo visible) ===== */
-  .set-row{ position:relative; overflow:hidden; display:flex; align-items:center; gap:8px; background:var(--surface2); border-radius:8px; padding:3px 8px; }
+  .set-row{ position:relative; overflow:hidden; display:flex; align-items:center; gap:8px; background:var(--surface2); border-radius:8px; padding:3px 8px; flex-shrink:0; }
   .set-swipe-bg{
     position:absolute; inset:0; background:var(--danger); color:#fff;
     display:flex; align-items:center; justify-content:flex-end; padding-right:16px;
@@ -292,7 +296,7 @@
   .del-set-btn{ display:none; } /* Eliminado: solo swipe a la izquierda */
   .add-set-btn{
     background:none; border:1px dashed var(--accent); color:var(--accent); border-radius:8px;
-    font-size:11px; font-weight:800; padding:8px; cursor:pointer; margin-top:2px;
+    font-size:11px; font-weight:800; padding:8px; cursor:pointer; margin-top:2px; flex-shrink:0;
   }
   .add-set-btn:active{ background:rgba(200,255,0,.1); }
 

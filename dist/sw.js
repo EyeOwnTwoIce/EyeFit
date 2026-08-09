@@ -3,8 +3,8 @@
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync
    - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
-const CACHE = "eyefit-vmsmfsyw8";
-const CORE_ASSETS = ["./","./index.html","./styles.461361c2.css","./app.bbfc4a7c.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
+const CACHE = "eyefit-vmsmgbtjk";
+const CORE_ASSETS = ["./","./index.html","./styles.461361c2.css","./app.43382379.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
 
 /* Shell offline: página mínima para un cold-load sin red */
 const OFFLINE_SHELL = `<!DOCTYPE html>
@@ -116,17 +116,22 @@ self.addEventListener('push', event => {
   })());
 });
 
-/* Al hacer click en la notificación: enfocar (o abrir) la PWA en la ruta indicada */
+/* Al hacer click en la notificación: enfocar (o abrir) la PWA en la ruta
+   indicada y FORZAR recarga para servir la nueva versión desplegada.
+   (Si la app ya está abierta, postMessage 'EYEFIT_RELOAD' → app.js hace
+   location.reload(); si está cerrada, openWindow + el flujo natural de
+   actualización del SW recarga al detectar la nueva versión.) */
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const targetUrl = (event.notification.data && event.notification.data.url) || './';
   event.waitUntil((async () => {
     const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const client of allClients) {
-      if ('focus' in client) { try { await client.focus(); } catch(_){} }
-    }
-    if (!allClients.length) {
-      try { await self.clients.openWindow(targetUrl); } catch(_) {}
+    if (allClients.length) {
+      const client = allClients[0];
+      try { await client.focus(); } catch(_){}
+      try { client.postMessage({ type: 'EYEFIT_RELOAD' }); } catch(_){}
+    } else {
+      try { await self.clients.openWindow(targetUrl); } catch(_){}
     }
   })());
 });

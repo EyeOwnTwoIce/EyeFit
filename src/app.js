@@ -4445,25 +4445,12 @@ if('serviceWorker' in navigator){
         if(!sw) return;
         sw.addEventListener('statechange', ()=>{
           if(sw.state === 'installed' && navigator.serviceWorker.controller){
-            /* Nueva versión desplegada en GitHub. Si el usuario está suscrito a
-               push, el CI ya le ha enviado la notificación (que llega aunque la
-               app esté cerrada). Aquí, con la app abierta, avisamos y recargamos
-               automáticamente SIN bloquear con confirm(). */
+            /* Nueva versión desplegada en GitHub. Si la app está abierta (o se
+               acaba de abrir al tocar la notificación push), avisamos con un
+               toast y recargamos automáticamente SIN bloquear con confirm().
+               No se muestra otra notificación de sistema: el Web Push real ya
+               notificó al usuario (evita la duplicada al reabrir la app). */
             showToast("🔄 Nueva versión disponible");
-            const isSubscribed = lsGet(K_NEWS_KEYS.pushSubscribed, false);
-            if(isSubscribed){
-              try {
-                reg.showNotification && reg.showNotification(
-                  "🔄 EyeFit actualizado",
-                  {
-                    body: "Hay una nueva versión de EyeFit. Recargando…",
-                    icon: './icons/icon-192.png',
-                    badge: './icons/icon-192.png',
-                    data: { url: './', tag: 'eyefit-update' }
-                  }
-                );
-              } catch(_) {}
-            }
             /* Activar la nueva versión: recarga automática no intrusiva.
                Si hay una sesión de entrenamiento en curso, esperamos a que el
                usuario termine (persistActiveSession guarda el estado en pagehide). */
@@ -4482,6 +4469,9 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', (event)=>{
     if(event.data && event.data.type === 'EYEFIT_SYNC'){
       if(authUser) scheduleSync();
+    } else if(event.data && event.data.type === 'EYEFIT_RELOAD'){
+      /* El usuario tocó la notificación push → recargar a la nueva versión */
+      window.location.reload();
     }
   });
   let deferredPrompt = null;

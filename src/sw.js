@@ -116,17 +116,22 @@ self.addEventListener('push', event => {
   })());
 });
 
-/* Al hacer click en la notificación: enfocar (o abrir) la PWA en la ruta indicada */
+/* Al hacer click en la notificación: enfocar (o abrir) la PWA en la ruta
+   indicada y FORZAR recarga para servir la nueva versión desplegada.
+   (Si la app ya está abierta, postMessage 'EYEFIT_RELOAD' → app.js hace
+   location.reload(); si está cerrada, openWindow + el flujo natural de
+   actualización del SW recarga al detectar la nueva versión.) */
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const targetUrl = (event.notification.data && event.notification.data.url) || './';
   event.waitUntil((async () => {
     const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const client of allClients) {
-      if ('focus' in client) { try { await client.focus(); } catch(_){} }
-    }
-    if (!allClients.length) {
-      try { await self.clients.openWindow(targetUrl); } catch(_) {}
+    if (allClients.length) {
+      const client = allClients[0];
+      try { await client.focus(); } catch(_){}
+      try { client.postMessage({ type: 'EYEFIT_RELOAD' }); } catch(_){}
+    } else {
+      try { await self.clients.openWindow(targetUrl); } catch(_){}
     }
   })());
 });

@@ -121,6 +121,29 @@ de `.github/workflows/ci.yml` publica el `dist/` generado con `actions/deploy-pa
   justo después de cada deploy (Edge Function de Supabase `eyefit-push`, que lee las
   suscripciones de `push_subscriptions` y envía el push con VAPID).
 
+### Notificaciones push (pruebas y configuración)
+
+Arquitectura: al hacer push a `main`, el CI despliega a GitHub Pages y llama a la Edge
+Function `eyefit-push`, que lee los endpoints de `push_subscriptions` y envía el Web Push.
+
+- **Activar en un dispositivo**: abre la PWA instalada (iOS: Add to Home Screen) →
+  Ajustes → 🔔 Activar notificaciones → concede el permiso. La suscripción se guarda en
+  Supabase (tabla `push_subscriptions`).
+- **Probar el envío manual** (sin re-desplegar):
+
+  ```bash
+  curl -sS -X POST "<SUPABASE_URL>/functions/v1/eyefit-push" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer <ANON_OR_SERVICE_KEY>" \
+    -d '{"title":"🧪 EyeFit prueba","body":"Notificación de prueba","url":"./"}'
+  ```
+
+  Respuesta esperada: `{"ok":true,"sent":1,"results":[{"ok":true,...}]}`. Un `ok:false` con
+  `error` 401 = claves VAPID no coinciden; 404/410 = suscripción expirada (se limpia sola).
+- **Re-desplegar y notificar a todos**: `Actions` → `CI` → `Run workflow` (o push a `main`).
+- **VAPID**: la `VAPID_PUBLIC_KEY` del cliente (`src/app.js`) debe coincidir con las secretas
+  de la Edge Function (`VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` en Supabase).
+
 ---
 
 ## 📁 Estructura del proyecto

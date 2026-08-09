@@ -4,6 +4,18 @@ const { test, expect } = require('@playwright/test');
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
+    // La app solo muestra la vista previa de entrenamiento en días con rutina
+    // (Lunes–Viernes). Fijamos la fecha a un Lunes para que el test sea
+    // determinista (CI puede ejecutarse en sábado/domingo → hoy no hay rutina).
+    const RealDate = Date;
+    const FIXED_TIME = new RealDate('2026-08-03T10:00:00').getTime(); // Lunes 2026-08-03
+    class MockDate extends RealDate {
+      constructor(...args) {
+        super(...(args.length === 0 ? [FIXED_TIME] : args));
+      }
+      static now() { return FIXED_TIME; }
+    }
+    window.Date = MockDate;
     localStorage.clear();
     localStorage.setItem('eyefit_onboarding_seen', '1');
   });

@@ -3,7 +3,7 @@
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync
    - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
-const CACHE = "eyefit-vmsmgbtjk";
+const CACHE = "eyefit-vmsmgddvx";
 const CORE_ASSETS = ["./","./index.html","./styles.461361c2.css","./app.43382379.js","./manifest.json","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png"];
 
 /* Shell offline: página mínima para un cold-load sin red */
@@ -131,7 +131,11 @@ self.addEventListener('notificationclick', event => {
       try { await client.focus(); } catch(_){}
       try { client.postMessage({ type: 'EYEFIT_RELOAD' }); } catch(_){}
     } else {
-      try { await self.clients.openWindow(targetUrl); } catch(_){}
+      /* App cerrada: abrir forzando red. Añadimos un parámetro único para que
+         el SW no sirva el index.html cacheado (cache-first) y cargue la nueva
+         versión desplegada de inmediato. */
+      const sep = targetUrl.includes('?') ? '&' : '?';
+      try { await self.clients.openWindow(targetUrl + sep + '_v=' + Date.now().toString(36)); } catch(_){}
     }
   })());
 });
@@ -215,7 +219,11 @@ self.addEventListener('fetch', event => {
           }
           return response;
         }).catch(() =>
-          new Response(OFFLINE_SHELL, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+          /* Offline: si el request no matcheó la caché (p.ej. cache-bust ?_v=...),
+             servir el index cacheado; solo si tampoco está, el shell offline. */
+          caches.match('./index.html').then(idx =>
+            idx || new Response(OFFLINE_SHELL, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+          )
         );
       })
     );

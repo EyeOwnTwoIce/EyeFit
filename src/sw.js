@@ -131,7 +131,11 @@ self.addEventListener('notificationclick', event => {
       try { await client.focus(); } catch(_){}
       try { client.postMessage({ type: 'EYEFIT_RELOAD' }); } catch(_){}
     } else {
-      try { await self.clients.openWindow(targetUrl); } catch(_){}
+      /* App cerrada: abrir forzando red. Añadimos un parámetro único para que
+         el SW no sirva el index.html cacheado (cache-first) y cargue la nueva
+         versión desplegada de inmediato. */
+      const sep = targetUrl.includes('?') ? '&' : '?';
+      try { await self.clients.openWindow(targetUrl + sep + '_v=' + Date.now().toString(36)); } catch(_){}
     }
   })());
 });
@@ -215,7 +219,11 @@ self.addEventListener('fetch', event => {
           }
           return response;
         }).catch(() =>
-          new Response(OFFLINE_SHELL, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+          /* Offline: si el request no matcheó la caché (p.ej. cache-bust ?_v=...),
+             servir el index cacheado; solo si tampoco está, el shell offline. */
+          caches.match('./index.html').then(idx =>
+            idx || new Response(OFFLINE_SHELL, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+          )
         );
       })
     );

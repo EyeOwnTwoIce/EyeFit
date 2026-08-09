@@ -17,10 +17,9 @@ jobs:
   # (hash de package-lock.json), así npm ci se hace solo 1 vez y
   # los demás jobs restauran desde caché (rápido).
   #
-  # NOTA: el deploy a producción se hace en DOS sitios:
-  #   - GitHub Pages: job deploy-pages (abajo) publica dist/ con actions/deploy-pages.
-  #   - Cloudflare Pages: se dispara solo al hacer push a main (Git integration,
-  #     build: npm run build → dist/).
+  # NOTA: el deploy a producción se hace en GitHub Pages vía el job
+  # deploy-pages (abajo), que publica dist/ con actions/deploy-pages y
+  # después avisa por Web Push a los suscritos (Edge Function 'eyefit-push').
   # Este CI además valida: tests unitarios, build, e2e y lighthouse.
 
   build-test:
@@ -160,6 +159,27 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 
-  # NOTA: el deploy a Cloudflare Pages se dispara solo al pushear a main
-  # (Git integration, build: npm run build → dist/). La notificación push tras
-  # deploy exitoso se gestiona en el workflow separado: .github/workflows/notify.yml
+      # Notificar a los usuarios suscritos que la app se actualizó (Web Push real-time).
+      # Se llama justo después del deploy a GitHub Pages: la Edge Function de Supabase
+      # 'eyefit-push' lee las suscripciones de push_subscriptions y envía el push con VAPID.
+      # Requiere los secretos del repo: SUPABASE_PUSH_FN_URL (y SUPABASE_PUSH_FN_KEY si aplica).
+      - name: Notify push update (Supabase Edge Function)
+        if: success()
+        run: |
+          if [ -z "${{ secrets.SUPABASE_PUSH_FN_URL }}" ]; then
+            echo "⚠️ SUPABASE_PUSH_FN_URL no configurado — salto notificación push."
+            exit 0
+          fi
+          curl -sS -X POST "${{ secrets.SUPABASE_PUSH_FN_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_PUSH_FN_KEY }}" \
+            -d '{
+              "title": "🔄 EyeFit actualizado",
+              "body": "Nueva versión disponible. Toca para recargar y ver las novedades.",
+              "url": "./"
+            }' \
+            && echo "Push enviado." || echo "El servicio push no respondió (no bloquea)."
+
+  # NOTA: el deploy se hace SOLO a GitHub Pages (el deploy-pages de arriba).
+  # El aviso Web Push tras cada deploy lo hace el paso "Notify push update"
+  # del propio job deploy-pages (sin depender de servicios externos).

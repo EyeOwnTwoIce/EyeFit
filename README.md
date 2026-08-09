@@ -112,16 +112,14 @@ El build genera la carpeta `dist/` lista para desplegar.
 
 ### Deploy
 
-El deploy se hace automáticamente al hacer push a `main` en **dos sitios**:
-
-1. **GitHub Pages** (`https://eyeowntwoice.github.io/EyeFit/`): el job `deploy-pages`
-   de `.github/workflows/ci.yml` publica el `dist/` generado con `actions/deploy-pages`.
-2. **Cloudflare Pages**: se dispara solo al hacer push a `main`
-   (Build command: `npm run build` → output: `dist/`).
+El deploy se hace automáticamente al hacer push a `main` en **GitHub Pages**
+(`https://eyeowntwoice.github.io/EyeFit/`): el job `deploy-pages`
+de `.github/workflows/ci.yml` publica el `dist/` generado con `actions/deploy-pages`.
 
 - **CI** (`.github/workflows/ci.yml`): ejecuta tests unitarios, build, e2e y Lighthouse en cada push/PR.
-- **Notificación push**: `.github/workflows/notify.yml` espera a que el deploy de Cloudflare termine
-  y avisa por Web Push a los dispositivos suscritos (Edge Function de Supabase `eyefit-push`).
+- **Notificación push**: el job `deploy-pages` avisa por Web Push a los dispositivos suscritos
+  justo después de cada deploy (Edge Function de Supabase `eyefit-push`, que lee las
+  suscripciones de `push_subscriptions` y envía el push con VAPID).
 
 ---
 

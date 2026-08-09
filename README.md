@@ -112,8 +112,12 @@ El build genera la carpeta `dist/` lista para desplegar.
 
 ### Deploy
 
-El deploy se hace automáticamente con **Cloudflare Pages** al hacer push a `main`
-(Build command: `npm run build` → output: `dist/`).
+El deploy se hace automáticamente al hacer push a `main` en **dos sitios**:
+
+1. **GitHub Pages** (`https://eyeowntwoice.github.io/EyeFit/`): el job `deploy-pages`
+   de `.github/workflows/ci.yml` publica el `dist/` generado con `actions/deploy-pages`.
+2. **Cloudflare Pages**: se dispara solo al hacer push a `main`
+   (Build command: `npm run build` → output: `dist/`).
 
 - **CI** (`.github/workflows/ci.yml`): ejecuta tests unitarios, build, e2e y Lighthouse en cada push/PR.
 - **Notificación push**: `.github/workflows/notify.yml` espera a que el deploy de Cloudflare termine

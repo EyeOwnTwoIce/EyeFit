@@ -112,7 +112,12 @@ El build genera la carpeta `dist/` lista para desplegar.
 
 ### Deploy
 
-El CI (`.github/workflows/ci.yml`) ejecuta tests + e2e + build y despliega a **GitHub Pages** automáticamente al hacer push a `main`.
+El deploy se hace automáticamente con **Cloudflare Pages** al hacer push a `main`
+(Build command: `npm run build` → output: `dist/`).
+
+- **CI** (`.github/workflows/ci.yml`): ejecuta tests unitarios, build, e2e y Lighthouse en cada push/PR.
+- **Notificación push**: `.github/workflows/notify.yml` espera a que el deploy de Cloudflare termine
+  y avisa por Web Push a los dispositivos suscritos (Edge Function de Supabase `eyefit-push`).
 
 ---
 

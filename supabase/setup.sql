@@ -129,8 +129,10 @@ drop table if exists public.routinas;
 --    Una fila por dispositivo suscrito. La app hace upsert de su endpoint
 --    y la Edge Function eyefit-push las lee (con service_role) para
 --    enviar notificaciones al acabar cada deploy.
---    RLS: permitimos a anon insertar/borrar SU endpoint (por dispositivo).
---    El SELECT lo hace la EF con service_role (ya bypassa RLS).
+--    RLS: permitimos a anon/authenticated SELECT+INSERT+UPDATE+DELETE
+--    su endpoint. IMPORTANTE: el upsert usa ON CONFLICT DO UPDATE, que
+--    exige políticas SELECT (visibilidad de la fila en conflicto) y
+--    UPDATE. Sin ellas el registro falla en silencio (tabla vacía).
 -- ════════════════════════════════════════════════════════════════
 create table if not exists public.push_subscriptions (
   endpoint  text primary key,
@@ -141,14 +143,31 @@ create table if not exists public.push_subscriptions (
 
 alter table public.push_subscriptions enable row level security;
 
+-- Select: necesario para que el ON CONFLICT DO UPDATE del upsert funcione
+drop policy if exists "push_subscriptions_select" on public.push_subscriptions;
+create policy "push_subscriptions_select"
+  on public.push_subscriptions for select
+  to anon, authenticated
+  using (true);
+
 -- Insert/upsert: el dispositivo registra/se actualiza su endpoint
 drop policy if exists "push_subscriptions_upsert" on public.push_subscriptions;
 create policy "push_subscriptions_upsert"
   on public.push_subscriptions for insert
+  to anon, authenticated
+  with check (true);
+
+-- Update: la re-suscripción (mismo endpoint) ejecuta ON CONFLICT DO UPDATE
+drop policy if exists "push_subscriptions_update" on public.push_subscriptions;
+create policy "push_subscriptions_update"
+  on public.push_subscriptions for update
+  to anon, authenticated
+  using (true)
   with check (true);
 
 -- Delete: el dispositivo elimina su endpoint al desuscribirse
 drop policy if exists "push_subscriptions_delete" on public.push_subscriptions;
 create policy "push_subscriptions_delete"
   on public.push_subscriptions for delete
+  to anon, authenticated
   using (true);

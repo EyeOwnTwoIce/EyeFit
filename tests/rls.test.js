@@ -103,9 +103,12 @@ test('RLS: RLS habilitado en push_subscriptions', () => {
   assert.match(SQL, /alter table public\.push_subscriptions enable row level security/i);
 });
 
-test('RLS: políticas push_subscriptions_upsert y push_subscriptions_delete', () => {
+test('RLS: políticas push_subscriptions (select/insert/update/delete para upsert)', () => {
   assert.match(SQL, /create policy "push_subscriptions_upsert"/i);
   assert.match(SQL, /create policy "push_subscriptions_delete"/i);
+  assert.match(SQL, /create policy "push_subscriptions_select"/i);
+  assert.match(SQL, /create policy "push_subscriptions_update"/i);
   assert.match(SQL, /drop policy if exists "push_subscriptions_upsert"/i);
   assert.match(SQL, /drop policy if exists "push_subscriptions_delete"/i);
+  assert.match(SQL, /to anon, authenticated/i);
 });

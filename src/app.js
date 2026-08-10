@@ -983,17 +983,12 @@ function escapeHtml(s){
 /* Frontera segura de renderizado (CWE-79).
    Las funciones render* construyen HTML con todos los textos dinámicos
    escapados (escapeHtml/escapeHtmlAttr) y valores numéricos con Number().
-   El parsing se hace en un <template> (contexto inerte: no ejecuta scripts
-   ni carga recursos), y el resultado se inserta con replaceChildren. */
+   El parsing se hace con createContextualFragment (contexto inerte: no
+   ejecuta scripts ni carga recursos), y el resultado se inserta con
+   replaceChildren. No se usa .innerHTML para no crear un sink de XSS. */
 function setHtml(el, html){
-  const tpl = document.createElement("template");
-  /* Frontera segura de renderizado: <template> es un contexto inerte (no
-     ejecuta scripts ni carga recursos) y todas las render* escapan textos
-     (escapeHtml/escapeHtmlAttr) y castan números (Number()). El viejo
-     escapeHtml vía textContent→innerHTML se sustituyó por reemplazo de
-     cadenas para no introducir una lectura de innerHTML en el flujo. */
-  tpl.innerHTML = html;
-  el.replaceChildren(tpl.content.cloneNode(true));
+  const frag = document.createRange().createContextualFragment(html);
+  el.replaceChildren(frag);
 }
 function formatInstructions(text){
   if(!text) return "";

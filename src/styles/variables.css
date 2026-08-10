@@ -1,0 +1,7 @@
+/* EyeFit — variables :root (modular, refactor #3) */
+:root{
+    --accent:#C8FF00; --bg:#000000; --surface:#141414; --surface2:#1C1C1E;
+    --border:#2C2C2E; --text:#F2F2F7; --muted:#8E8E93; --danger:#FF453A;
+    --blue:#0A84FF; --green:#30D158; --orange:#FFD60A;
+    --purple:#BF5AF2; --redm:#FF6961;
+  }

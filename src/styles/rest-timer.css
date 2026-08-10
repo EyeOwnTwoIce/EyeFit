@@ -1,0 +1,170 @@
+/* EyeFit — edición de sesiones/historial, overlays comunes y piezas de ajustes (modular, refactor #3) */
+  /* ===== Danger Zone ===== */
+  .danger-zone{
+    border:1px solid rgba(255,69,58,.35);
+    background:rgba(255,69,58,.04);
+  }
+  .danger-zone-title{
+    color:var(--danger) !important;
+  }
+  .danger-zone .set-row-item{ border-bottom:1px solid rgba(255,69,58,.15); }
+
+  /* ===== Acerca de colapsado con sub-desplegables ===== */
+  .about-details{ background:var(--surface); border:1px solid var(--border); border-radius:11px; margin-bottom:7px; overflow:hidden; }
+  .about-details > summary{
+    padding:12px 15px; font-size:12.5px; font-weight:700; cursor:pointer; list-style:none;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .about-details > summary::-webkit-details-marker{ display:none; }
+  .about-details > summary::after{ content:"▸"; font-size:13px; color:var(--muted); transition:transform .2s; }
+  .about-details[open] > summary::after{ transform:rotate(90deg); }
+  .about-sub{ border-top:1px solid var(--border); padding:2px 0; }
+  .about-sub details{ padding:0 14px; border-bottom:1px solid var(--border); }
+  .about-sub details:last-child{ border-bottom:none; }
+  .about-sub details summary{
+    padding:10px 0; font-size:11.5px; font-weight:700; cursor:pointer; list-style:none;
+    color:#ccc; display:flex; align-items:center; gap:6px;
+  }
+  .about-sub details summary::-webkit-details-marker{ display:none; }
+  .about-sub details summary::before{ content:"▸"; font-size:11px; color:var(--muted); transition:transform .2s; display:inline-block; }
+  .about-sub details[open] summary::before{ transform:rotate(90deg); }
+  .about-sub details .about-body{ padding:2px 0 10px 16px; color:var(--muted); font-size:10.5px; line-height:1.6; }
+  .about-sub details .about-body a{ color:var(--accent); }
+
+  /* ===== Footer GitHub ===== */
+  .footer-credit{
+    text-align:center; color:var(--muted); font-size:11px; padding:14px 0 8px;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .footer-credit .made{ letter-spacing:.2px; }
+  .gh-btn{
+    display:inline-flex; align-items:center; gap:7px;
+    background:var(--surface); border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:9px 16px; font-size:12px; font-weight:700; text-decoration:none;
+  }
+  .gh-btn:active{ border-color:var(--accent); color:var(--accent); }
+  .gh-btn svg{ width:18px; height:18px; fill:currentColor; }
+
+  /* ===== Editar sesión del historial ===== */
+  #editHistOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.95); z-index:260;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    width:100%; margin:0 auto; padding:18px;
+  }
+  #editHistOverlay.show{ display:flex; }
+  .edit-hist-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    width:100%; max-width:520px; max-height:88dvh; display:flex; flex-direction:column; overflow:hidden;
+  }
+  .edit-hist-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px; border-bottom:1px solid var(--border);
+  }
+  .edit-hist-title{ font-size:15px; font-weight:800; }
+  .edit-hist-close{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; width:34px; height:34px; font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .edit-hist-date{ color:var(--muted); font-size:11px; padding:10px 16px 0; }
+  .edit-hist-list{
+    flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:8px 16px 10px;
+  }
+  .edit-hist-ex{ margin-bottom:10px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; }
+  .edit-hist-ex .eh-name{ font-size:12px; font-weight:800; color:var(--accent); margin-bottom:6px; }
+  .edit-hist-set{ display:flex; align-items:center; gap:6px; padding:3px 0; }
+  .edit-hist-set .ehs-num{ color:var(--muted); font-size:10px; font-weight:700; width:14px; flex-shrink:0; text-align:center; }
+  .edit-hist-set .ehs-input{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:7px; padding:5px 7px; font-size:12px; font-weight:700; width:56px; text-align:center;
+    font-variant-numeric:tabular-nums; outline:none;
+  }
+  .edit-hist-set .ehs-input:focus{ border-color:var(--accent); }
+  .edit-hist-set .ehs-label{ color:var(--muted); font-size:8.5px; flex-shrink:0; }
+  .edit-hist-btns{ display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--border); }
+  .edit-hist-btns .btn{ flex:1; min-height:44px; }
+
+  /* ===== Edit historial: campos meta (hora inicio + duración) ===== */
+  .edit-hist-meta{
+    display:flex; gap:8px; padding:10px 16px 0; flex-shrink:0;
+  }
+  .eh-meta-field{
+    display:flex; flex-direction:column; gap:3px; flex:1;
+  }
+  .eh-meta-lbl{
+    color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.5px; font-weight:700;
+  }
+  .eh-meta-field .ehs-input{ width:100%; }
+  .eh-meta-field .eh-dur{ width:100%; }
+  .eh-name-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .ehs-del-set{
+    background:var(--surface2); border:1px solid var(--border); color:var(--danger);
+    border-radius:6px; width:26px; height:26px; font-size:11px; cursor:pointer; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .ehs-del-set:active{ border-color:var(--danger); }
+  .ehs-del-ex{
+    background:var(--surface2); border:1px solid var(--border); color:var(--danger);
+    border-radius:6px; width:26px; height:26px; font-size:11px; cursor:pointer; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .ehs-add-set{
+    background:none; border:1px dashed var(--accent); color:var(--accent); border-radius:8px;
+    padding:7px; width:100%; font-weight:700; font-size:11px; margin-top:6px; cursor:pointer;
+  }
+  .ehs-add-set:active{ background:rgba(200,255,0,.12); }
+  .ehs-swap-ex{
+    background:var(--surface2); border:1px solid var(--border); color:var(--accent);
+    border-radius:6px; width:30px; height:26px; font-size:11px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .ehs-swap-ex:active{ border-color:var(--accent); background:rgba(200,255,0,.12); }
+
+  /* ===== Overlays comunes ===== */
+  .about-block{
+    background:var(--surface); border:1px solid var(--border); border-radius:11px;
+    padding:12px 15px; margin-bottom:7px; color:#ccc; font-size:11px; line-height:1.6;
+  }
+  .about-block .ab-title{
+    color:var(--accent); font-size:10px; text-transform:uppercase; letter-spacing:.6px;
+    font-weight:800; margin-bottom:4px;
+  }
+  .about-block a{ color:var(--accent); }
+  .empty-state{ text-align:center; color:var(--muted); font-size:13px; padding:36px 16px; line-height:1.7; }
+
+  /* ===== Ampliación GIF (wrap) ===== */
+  .ex-img-wrap{ position:relative; cursor:pointer; }
+  .ex-img-zoom-hint{
+    position:absolute; top:6px; right:6px; background:rgba(0,0,0,.55);
+    color:#fff; border-radius:6px; font-size:12px; width:30px; height:30px;
+    display:flex; align-items:center; justify-content:center; pointer-events:none;
+  }
+
+  /* ===== Instrucciones en sesión ===== */
+  .ex-instr-session{
+    display:none; color:#ccc; font-size:11px; line-height:1.5; margin:0 13px 10px;
+    padding:8px 10px; background:var(--surface2); border-radius:8px;
+  }
+  .ex-instr-session.show{ display:block; margin-top:-4px; }
+
+  /* ===== Ejercicios pendientes (reordenar con flechas) ===== */
+  .sess-next-hint{
+    text-align:center; color:var(--muted); font-size:10px; padding:4px 0 8px;
+  }
+  .up-list{ margin:4px 14px 0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px; flex-shrink:0; }
+  .up-title{ color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.6px; font-weight:700; margin-bottom:6px; }
+  .up-row{ display:flex; align-items:center; gap:7px; padding:5px 0; border-bottom:1px solid var(--border); }
+  .up-row:last-child{ border-bottom:none; }
+  .up-arrows{ display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
+  .up-arrow{
+    background:none; border:1px solid var(--border); color:var(--accent);
+    border-radius:5px; font-size:10px; width:24px; height:20px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; line-height:1; padding:0;
+  }
+  .up-arrow:disabled{ opacity:.25; }
+  .up-arrow:active{ background:var(--accent); color:#000; }
+  .up-num{ font-weight:800; font-size:11px; width:14px; flex-shrink:0; text-align:center; }
+  .up-name{ font-size:11.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .up-sets{ color:var(--muted); font-size:10px; flex-shrink:0; font-variant-numeric:tabular-nums; }
+

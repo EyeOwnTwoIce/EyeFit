@@ -1,0 +1,292 @@
+/* EyeFit — vistas rutina, sesión, historial y ajustes (modular, refactor #3) */
+  /* ===== Summary screen (guardado automático) ===== */
+  .summary-overlay{
+    position:fixed; inset:0; z-index:350; background:var(--bg);
+    display:none; flex-direction:column; width:100%; margin:0 auto; padding:calc(env(safe-area-inset-top) + 20px) 20px 20px; overflow-y:auto;
+  }
+  .summary-overlay.show{ display:flex; }
+  .sum-title{ font-size:22px; font-weight:900; text-align:center; margin:10px 0 4px; }
+  .sum-sub{ color:var(--muted); font-size:12px; text-align:center; margin-bottom:16px; }
+  .sum-saved-msg{
+    background:rgba(200,255,0,.12); border:1px solid var(--accent); color:var(--accent);
+    border-radius:10px; padding:9px; text-align:center; font-size:12px; font-weight:800; margin-bottom:12px;
+  }
+  .sum-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+  .sum-stat{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:16px 10px; text-align:center;
+  }
+  .sum-stat .sv{ font-size:24px; font-weight:900; color:var(--accent); font-variant-numeric:tabular-nums; }
+  .sum-stat .sl{ color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.7px; margin-top:3px; font-weight:700; }
+  .sum-ex{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:11px 14px; margin-bottom:8px; }
+  .sum-ex-top{ display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; }
+  .sum-ex-sub{ color:var(--muted); font-size:10px; margin-top:3px; }
+  .sum-btns{ display:flex; gap:10px; margin-top:auto; padding-top:10px; }
+  .sum-btns button{ flex:1; border-radius:12px; padding:14px; font-size:14px; font-weight:800; border:none; cursor:pointer; }
+  .sum-save{ background:var(--accent); color:#000; }
+  .sum-done{ background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+
+  /* ===== History ===== */
+  .hist-day{ background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-bottom:9px; position:relative; overflow:hidden; }
+  .hist-day-top{
+    padding:11px 13px; display:flex; align-items:center; gap:10px; cursor:pointer;
+  }
+  .hist-day-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .hist-day-name{ font-weight:800; font-size:13px; }
+  .hist-day-date{ color:var(--muted); font-size:10px; margin-left:auto; }
+  .hist-edit-btn{
+    background:none; border:none; color:var(--accent); font-size:13px; cursor:pointer;
+    padding:4px; opacity:.8; flex-shrink:0; margin-left:4px;
+  }
+  .hist-edit-btn:active{ opacity:1; transform:scale(.92); }
+  .hist-del-btn{
+    background:none; border:none; color:var(--danger); font-size:13px; cursor:pointer;
+    padding:4px; opacity:.7; flex-shrink:0; margin-left:2px;
+  }
+  .hist-del-btn:active{ opacity:1; transform:scale(.92); }
+  .hist-day-body{ display:none; border-top:1px solid var(--border); padding:10px 15px; }
+  .hist-day.open .hist-day-body{ display:block; }
+  .hist-day-stats{ color:var(--muted); font-size:10px; margin-bottom:7px; }
+  .hist-ex{ display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:11px; }
+  .hist-ex-name{ flex:1; color:#ccc; font-weight:600; }
+  .hist-ex-set{ color:var(--muted); font-weight:600; flex-shrink:0; margin-left:6px; font-size:10px; }
+  .hist-summary{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .hist-stat{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 8px; text-align:center; }
+  .hist-stat .v{ font-size:17px; font-weight:800; color:var(--accent); }
+  .hist-stat .l{ color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.5px; margin-top:2px; }
+
+  /* Triángulo: derecha colapsado, abajo expandido */
+  .hist-tri{
+    width:0; height:0; border-top:7px solid transparent; border-bottom:7px solid transparent;
+    border-left:9px solid var(--muted); flex-shrink:0; transition:transform .2s ease;
+  }
+  .hist-day.open .hist-tri{ transform:rotate(90deg); }
+
+  /* Swipe-to-delete historial */
+  .hist-swipe-bg{
+    position:absolute; inset:0; background:var(--danger); color:#fff; display:flex;
+    align-items:center; justify-content:flex-end; padding-right:18px;
+    font-size:12px; font-weight:800; border-radius:12px;
+  }
+  .hist-content{
+    position:relative; z-index:1; background:var(--surface);
+    border-radius:12px; transition:transform .2s ease; width:100%;
+  }
+  .hist-day.swiped .hist-content{ transform:translateX(-100px); }
+
+  /* Multiples sesiones por día en el historial */
+  .hist-days-mult .hist-day{ margin-bottom:9px; }
+
+  /* ===== Carrusel de días en Rutina (7 días) ===== */
+  .routine-carousel{
+    display:flex; gap:8px; overflow-x:auto; margin-bottom:12px;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none; -ms-overflow-style:none;
+    padding:2px 2px 4px; scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+  }
+  .routine-carousel::-webkit-scrollbar{ display:none; }
+  .rc-cell{
+    flex:0 0 72px; background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:8px 6px; text-align:center; cursor:pointer; scroll-snap-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:5px; transition:transform .15s ease;
+  }
+  .rc-cell.rc-active{ border-color:var(--accent); background:rgba(200,255,0,.08); }
+  .rc-cell.rc-today{ box-shadow:0 0 0 2px rgba(200,255,0,.25); }
+  .rc-top{ display:flex; flex-direction:column; align-items:center; gap:1px; }
+  .rc-day{ font-weight:900; font-size:13px; }
+  .rc-date{ color:var(--muted); font-size:8px; }
+  .rc-list{ display:flex; flex-direction:column; gap:2px; width:100%; max-height:120px; overflow-y:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .rc-list::-webkit-scrollbar{ display:none; }
+  .rc-item{
+    font-size:7.5px; color:var(--muted); font-weight:600; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; max-width:60px;
+  }
+  .rc-more{ color:var(--accent); font-size:8px; font-weight:800; }
+  .rc-rest{ color:var(--muted); font-size:9px; }
+  .rt-ex-img{ border-radius:6px; object-fit:cover; display:block; flex-shrink:0; }
+
+  /* ===== Drag & drop reordenar ejercicios (F1) ===== */
+  .edit-ex-row.dragging, .up-row.dragging{
+    opacity:.35; transform:scale(1.02); box-shadow:0 8px 24px rgba(0,0,0,.5);
+    z-index:50; position:relative;
+  }
+  .edit-ex-row.drag-over, .up-row.drag-over{ border-color:var(--accent); box-shadow:0 -2px 0 var(--accent); }
+  body.dragging-active{ cursor:grabbing; -webkit-user-select:none; user-select:none; }
+
+  /* ===== Editar rutina: estética homogénea con edición historial (UX5) ===== */
+  .routine-edit-top{
+    display:flex; align-items:center; gap:6px; margin-bottom:12px;
+  }
+  .routine-edit-top .btn{ flex-shrink:0; min-height:38px; padding:8px 14px; font-size:12px; }
+  .edit-ex-row{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:8px 10px; margin-bottom:9px; cursor:grab;
+  }
+  .edit-ex-row:active{ cursor:grabbing; }
+  .edit-ex-top{ display:flex; align-items:center; gap:7px; }
+  .edit-ex-idx{
+    font-size:12px; font-weight:800; color:var(--accent); width:16px; text-align:center; flex-shrink:0;
+  }
+  .edit-ex-name{ font-size:12px; font-weight:800; color:var(--accent); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .edit-ex-actions{ display:flex; align-items:center; gap:4px; flex-shrink:0; }
+  .edit-mini{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; width:28px; height:28px; font-size:11px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .edit-mini:active{ border-color:var(--accent); }
+  .edit-mini.danger{ color:var(--danger); }
+  .edit-mini:disabled{ opacity:.3; pointer-events:none; }
+  .edit-ex-summary{ color:var(--muted); font-size:10.5px; margin-top:5px; margin-left:23px; }
+  .edit-ex-body{ margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
+  .edit-set-row{ display:flex; align-items:center; gap:6px; padding:3px 0; }
+  .es-num{ color:var(--muted); font-size:10px; font-weight:700; width:14px; flex-shrink:0; text-align:center; }
+  .es-input{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:7px; padding:5px 7px; font-size:12px; font-weight:700; width:56px; text-align:center;
+    font-variant-numeric:tabular-nums; outline:none;
+  }
+  .es-input:focus{ border-color:var(--accent); }
+  .es-label{ color:var(--muted); font-size:8.5px; flex-shrink:0; }
+  .edit-set-del{
+    background:var(--surface2); border:1px solid var(--border); color:var(--danger);
+    border-radius:6px; width:26px; height:26px; font-size:11px; cursor:pointer; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; padding:0; margin-left:auto;
+  }
+  .edit-set-del:active{ border-color:var(--danger); }
+  .edit-add-set{
+    background:none; border:1px dashed var(--accent); color:var(--accent); border-radius:8px;
+    padding:7px; width:100%; font-weight:700; font-size:11px; margin-top:6px; cursor:pointer;
+  }
+  .edit-add-set:active{ background:rgba(200,255,0,.12); }
+  .edit-add-ex{
+    display:block; width:100%; background:none; border:1px dashed var(--accent);
+    color:var(--accent); border-radius:12px; padding:12px; font-size:13px; font-weight:800;
+    margin-top:6px; cursor:pointer;
+  }
+  .edit-add-ex:active{ background:rgba(200,255,0,.12); }
+
+  /* ===== Vista día de la rutina: tarjetas con GIF a izquierda + datos derecha ===== */
+  .rt-day-nav{ display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:10px; }
+  .rt-day-nav .btn{ min-height:36px; padding:7px 12px; }
+  .rt-day-view{ display:flex; flex-direction:column; gap:10px; }
+  .rt-ex-card{
+    display:flex; flex-direction:row; background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; overflow:hidden; align-items:stretch;
+  }
+  .rt-ex-card .rtc-img-wrap{
+    width:110px; min-width:110px; position:relative; background:var(--surface2);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .rt-ex-card .rtc-img{
+    width:100%; height:100%; min-height:90px; object-fit:contain; display:block; background:var(--surface2);
+    cursor:pointer;
+  }
+  .rt-ex-card .rtc-info{
+    flex:1; display:flex; flex-direction:column; padding:10px 12px; justify-content:center;
+  }
+  .rt-ex-card .rtc-name{
+    font-size:12px; font-weight:800; margin-bottom:6px; color:var(--text);
+  }
+  .rt-ex-card .rtc-stats{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:4px;
+  }
+  .rtc-stat{
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+    background:var(--surface2); border-radius:8px; padding:6px 2px;
+  }
+  .rtc-stat-val{ font-size:13px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums; }
+  .rtc-stat-lbl{ font-size:7.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; font-weight:600; }
+  .rt-ex-card .rtc-zoom-hint{
+    position:absolute; top:4px; right:4px; background:rgba(0,0,0,.55);
+    color:#fff; border-radius:6px; font-size:9px; width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center; pointer-events:none;
+  }
+  .td-today{ border:2px solid var(--accent) !important; }
+  .rt-day-header{
+    font-size:10px; font-weight:800; padding:6px 6px 2px; color:var(--text);
+    text-align:center;
+  }
+  .rt-day-header small{ color:var(--muted); font-weight:600; font-size:8.5px; }
+  .rt-hscroll-hint{
+    color:var(--muted); font-size:9.5px; text-align:center; padding:4px 0 8px;
+  }
+  .rt-day-rest .rt-day-name{
+    font-weight:800; font-size:10px;
+  }
+  .rt-day-rest .rt-day-name small{ color:var(--muted); font-weight:600; font-size:8.5px; }
+
+  /* ===== Badge de progresión ===== */
+  .prog-badge{
+    display:inline-flex; align-items:center; gap:4px; border-radius:6px;
+    padding:3px 7px; font-size:9.5px; font-weight:700; margin-top:6px; line-height:1.3;
+  }
+  .prog-badge.up{ background:rgba(48,209,88,.15); border:1px solid var(--green); color:var(--green); }
+  .prog-badge.keep{ background:rgba(255,214,10,.12); border:1px solid var(--orange); color:var(--orange); }
+  .prog-badge.down{ background:rgba(255,69,58,.12); border:1px solid var(--danger); color:var(--danger); }
+  .prog-badge.detail{ display:block; margin-top:4px; font-size:8.5px; opacity:.85; line-height:1.4; }
+
+  /* ===== Settings ===== */
+  .set-group{ margin-bottom:12px; }
+  .set-group-title{ color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.8px; font-weight:700; margin-bottom:6px; }
+  .set-row-item{
+    background:var(--surface); border:1px solid var(--border); border-radius:11px;
+    padding:12px 15px; margin-bottom:7px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .set-row-item .label{ font-size:12.5px; font-weight:600; }
+  .set-row-item .desc{ color:var(--muted); font-size:10px; margin-top:2px; line-height:1.4; }
+  .set-input{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:8px 10px; font-size:12px; font-weight:700; width:74px; text-align:center;
+    font-variant-numeric:tabular-nums; outline:none;
+  }
+  .set-input:focus{ border-color:var(--accent); }
+  .set-select{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:8px 10px; font-size:11px; font-weight:700; outline:none;
+  }
+  .btn{ background:var(--accent); color:#000; border:none; border-radius:9px; padding:9px 14px; font-size:12px; font-weight:800; cursor:pointer; flex-shrink:0; }
+  .btn:active{ transform:scale(.96); }
+  .btn-outline{ background:transparent; color:var(--text); border:1px solid var(--border); }
+  .btn-danger{ background:var(--danger); color:#fff; }
+
+  /* Botones fusionados en una línea (rutina, backup, datos) */
+  .set-row-actions{
+    background:var(--surface); border:1px solid var(--border); border-radius:11px;
+    padding:10px 12px; margin-bottom:7px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .set-row-actions .label{ font-size:12px; font-weight:600; }
+  .set-row-actions .desc{ color:var(--muted); font-size:9.5px; margin-top:2px; line-height:1.3; }
+  .set-row-actions .btns{ display:flex; gap:6px; flex-shrink:0; }
+  .set-row-actions .btns .btn{ min-height:38px; padding:7px 10px; font-size:11px; }
+
+  /* Selección de días de entrenamiento */
+  .train-days{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .train-day-chip{
+    background:var(--surface2); border:1.5px solid var(--border); color:var(--text);
+    border-radius:18px; padding:8px 0; width:42px; text-align:center;
+    font-size:13px; font-weight:900; cursor:pointer; transition:all .15s; flex-shrink:0;
+  }
+  .train-day-chip.on{ background:var(--accent); border-color:var(--accent); color:#000; }
+  .train-day-chip:active{ transform:scale(.94); }
+
+  /* Información de tipos de progresión */
+  .prog-info details{
+    background:var(--surface); border:1px solid var(--border); border-radius:11px;
+    padding:0; margin-top:6px; overflow:hidden;
+  }
+  .prog-info details summary{
+    padding:11px 15px; font-size:11px; font-weight:800; color:var(--accent); cursor:pointer;
+    list-style:none; display:flex; align-items:center; gap:6px;
+  }
+  .prog-info details summary::-webkit-details-marker{ display:none; }
+  .prog-info details summary::before{ content:"▸"; font-size:11px; transition:transform .2s; display:inline-block; }
+  .prog-info details[open] summary::before{ transform:rotate(90deg); }
+  .prog-info details .prog-body{ padding:2px 15px 12px; color:#ccc; font-size:11px; line-height:1.6; }
+
+  /* M5: detalle músculo/equipamiento en Ajustes */
+  .meta-ex-row{ display:flex; flex-direction:column; gap:1px; padding:6px 0; border-bottom:1px solid var(--border); }
+  .meta-ex-row:last-child{ border-bottom:none; }
+  .meta-ex-row b{ font-size:11px; color:var(--fg); }
+  .meta-ex-tags{ color:var(--muted); font-size:10px; line-height:1.4; }
+

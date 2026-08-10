@@ -26,6 +26,22 @@ const STATIC_SOURCES = [
   'vendor/xlsx.full.min.js'
 ];
 
+// Módulos CSS en orden de concatenación (reproduce src/styles.css, refactor #3)
+const STYLES_DIR = path.join(SRC, 'styles');
+const CSS_MODULES = [
+  'variables.css', 'reset.css', 'layout.css', 'components.css',
+  'views.css', 'rest-timer.css', 'edit-drag.css'
+];
+
+/* Lee y concatena los módulos CSS de src/styles/ en orden.
+   El CSS es sensible al orden de aparición (misma especificidad → gana la
+   última regla), así que el orden debe reproducir styles.css exactamente. */
+function readStyles() {
+  return CSS_MODULES
+    .map(f => fs.readFileSync(path.join(STYLES_DIR, f), 'utf8'))
+    .join('\n');
+}
+
 // Destino en dist/ (nombre archivo)
 const STATIC_FILES = [
   'manifest.json', 'rutina.xlsx', 'slim-dataset.json', 'exercise-meta.json',
@@ -72,7 +88,7 @@ function copyStatic() {
 }
 
 async function buildCss() {
-  const css = fs.readFileSync(path.join(SRC, 'styles.css'), 'utf8');
+  const css = readStyles();
   const minResult = await build({
     stdin: { contents: css, loader: 'css', resolveDir: SRC },
     minify: true,
@@ -88,7 +104,7 @@ async function buildCss() {
 /* Extrae el CSS crítico (shell visible: header + tabbar) y lo minifica
    para inyectarlo inline en <head> (evita render-blocking del CSS completo). */
 async function buildCriticalCss() {
-  const css = fs.readFileSync(path.join(SRC, 'styles.css'), 'utf8');
+  const css = readStyles();
   const markerIdx = css.indexOf('EYEFIT_CRITICAL_END');
   // Incluir el cierre del comentario que contiene el marcador
   const commentEnd = markerIdx >= 0 ? css.indexOf('*/', markerIdx) : -1;

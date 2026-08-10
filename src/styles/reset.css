@@ -1,0 +1,31 @@
+/* EyeFit — reset global, body y layout base (modular, refactor #3) */
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0;
+     touch-action:manipulation; }
+  button, .tabbtn, .week-cell, .set-value, .del-set-btn, .set-done, .add-set-btn, .stepper,
+  .ex-instr-btn, .variant-btn, .day-header, .hist-day-top, .rest-mini{
+    -webkit-user-select:none; user-select:none;
+  }
+  html,body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display',system-ui,sans-serif;
+    font-size:14px; overscroll-behavior:none; height:100%; width:100%;
+    overflow:hidden; position:fixed; inset:0;
+  }
+  body{
+    padding-top:0;
+    padding-bottom:env(safe-area-inset-bottom);
+    width:100%; margin:0 auto;
+    overscroll-behavior:none;
+    -webkit-text-size-adjust:100%; text-size-adjust:100%;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+  #app{ height:100dvh; max-height:100dvh; width:100vw; display:flex; flex-direction:column; position:relative; }
+  main{
+    flex:1; min-height:0; overflow-y:auto; overflow-x:clip;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none; -ms-overflow-style:none;
+    /* La tabbar está pegada al borde inferior: padding fijo para no tapar contenido */
+    padding:12px 14px calc(70px + env(safe-area-inset-bottom));
+  }
+  main::-webkit-scrollbar{ display:none; }
+  main.no-scroll{ overflow:hidden; }

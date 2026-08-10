@@ -1,0 +1,167 @@
+/* EyeFit — cards, filas de ejercicio, sesión, series, swipe y comic (modular, refactor #3) */
+
+  h2.title{
+    font-size:16px; font-weight:800; margin:0 0 10px; padding-bottom:6px;
+    border-bottom:2px solid var(--accent); display:inline-block;
+  }
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:12px; }
+
+  /* ===== Week grid ===== */
+  .week-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:5px; margin-bottom:12px; }
+  .week-cell{
+    border-radius:10px; padding:8px 2px; text-align:center; border:1px solid var(--border);
+    background:var(--surface); cursor:pointer; transition:all .15s;
+  }
+  .week-cell .d{ color:var(--muted); font-size:8.5px; margin-bottom:3px; font-weight:700; text-transform:uppercase; }
+  .week-cell .l{ font-weight:700; font-size:8.5px; line-height:1.2; }
+  .week-cell.active{ background:var(--accent); border-color:var(--accent); }
+  .week-cell.active .d{ color:#000; }
+  .week-cell.active .l{ color:#000; }
+
+  /* ===== Invertir TODOS los GIFs y miniaturas de ejercicios ===== */
+  .ex-img img, .rtc-img, .rtc-img-wrap img, .ex-active-img, .rt-ex-img,
+  .zoom-img, .confirm-ex-img, .spe-img img, .picker-item img, .rc-cell img,
+  .up-row img, .var-row img, .variant-btn img, .edit-ex-row img{
+    filter:invert(1) hue-rotate(180deg);
+  }
+
+  /* ===== Exercise rows (editor) ===== */
+  .ex-row{ padding:10px 15px; border-bottom:1px solid var(--border); }
+  .ex-row:last-child{ border-bottom:none; }
+  .ex-top{ display:flex; align-items:flex-start; gap:10px; }
+  .ex-img{
+    width:56px; height:56px; border-radius:10px; object-fit:cover; flex-shrink:0;
+    background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+    font-size:22px; color:var(--muted); overflow:hidden;
+  }
+  .ex-img img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .ex-info{ flex:1; min-width:0; }
+  .ex-num{ font-weight:800; font-size:11px; flex-shrink:0; }
+  .ex-name{ font-weight:700; font-size:13px; line-height:1.3; }
+  .ex-stats{ display:flex; flex-wrap:wrap; gap:5px; margin-top:5px; }
+  .stat-chip{ background:var(--surface2); border-radius:6px; padding:3px 8px; font-size:10px; color:#ccc; }
+  .stat-chip b{ color:var(--accent); }
+  .ex-notes{ color:var(--muted); font-size:10px; margin-top:5px; line-height:1.4; }
+  .ex-instr-btn{
+    background:none; border:1px solid var(--border); color:var(--accent); border-radius:6px;
+    font-size:10px; padding:3px 8px; margin-top:6px; cursor:pointer; font-weight:600;
+  }
+  .ex-instr{ display:none; color:#ccc; font-size:11px; line-height:1.5; margin-top:6px; padding:8px 10px; background:var(--surface2); border-radius:8px; }
+  .ex-instr.show{ display:block; }
+  .instr-list{ padding-left:16px; margin:2px 0; }
+  .instr-list li{ margin-bottom:3px; }
+  .instr-list li::marker{ color:var(--accent); font-weight:800; }
+
+  /* ===== Session: scroll vertical completo, GIF protagonista, series compactas =====
+     El session-view es su propia área de scroll (overflow-y:auto): así TODO el
+     contenido —tarjeta del ejercicio, todas las series y la lista de Pendientes—
+     es alcanzable desplazando hacia abajo, sin que nada quede recortado.
+     height:100% hace que la vista ocupe solo el área útil de main (que ya reserva
+     su padding-bottom para la tabbar), evitando que el final del scroll
+     quede oculto detrás de la tabbar flotante.
+     Usamos .section.active.session-view (especificidad 0,3,0) para que
+     display:flex venza a .section.active{ display:block }. */
+  .section.active.session-view{
+    height:100%; display:flex; flex-direction:column;
+    overflow-y:auto; overflow-x:clip; -webkit-overflow-scrolling:touch;
+    padding-bottom:12px;
+  }
+
+  .ex-active-card{
+    background:var(--surface); border:2px solid var(--accent); border-radius:14px;
+    margin:6px 14px; overflow:hidden; flex-shrink:0;
+  }
+  .ex-active-header{ padding:6px 12px; background:var(--accent); color:#000; display:flex; justify-content:flex-end; align-items:center; }
+  .ex-active-count{ font-size:11px; font-weight:700; }
+  .ex-active-body{ padding:6px 12px 8px; }
+  .ex-active-img{
+    width:100%; height:min(38dvh,300px); object-fit:contain; border-radius:8px;
+    margin-bottom:4px; background:var(--surface2);
+  }
+
+  .variant-btn{
+    background:var(--surface2); border:1px solid var(--border); color:var(--accent); border-radius:9px;
+    font-size:12px; font-weight:800; padding:9px 12px; width:100%; margin-bottom:4px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .variant-btn:active{ background:rgba(200,255,0,.12); }
+
+  .sets-grid{ display:flex; flex-direction:column; gap:4px; flex:0 0 auto; padding:0 14px 8px; }
+
+  /* ===== Swipe-to-delete en series (el eliminado solo por swipe, sin rojo visible) ===== */
+  .set-row{ position:relative; overflow:hidden; display:flex; align-items:center; gap:8px; background:var(--surface2); border-radius:8px; padding:3px 8px; flex-shrink:0; }
+  .set-swipe-bg{
+    position:absolute; inset:0; background:var(--danger); color:#fff;
+    display:flex; align-items:center; justify-content:flex-end; padding-right:16px;
+    font-size:12px; font-weight:800; border-radius:8px;
+    transform:translateX(100%);
+    transition:transform .3s ease;
+    opacity:0;
+  }
+  .set-row.swiped .set-swipe-bg{
+    transform:translateX(0);
+    opacity:1;
+  }
+  .set-row-content{
+    position:relative; z-index:1; display:flex; align-items:center; gap:3px;
+    background:var(--surface2); border-radius:8px; padding:3px 5px;
+    transition:transform .2s ease; width:100%;
+  }
+  .set-row.swiped .set-row-content{ transform:translateX(-80px); }
+  .set-num{ font-weight:800; font-size:10.5px; color:var(--accent); width:11px; flex-shrink:0; }
+  .set-control{ display:flex; align-items:center; gap:2px; flex:1; min-width:0; }
+  .stepper{
+    width:32px; height:32px; border-radius:6px; border:1px solid var(--border);
+    background:var(--surface); color:var(--accent); font-size:15px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;
+  }
+  .stepper:active{ background:var(--accent); color:#000; }
+  .set-value{
+    font-size:11.5px; font-weight:800; min-width:26px; text-align:center; font-variant-numeric:tabular-nums;
+    cursor:pointer; padding:1px 2px; border-radius:6px; color:var(--text);
+  }
+  .set-label{ color:var(--muted); font-size:7px; text-transform:uppercase; letter-spacing:.4px; }
+  .set-done{
+    width:32px; height:32px; border-radius:7px; border:1.5px solid var(--border);
+    background:var(--surface); display:flex; align-items:center; justify-content:center;
+    font-size:15px; color:transparent; cursor:pointer; flex-shrink:0; margin-left:2px;
+  }
+  .set-done.done{ background:var(--accent); border-color:var(--accent); color:#000; }
+  .del-set-btn{ display:none; } /* Eliminado: solo swipe a la izquierda */
+  .add-set-btn{
+    background:none; border:1px dashed var(--accent); color:var(--accent); border-radius:8px;
+    font-size:11px; font-weight:800; padding:8px; cursor:pointer; margin-top:2px; flex-shrink:0;
+  }
+  .add-set-btn:active{ background:rgba(200,255,0,.1); }
+
+  /* ===== Comic bubble (Mortadelo) ===== */
+  .comic-overlay{
+    position:fixed; inset:0; z-index:400; background:rgba(0,0,0,.88);
+    display:none; align-items:center; justify-content:center; width:100%; margin:0 auto;
+  }
+  .comic-overlay.show{ display:flex; }
+  .comic-bubble{
+    background:#FFE600; color:#000; padding:30px 26px; border-radius:20px;
+    border:5px solid #000; font-size:36px; font-weight:900; text-transform:uppercase;
+    text-align:center; position:relative; max-width:320px; line-height:1.1;
+    transform:rotate(-3deg); animation:comicPop .5s cubic-bezier(.2,1.6,.4,1);
+    box-shadow:12px 12px 0 rgba(0,0,0,.7);
+  }
+  .comic-bubble::after{
+    content:""; position:absolute; bottom:-26px; left:50%; margin-left:-12px;
+    border:13px solid transparent; border-top-color:#000; border-top-width:26px;
+  }
+  .comic-bubble::before{
+    content:""; position:absolute; bottom:-42px; left:50%; margin-left:-7px;
+    border:8px solid transparent; border-top-color:#FFE600; border-top-width:16px;
+  }
+  @keyframes comicPop{
+    0%{ transform:scale(.2) rotate(-15deg); opacity:0; }
+    60%{ transform:scale(1.15) rotate(4deg); }
+    100%{ transform:scale(1) rotate(-3deg); opacity:1; }
+  }
+  .comic-shake{ animation:comicShake .3s ease infinite alternate; }
+  @keyframes comicShake{
+    from{ transform:rotate(-4deg); } to{ transform:rotate(-1deg); }
+  }
+

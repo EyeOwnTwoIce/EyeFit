@@ -183,7 +183,7 @@ function progressionBadgeHtml(ex, history){
   if(!dec) return "";
   const cls = dec.action==="up" ? "up" : (dec.action==="down" ? "down" : "keep");
   const icon = dec.action==="up" ? "⬆️" : (dec.action==="down" ? "⬇️" : "➡️");
-  const deltaTxt = dec.delta>0 ? "+"+dec.delta+" kg" : dec.delta<0 ? dec.delta+" kg" : "sin cambio";
+  const deltaTxt = Number(dec.delta)>0 ? "+"+Number(dec.delta)+" kg" : Number(dec.delta)<0 ? Number(dec.delta)+" kg" : "sin cambio";
   return `<div class="prog-badge ${cls}" title="${escapeHtmlAttr(dec.reason)}">
     ${icon} ${dec.action==="up" ? "Sube" : dec.action==="down" ? "Baja" : "Mantiene"} · ${deltaTxt}
     <span class="prog-badge detail">${escapeHtml(dec.reason)}</span>
@@ -974,6 +974,16 @@ function escapeHtml(s){
   el.textContent = String(s||"");
   return el.innerHTML;
 }
+/* Frontera segura de renderizado (CWE-79).
+   Las funciones render* construyen HTML con todos los textos dinámicos
+   escapados (escapeHtml/escapeHtmlAttr) y valores numéricos con Number().
+   El parsing se hace en un <template> (contexto inerte: no ejecuta scripts
+   ni carga recursos), y el resultado se inserta con replaceChildren. */
+function setHtml(el, html){
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  el.replaceChildren(tpl.content.cloneNode(true));
+}
 function formatInstructions(text){
   if(!text) return "";
   const steps = String(text).split("\n").map(s=>s.trim()).filter(Boolean);
@@ -1251,7 +1261,7 @@ function renderMain(){
   if(routineEditMode && currentTab === "rutina"){
     const html = renderEditRoutine();
     if(lastRenderedHtml !== html){
-      main.innerHTML = html;
+      setHtml(main, html);
       lastRenderedHtml = html;
       attachEvents();
     }
@@ -1260,7 +1270,7 @@ function renderMain(){
   const views = { rutina:renderRutina, sesion:renderSesion, historial:renderHistorial, ajustes:renderAjustes };
   const html = views[currentTab] ? views[currentTab]() : renderRutina();
   if(lastRenderedHtml !== html){
-    main.innerHTML = html;
+    setHtml(main, html);
     lastRenderedHtml = html;
     attachEvents();
   }
@@ -1320,14 +1330,14 @@ function renderRutina(){
           : `loading="lazy" decoding="async"`;
         return `<div class="rt-ex-card">
           ${img ? `<div class="rtc-img-wrap" data-img-zoom data-ex-name="${escapeHtmlAttr(e.nombre_es)}" data-ex-dataset="${escapeHtmlAttr(e.dataset||"")}" data-ex-dataset-original="${escapeHtmlAttr(e.datasetOriginal||"")}" data-img-instr="${escapeHtmlAttr(instrRaw)}" role="button" tabindex="0" aria-label="Ampliar GIF de ${escapeHtmlAttr(getApodo(e))}">
-            <img class="rtc-img" src="${img}" alt="${escapeHtml(getApodo(e))}" ${imgAttrs} data-img-fallback="hide">
+            <img class="rtc-img" src="${escapeHtmlAttr(img)}" alt="${escapeHtml(getApodo(e))}" ${imgAttrs} data-img-fallback="hide">
             <div class="rtc-zoom-hint">⛶</div>
           </div>` : ""}
           <div class="rtc-info">
             <div class="rtc-name">${escapeHtml(getApodo(e))}</div>
             <div class="rtc-stats">
-              <div class="rtc-stat" data-rt-edit="series" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${e.series}</span><span class="rtc-stat-lbl">series</span></div>
-              <div class="rtc-stat" data-rt-edit="reps" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${e.reps}</span><span class="rtc-stat-lbl">reps</span></div>
+              <div class="rtc-stat" data-rt-edit="series" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${Number(e.series)}</span><span class="rtc-stat-lbl">series</span></div>
+              <div class="rtc-stat" data-rt-edit="reps" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${Number(e.reps)}</span><span class="rtc-stat-lbl">reps</span></div>
               <div class="rtc-stat" data-rt-edit="kg" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${formatKg(e.peso_kg)}</span><span class="rtc-stat-lbl">kg</span></div>
               ${rmLabel ? `<div class="rtc-stat rm-tappable" ${rmHint}><span class="rtc-stat-val">${rmLabel}</span><span class="rtc-stat-lbl">1RM</span></div>` : ""}
             </div>
@@ -1389,15 +1399,15 @@ function exerciseCard(ex, i, day){
       </div>
       <div class="ex-info">
         <div style="display:flex;gap:6px;">
-          <span class="ex-num" style="color:${color}">${ex.orden}</span>
+          <span class="ex-num" style="color:${color}">${Number(ex.orden)}</span>
           <span class="ex-name">${escapeHtml(apodo)}</span>
         </div>
         <div class="ex-stats">
-          <span class="stat-chip"><b>${ex.series}</b> series</span>
-          <span class="stat-chip"><b>${ex.reps}</b> reps</span>
+          <span class="stat-chip"><b>${Number(ex.series)}</b> series</span>
+          <span class="stat-chip"><b>${Number(ex.reps)}</b> reps</span>
           <span class="stat-chip">⚖️ <b>${formatKg(ex.peso_kg)}</b> kg</span>
           <span class="stat-chip">⏱ <b>${formatRest(ex.descanso_s)}</b></span>
-          <span class="stat-chip">↔️ <b>${variantes}</b> alt.</span>
+          <span class="stat-chip">↔️ <b>${Number(variantes)}</b> alt.</span>
         </div>
         ${ex.notas ? `<div class="ex-notes">${escapeHtml(ex.notas)}</div>` : ""}
         ${instr ? `<button class="ex-instr-btn" data-instr-toggle="${i}">📖 Instrucciones</button>
@@ -1451,7 +1461,7 @@ function renderEditRoutine(){
     });
     return `<div class="edit-ex-row">
       <div class="edit-ex-top">
-        <span class="edit-ex-idx">${ex.orden}</span>
+        <span class="edit-ex-idx">${Number(ex.orden)}</span>
         <span class="edit-ex-name">${escapeHtml(getApodo(ex))}</span>
         <div class="edit-ex-actions">
           <button class="edit-mini" data-edit-ex-toggle="${ei}" aria-label="Editar series de ${escapeHtmlAttr(getApodo(ex))}">✏️</button>
@@ -1460,14 +1470,14 @@ function renderEditRoutine(){
           <button class="edit-mini danger" data-edit-ex-del="${ei}" aria-label="Eliminar ${escapeHtmlAttr(getApodo(ex))}">✕</button>
         </div>
       </div>
-      <div class="edit-ex-summary">${setsWithEdits.length} series · ${ex.reps} reps · ${ex.peso_kg} kg · ⏱ ${formatRest(ex.descanso_s)}</div>
+      <div class="edit-ex-summary">${Number(setsWithEdits.length)} series · ${Number(ex.reps)} reps · ${Number(ex.peso_kg)} kg · ⏱ ${formatRest(ex.descanso_s)}</div>
       <div class="edit-ex-body" data-edit-ex-body="${ei}">
         ${setsWithEdits.map((s,si)=>`
           <div class="edit-set-row">
             <span class="es-num">${si+1}</span>
-            <input type="number" class="es-input" data-edit-set-kg="${ei}|${si}" value="${s.kg}" step="0.5" min="0" inputmode="decimal" aria-label="Peso serie ${si+1}">
+            <input type="number" class="es-input" data-edit-set-kg="${ei}|${si}" value="${Number(s.kg)}" step="0.5" min="0" inputmode="decimal" aria-label="Peso serie ${si+1}">
             <span class="es-label">kg</span>
-            <input type="number" class="es-input" data-edit-set-reps="${ei}|${si}" value="${s.reps}" step="1" min="1" inputmode="numeric" aria-label="Reps serie ${si+1}">
+            <input type="number" class="es-input" data-edit-set-reps="${ei}|${si}" value="${Number(s.reps)}" step="1" min="1" inputmode="numeric" aria-label="Reps serie ${si+1}">
             <span class="es-label">reps</span>
             <button class="edit-set-del" data-edit-set-del="${ei}|${si}" aria-label="Eliminar serie ${si+1}">🗑</button>
           </div>`).join("")}
@@ -1522,7 +1532,7 @@ function renderPickerList(query){
         const partLabel = escapeHtml(meta && meta.muscle ? meta.muscle : (d.part||""));
         const equipLabel = meta && meta.equip ? escapeHtml(meta.equip) : "";
         return `<div class="picker-item" data-pick-ex="${escapeHtmlAttr(i)}" data-pick-name="${escapeHtmlAttr(d.name)}" data-pick-image="${escapeHtmlAttr(d.image||"")}" data-pick-part="${escapeHtmlAttr(d.part||"")}">
-          ${imgUrl ? `<img class="rt-ex-img" style="width:34px;height:34px;border-radius:6px;" src="${imgUrl}" alt="" loading="lazy" decoding="async" data-img-fallback="hide">` : ""}
+          ${imgUrl ? `<img class="rt-ex-img" style="width:34px;height:34px;border-radius:6px;" src="${escapeHtmlAttr(imgUrl)}" alt="" loading="lazy" decoding="async" data-img-fallback="hide">` : ""}
           <div style="flex:1;min-width:0;">
             <div class="pi-name">${escapeHtml(d.name)}</div>
             <div class="pi-sub">${partLabel}${equipLabel ? ` · ${equipLabel}` : ""}</div>
@@ -1896,10 +1906,10 @@ function renderSesion(){
     const exPreview = todayEx.map((e,i)=>{
       const img = getExerciseImage(e, datasetCache);
       return `<div class="sess-preview-ex">
-        ${img?`<div class="spe-img"><img src="${img}" alt="" loading="lazy" decoding="async" data-img-fallback="hide"></div>`:`<div class="spe-img spe-emoji">🏋️</div>`}
+        ${img?`<div class="spe-img"><img src="${escapeHtmlAttr(img)}" alt="" loading="lazy" decoding="async" data-img-fallback="hide"></div>`:`<div class="spe-img spe-emoji">🏋️</div>`}
         <div class="spe-info">
           <div class="spe-name">${escapeHtml(getApodo(e))}</div>
-          <div class="spe-meta">${e.series}×${e.reps} · ${formatKg(e.peso_kg)}kg</div>
+          <div class="spe-meta">${Number(e.series)}×${Number(e.reps)} · ${formatKg(e.peso_kg)}kg</div>
         </div>
       </div>`;
     }).join("");
@@ -1908,7 +1918,7 @@ function renderSesion(){
       <div class="sess-preview-card">
         <div class="spc-head">
           <span class="spc-day" style="color:${dayColor}">Entrenamiento del ${todayName}</span>
-          <span class="spc-sub">${todayEx.length} ejercicios · ${totalSets} series</span>
+          <span class="spc-sub">${Number(todayEx.length)} ejercicios · ${Number(totalSets)} series</span>
         </div>
         <div class="spc-list">${exPreview}</div>
         <button class="btn spc-start" data-start-session="${escapeHtmlAttr(todayName)}">▶️ Entrenar</button>
@@ -1933,14 +1943,14 @@ function renderSesion(){
         <div class="set-control">
           <button class="stepper" data-kg-minus="${si}" aria-label="Reducir peso de la serie ${si+1}">−</button>
           <div style="text-align:center;min-width:36px;">
-            <div class="set-value" data-edit="${si}" data-field="kg" role="button" tabindex="0" aria-label="Editar peso de la serie ${si+1} (${set.kg} kg)">${set.kg}</div>
+            <div class="set-value" data-edit="${si}" data-field="kg" role="button" tabindex="0" aria-label="Editar peso de la serie ${si+1} (${Number(set.kg)} kg)">${Number(set.kg)}</div>
             <div class="set-label">kg</div>
           </div>
           <button class="stepper" data-kg-plus="${si}" aria-label="Aumentar peso de la serie ${si+1}">+</button>
           <div style="width:6px;"></div>
           <button class="stepper" data-reps-minus="${si}" aria-label="Reducir repeticiones de la serie ${si+1}">−</button>
           <div style="text-align:center;min-width:30px;">
-            <div class="set-value" data-edit="${si}" data-field="reps" role="button" tabindex="0" aria-label="Editar repeticiones de la serie ${si+1} (${set.reps} reps)">${set.reps}</div>
+            <div class="set-value" data-edit="${si}" data-field="reps" role="button" tabindex="0" aria-label="Editar repeticiones de la serie ${si+1} (${Number(set.reps)} reps)">${Number(set.reps)}</div>
             <div class="set-label">reps</div>
           </div>
           <button class="stepper" data-reps-plus="${si}" aria-label="Aumentar repeticiones de la serie ${si+1}">+</button>
@@ -1963,20 +1973,20 @@ function renderSesion(){
         <button class="up-arrow" data-move-up="${absIdx}" ${i===0?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia arriba">↑</button>
         <button class="up-arrow" data-move-down="${absIdx}" ${absIdx===session.exercises.length-1?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia abajo">↓</button>
       </div>
-      <span class="up-num" style="color:${col}">${u.orden}</span>
+      <span class="up-num" style="color:${col}">${Number(u.orden)}</span>
       <span class="up-name">${escapeHtml(getApodo(u))}</span>
-      <span class="up-sets">${u.sets.filter(s=>s.done).length}/${u.sets.length}</span>
+      <span class="up-sets">${Number(u.sets.filter(s=>s.done).length)}/${Number(u.sets.length)}</span>
     </div>`;
   }).join("");
 
   return `<div class="section active session-view">
     <div class="ex-active-card">
       <div class="ex-active-header">
-        <span class="ex-active-count">${session.currentIdx+1} / ${totalEx}</span>
+        <span class="ex-active-count">${Number(session.currentIdx+1)} / ${Number(totalEx)}</span>
       </div>
       <div class="ex-active-body">
         ${imgUrl ? `<div class="ex-img-wrap" data-img-zoom aria-label="Ampliar GIF de ${escapeHtmlAttr(apodo)}" role="button" tabindex="0">
-          <img class="ex-active-img" src="${imgUrl}" alt="${escapeHtml(apodo)}" loading="lazy" decoding="async" data-img-fallback="hide">
+          <img class="ex-active-img" src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtml(apodo)}" loading="lazy" decoding="async" data-img-fallback="hide">
           <div class="ex-img-zoom-hint">⛶</div>
         </div>` : ""}
         ${progressionBadgeHtml(ex, getHistory())}
@@ -2278,7 +2288,7 @@ function openVariants(){
   const list = document.getElementById("varList");
   list.innerHTML = `<div class="var-grid">${items.map((it,i)=>`
     <div class="var-item" data-variant-idx="${escapeHtmlAttr(i)}">
-      ${it.img ? `<img src="${it.img}" alt="${escapeHtml(it.nombre)}" loading="lazy" decoding="async" data-img-fallback="hide">` : `<div class="var-noimg">🏋️</div>`}
+      ${it.img ? `<img src="${escapeHtmlAttr(it.img)}" alt="${escapeHtml(it.nombre)}" loading="lazy" decoding="async" data-img-fallback="hide">` : `<div class="var-noimg">🏋️</div>`}
       <div class="vi-name">${escapeHtml(it.nombre)}</div>
     </div>`).join("")}</div>`;
   document.getElementById("varOverlay").classList.add("show");
@@ -2387,7 +2397,7 @@ function renderHistDayDetail(history, dateStr){
       return `<div class="hist-ex-line">
         <div class="hist-ex">
           <span class="hist-ex-name">${escapeHtml(getApodo(e))}</span>
-          <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${s.reps}×${formatKg(s.kg)}`).join(" · ")}</span>
+          <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${Number(s.reps)}×${formatKg(s.kg)}`).join(" · ")}</span>
         </div>
         ${spark ? `<div class="hist-ex-prog"><span class="lbl rm-tappable" ${rmHint}>1RM ${rmLabel}</span>${spark}</div>` : ""}
       </div>`;
@@ -2398,13 +2408,13 @@ function renderHistDayDetail(history, dateStr){
       <div class="hist-content">
         <div class="hist-day-top">
           <div class="hist-tri open"></div>
-          <span class="hist-day-name" style="color:${color}">${h.day}</span>
-          <span class="hist-day-date">${timeLabel} · ${mins}m ${secs}s</span>
+          <span class="hist-day-name" style="color:${color}">${escapeHtml(h.day)}</span>
+          <span class="hist-day-date">${timeLabel} · ${Number(mins)}m ${Number(secs)}s</span>
           <button class="hist-edit-btn" data-edit-hist-date="${escapeHtmlAttr(dateStr)}" data-edit-hist-sessid="${escapeHtmlAttr(h.session_id||"")}" aria-label="Editar sesión">✏️</button>
           <button class="hist-del-btn" data-del-session="${escapeHtmlAttr(dateStr)}" data-del-sessid="${escapeHtmlAttr(h.session_id||"")}" aria-label="Eliminar sesión">🗑️</button>
         </div>
         <div class="hist-day-body open">
-          <div class="hist-day-stats">${exDone.length} ejercicios · ${h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0)} series</div>
+          <div class="hist-day-stats">${Number(exDone.length)} ejercicios · ${Number(h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0))} series</div>
           ${exHtml}
         </div>
       </div>
@@ -2429,16 +2439,16 @@ function renderHistorial(){
   const totalTime = history.reduce((a,h)=>a+(h.duration||0),0);
   const totalSets = history.reduce((a,h)=>a+h.exercises.reduce((b,e)=>b+e.sets.filter(s=>s.done).length,0),0);
   const streak = getStreak();
-  const streakHtml = streak > 0 ? `<div class="streak-banner">🔥 Racha: ${streak} día${streak>1?"s":""}</div>` : "";
+  const streakHtml = streak > 0 ? `<div class="streak-banner">🔥 Racha: ${Number(streak)} día${Number(streak)>1?"s":""}</div>` : "";
   const cal = renderHistCalendar(history);
   const detail = histActiveDate ? renderHistDayDetail(history, histActiveDate) : "";
   return `<div class="section active">
     <h2 class="title">📈 Historial</h2>
     ${streakHtml}
     <div class="hist-summary">
-      <div class="hist-stat"><div class="v">${totalSessions}</div><div class="l">Sesiones</div></div>
-      <div class="hist-stat"><div class="v">${Math.floor(totalTime/60)}m</div><div class="l">Tiempo total</div></div>
-      <div class="hist-stat"><div class="v">${totalSets}</div><div class="l">Series</div></div>
+      <div class="hist-stat"><div class="v">${Number(totalSessions)}</div><div class="l">Sesiones</div></div>
+      <div class="hist-stat"><div class="v">${Number(Math.floor(totalTime/60))}m</div><div class="l">Tiempo total</div></div>
+      <div class="hist-stat"><div class="v">${Number(totalSets)}</div><div class="l">Series</div></div>
     </div>
     ${cal}
     ${detail}
@@ -2717,8 +2727,8 @@ function renderAjustes(){
   const routine = getRoutine();
   const pending = getPending();
   const pendingCount = pending.sessions.length;
-  const syncMsg = pendingCount>0
-    ? `${pendingCount} sesión${pendingCount>1?"es":""} pendiente${pendingCount>1?"s":""} de subir`
+  const syncMsg = Number(pendingCount)>0
+    ? `${Number(pendingCount)} sesión${Number(pendingCount)>1?"es":""} pendiente${Number(pendingCount)>1?"s":""} de subir`
     : authUser ? "Todo sincronizado" : "Sin conexión a la nube";
   const syncClass = pendingCount>0 ? "pending" : (authUser ? "" : "off");
   const tc = trainingConfig;
@@ -2741,7 +2751,7 @@ function renderAjustes(){
       <div class="set-group-title">🏋️ Entrenamiento</div>
       <div class="set-row-item">
         <div><div class="label">Peso corporal</div><div class="desc">Para métricas relativas a tu masa</div></div>
-        <input type="number" class="set-input" value="${tc.peso_corporal}" data-train-input="peso_corporal" data-float="1" step="0.5" min="30">
+        <input type="number" class="set-input" value="${Number(tc.peso_corporal)}" data-train-input="peso_corporal" data-float="1" step="0.5" min="30">
       </div>
       <div class="set-row-item">
         <div><div class="label">Tipo de progresión</div><div class="desc">Doble progresión (recomendada) o lineal</div></div>
@@ -2771,38 +2781,38 @@ function renderAjustes(){
       <div class="set-row-item">
         <div><div class="label">Rango reps compuestos</div><div class="desc">Sentadilla, press banca, remo…</div></div>
         <div style="display:flex;gap:4px;align-items:center;">
-          <input type="number" class="set-input" style="width:56px;" value="${tc.rango_compuesto_min}" data-train-input="rango_compuesto_min" min="1" max="20">
+          <input type="number" class="set-input" style="width:56px;" value="${Number(tc.rango_compuesto_min)}" data-train-input="rango_compuesto_min" min="1" max="20">
           <span style="color:var(--muted);font-size:10px;">–</span>
-          <input type="number" class="set-input" style="width:56px;" value="${tc.rango_compuesto_max}" data-train-input="rango_compuesto_max" min="1" max="30">
+          <input type="number" class="set-input" style="width:56px;" value="${Number(tc.rango_compuesto_max)}" data-train-input="rango_compuesto_max" min="1" max="30">
         </div>
       </div>
       <div class="set-row-item">
         <div><div class="label">Rango reps aislamiento</div><div class="desc">Curls, elevaciones, extensiones…</div></div>
         <div style="display:flex;gap:4px;align-items:center;">
-          <input type="number" class="set-input" style="width:56px;" value="${tc.rango_aislamiento_min}" data-train-input="rango_aislamiento_min" min="1" max="20">
+          <input type="number" class="set-input" style="width:56px;" value="${Number(tc.rango_aislamiento_min)}" data-train-input="rango_aislamiento_min" min="1" max="20">
           <span style="color:var(--muted);font-size:10px;">–</span>
-          <input type="number" class="set-input" style="width:56px;" value="${tc.rango_aislamiento_max}" data-train-input="rango_aislamiento_max" min="1" max="30">
+          <input type="number" class="set-input" style="width:56px;" value="${Number(tc.rango_aislamiento_max)}" data-train-input="rango_aislamiento_max" min="1" max="30">
         </div>
       </div>
       <div class="set-row-item">
         <div><div class="label">RIR objetivo</div><div class="desc">Reps en reserva al terminar cada serie (2 = casi al fallo)</div></div>
-        <input type="number" class="set-input" value="${tc.rir_objetivo}" data-train-input="rir_objetivo" min="0" max="5">
+        <input type="number" class="set-input" value="${Number(tc.rir_objetivo)}" data-train-input="rir_objetivo" min="0" max="5">
       </div>
       <div class="set-row-item">
         <div><div class="label">Incremento barra</div><div class="desc">Kilos a subir en ejercicios con barra</div></div>
-        <input type="number" class="set-input" value="${tc.incremento_barra}" data-train-input="incremento_barra" data-float="1" step="0.5" min="0.5">
+        <input type="number" class="set-input" value="${Number(tc.incremento_barra)}" data-train-input="incremento_barra" data-float="1" step="0.5" min="0.5">
       </div>
       <div class="set-row-item">
         <div><div class="label">Incremento mancuerna</div><div class="desc">Kilos a subir en ejercicios con mancuernas</div></div>
-        <input type="number" class="set-input" value="${tc.incremento_mancuerna}" data-train-input="incremento_mancuerna" data-float="1" step="0.5" min="0.5">
+        <input type="number" class="set-input" value="${Number(tc.incremento_mancuerna)}" data-train-input="incremento_mancuerna" data-float="1" step="0.5" min="0.5">
       </div>
     </div>
     <div class="set-group">
       <div class="set-group-title">Rutina</div>
       <div class="set-row-item">
         <div>
-          <div class="label">Rutina actual: <b class="accent">${routineSrc}</b></div>
-          <div class="desc">${routine.length} ejercicios · Lunes-Viernes</div>
+          <div class="label">Rutina actual: <b class="accent">${escapeHtml(routineSrc)}</b></div>
+          <div class="desc">${Number(routine.length)} ejercicios · Lunes-Viernes</div>
         </div>
       </div>
       <div class="prog-info">
@@ -4233,10 +4243,10 @@ function renderSessionProgressBar(){
     const doneSets = e.sets.filter(s=>s.done).length;
     const pct = e.sets.length ? Math.round((doneSets/e.sets.length)*100) : 0;
     const marks = e.sets.map((_,si)=>`<span class="seg-mark" style="left:${(si+1)/e.sets.length*100}%"></span>`).join("");
-    return `<div class="sess-seg" style="flex:${e.sets.length};">
-      <div class="seg-fill" style="width:${pct}%;background:${col};"></div>
+    return `<div class="sess-seg" style="flex:${Number(e.sets.length)};">
+      <div class="seg-fill" style="width:${Number(pct)}%;background:${col};"></div>
       ${marks}
-      <span class="seg-label">${e.sets.filter(s=>s.done).length}/${e.sets.length}</span>
+      <span class="seg-label">${Number(e.sets.filter(s=>s.done).length)}/${Number(e.sets.length)}</span>
     </div>`;
   }).join("");
   bar.innerHTML = segs;

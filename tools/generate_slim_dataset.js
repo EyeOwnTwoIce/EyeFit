@@ -80,9 +80,9 @@ async function main() {
     part: ex.body_part || ''
   }));
 
-  // codeql[js/http-to-file-access] Herramienta de build-time: descarga un
-  // dataset público desde una URL hardcodeada y lo guarda como JSON estático.
-  // No es código de runtime ni acepta entrada del usuario.
+  // Herramienta de build-time: descarga un dataset público desde una URL
+  // hardcodeada y lo guarda como JSON estático. No es código de runtime ni
+  // acepta entrada del usuario. // codeql[js/http-to-file-access]
   fs.writeFileSync(OUT, JSON.stringify(slim));
   console.log(`✔ slim-dataset.json generado: ${slim.length} ejercicios (${(fs.statSync(OUT).size / 1024 / 1024).toFixed(2)} MB) → ${OUT}`);
 }

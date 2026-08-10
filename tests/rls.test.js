@@ -1,7 +1,7 @@
 /* EyeFit — Check de RLS en supabase_setup.sql (CI)
    Valida estáticamente que:
    - RLS está habilitado en rutinas y sesiones
-   - Existen las 8 políticas *_own con auth.uid() = user_id
+   - Existen las 8 políticas *_own con (select auth.uid()) = user_id
    - Los triggers updated_at usan security invoker + search_path vacío
    - Las funciones trigger están revoke de anon/public
    - Idempotencia: create table if not exists + drop policy if exists
@@ -19,13 +19,15 @@ test('RLS: row level security habilitado en rutinas y sesiones', () => {
   assert.match(SQL, /alter table\s+public\.sesiones\s+enable row level security/i);
 });
 
-test('RLS: existen las 8 políticas *_own con auth.uid() = user_id', () => {
+test('RLS: existen las 8 políticas *_own con auth.uid() (performant) = user_id', () => {
   const tables = ['rutinas', 'sesiones'];
   const ops = ['select', 'insert', 'update', 'delete'];
   for (const t of tables) {
     for (const op of ops) {
       assert.match(SQL, new RegExp(`create policy "?${t}_${op}_own`), `falta política ${t}_${op}_own`);
-      assert.match(SQL, /auth\.uid\(\) = user_id/i, `auth.uid() = user_id en ${t}_${op}_own`);
+      /* Acepta tanto auth.uid() = user_id como el patrón performant
+         (select auth.uid()) = user_id que evita re-evaluar por fila */
+      assert.match(SQL, /auth\.uid\(\)\s*\)?\s*=\s*user_id/i, `auth.uid() = user_id en ${t}_${op}_own`);
     }
   }
 });

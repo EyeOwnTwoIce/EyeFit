@@ -25,6 +25,10 @@ create table if not exists public.sesiones (
   updated_at timestamptz not null default now()
 );
 
+-- El linter de Supabase reporta un índice duplicado sesiones_user_id_idx
+-- (auto-creado por Postgres como backing index de la FK a auth.users).
+-- Eliminamos el duplicado y conservamos solo el índice explícito:
+drop index if exists public.sesiones_user_id_idx;
 create index if not exists sesiones_user_idx on public.sesiones(user_id);
 -- Clave única para idempotencia: el mismo session_id del mismo usuario
 -- solo se inserta/upsertea una vez (evita duplicados en sync concurrente)
@@ -39,43 +43,43 @@ alter table public.sesiones enable row level security;
 drop policy if exists "rutinas_select_own" on public.rutinas;
 create policy "rutinas_select_own"
   on public.rutinas for select
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "rutinas_insert_own" on public.rutinas;
 create policy "rutinas_insert_own"
   on public.rutinas for insert
-  with check (auth.uid() = user_id);
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "rutinas_update_own" on public.rutinas;
 create policy "rutinas_update_own"
   on public.rutinas for update
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "rutinas_delete_own" on public.rutinas;
 create policy "rutinas_delete_own"
   on public.rutinas for delete
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 -- Políticas sesiones
 drop policy if exists "sesiones_select_own" on public.sesiones;
 create policy "sesiones_select_own"
   on public.sesiones for select
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "sesiones_insert_own" on public.sesiones;
 create policy "sesiones_insert_own"
   on public.sesiones for insert
-  with check (auth.uid() = user_id);
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "sesiones_update_own" on public.sesiones;
 create policy "sesiones_update_own"
   on public.sesiones for update
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "sesiones_delete_own" on public.sesiones;
 create policy "sesiones_delete_own"
   on public.sesiones for delete
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 -- 4) Triggers updated_at con search_path fijo y SECURITY INVOKER:
 --    - SECURITY INVOKER: la función respeta RLS del caller (no bypass).
@@ -171,3 +175,10 @@ create policy "push_subscriptions_delete"
   on public.push_subscriptions for delete
   to anon, authenticated
   using (true);
+
+-- ════════════════════════════════════════════════════════════════
+-- 7) Auth: habilitar leaked password protection (HaveIBeenPwned)
+--    No es SQL: se activa manualmente en el Dashboard →
+--    Authentication → Settings → ☑ Enable leaked password protection.
+--    Comprueba contraseñas contra filtraciones conocidas al registrarse.
+-- ════════════════════════════════════════════════════════════════

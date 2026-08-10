@@ -3,8 +3,8 @@
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync
    - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
-const CACHE = /*EYEFIT_CACHE*/;
-const CORE_ASSETS = /*EYEFIT_ASSETS*/;
+const CACHE = 'EYEFIT_CACHE'; // build inyecta CACHE versionado (tools/build.js)
+const CORE_ASSETS = ['EYEFIT_CORE_ASSETS']; // build inyecta los assets hasheados
 
 /* Shell offline: página mínima para un cold-load sin red */
 const OFFLINE_SHELL = `<!DOCTYPE html>

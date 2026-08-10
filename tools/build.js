@@ -131,8 +131,8 @@ function buildHtml(cssName, jsName, criticalCss) {
 function buildSw(coreAssets) {
   let sw = fs.readFileSync(path.join(SRC, 'sw.js'), 'utf8');
   const version = `eyefit-v${Date.now().toString(36)}`;
-  sw = sw.replace('/*EYEFIT_CACHE*/', JSON.stringify(version));
-  sw = sw.replace('/*EYEFIT_ASSETS*/', JSON.stringify(coreAssets));
+  sw = sw.replace("'EYEFIT_CACHE'", JSON.stringify(version));
+  sw = sw.replace("['EYEFIT_CORE_ASSETS']", JSON.stringify(coreAssets));
   fs.writeFileSync(path.join(DIST, 'sw.js'), sw);
 }
 

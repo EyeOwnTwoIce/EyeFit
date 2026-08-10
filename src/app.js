@@ -1321,7 +1321,7 @@ function renderRutina(){
 
   const dayEx = routine.filter(e=>e.dia===sel).sort((a,b)=>(a.orden||0)-(b.orden||0));
   const dayCards = dayEx.length===0
-    ? `<div class="empty-state">${sel} es día de descanso.<br>Pulsa «Editar» para añadir ejercicios si lo deseas.</div>`
+    ? `<div class="empty-state">${escapeHtml(sel)} es día de descanso.<br>Pulsa «Editar» para añadir ejercicios si lo deseas.</div>`
     : dayEx.map((e,ei)=>{
         const img = getExerciseImage(e, datasetCache);
         const instrRaw = getInstrucciones(e);
@@ -1366,7 +1366,7 @@ function renderRutina(){
           : `<div class="rc-list">${dayEx.map(e=>`<div class="rc-item">${escapeHtml(getApodo(e))}</div>`).join("")}</div>`;
         return `<div class="rc-cell ${isToday?"rc-today":""} ${isSel?"rc-active":""}" data-day="${escapeHtmlAttr(name)}" role="button" tabindex="0" aria-pressed="${isSel}">
           <div class="rc-top">
-            <span class="rc-day" style="color:${color}">${DAY_SHORT[name]||name.slice(0,3)}</span>
+            <span class="rc-day" style="color:${escapeHtml(color)}">${escapeHtml(DAY_SHORT[name]||name.slice(0,3))}</span>
             <span class="rc-date">${dateLabel}</span>
           </div>
           ${body}
@@ -1374,7 +1374,7 @@ function renderRutina(){
       }).join("")}
     </div>
     <div class="rt-day-nav">
-      <span style="font-weight:800;font-size:13px;color:${DAY_COLORS[sel]||"#fff"};">${sel}</span>
+      <span style="font-weight:800;font-size:13px;color:${escapeHtml(DAY_COLORS[sel]||"#fff")};">${escapeHtml(sel)}</span>
       <div style="display:flex;gap:6px;">
         <button class="btn btn-outline" data-edit-routine data-edit-routine-day="${escapeHtmlAttr(sel)}" style="min-height:36px;">✏️ Editar</button>
         ${dayEx.length>0?`<button class="btn" style="min-height:36px;" data-start-session="${escapeHtmlAttr(sel)}">🏋️ Entrenar</button>`:""}
@@ -1406,7 +1406,7 @@ function exerciseCard(ex, i, day){
       </div>
       <div class="ex-info">
         <div style="display:flex;gap:6px;">
-          <span class="ex-num" style="color:${color}">${escapeHtml(ex.orden)}</span>
+          <span class="ex-num" style="color:${escapeHtml(color)}">${escapeHtml(ex.orden)}</span>
           <span class="ex-name">${escapeHtml(apodo)}</span>
         </div>
         <div class="ex-stats">
@@ -1453,7 +1453,7 @@ function renderEditRoutine(){
     const color = DAY_COLORS[d] || "#888";
     return `<div class="week-cell ${isSel?"active":""}" data-edit-day="${escapeHtmlAttr(d)}" role="button" tabindex="0" aria-pressed="${isSel}" aria-label="Editar día ${escapeHtmlAttr(d)}" style="${isSel?"":`border-color:${color}44;`}">
       <div class="d">${DAY_SHORT[d]||d.slice(0,3)}</div>
-      <div class="l" style="${isSel?"":`color:${color}`}">${d}</div>
+      <div class="l" style="${isSel?"":`color:${escapeHtml(color)}`}">${escapeHtml(d)}</div>
     </div>`;
   }).join("");
 
@@ -1830,10 +1830,10 @@ function svgSparkline(pts, w=140, h=36){
   }).join(" ");
   const last = vals[vals.length-1];
   const lastY = h - 4 - ((last-min)/range)*(h-8);
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-    <polygon points="0,${h} ${coords} ${w},${h}" fill="rgba(200,255,0,.12)"/>
-    <polyline points="${coords}" fill="none" stroke="#C8FF00" stroke-width="2" stroke-linejoin="round"/>
-    <circle cx="${(pts.length-1)*step}" cy="${lastY.toFixed(1)}" r="3" fill="#C8FF00"/>
+  return `<svg width="${escapeHtml(w)}" height="${escapeHtml(h)}" viewBox="0 0 ${escapeHtml(w)} ${escapeHtml(h)}" preserveAspectRatio="none">
+    <polygon points="0,${escapeHtml(h)} ${escapeHtml(coords)} ${escapeHtml(w)},${escapeHtml(h)}" fill="rgba(200,255,0,.12)"/>
+    <polyline points="${escapeHtml(coords)}" fill="none" stroke="#C8FF00" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="${escapeHtml((pts.length-1)*step)}" cy="${escapeHtml(lastY.toFixed(1))}" r="3" fill="#C8FF00"/>
   </svg>`;
 }
 
@@ -1924,7 +1924,7 @@ function renderSesion(){
       <h2 class="title">🏋️ Entrenar</h2>
       <div class="sess-preview-card">
         <div class="spc-head">
-          <span class="spc-day" style="color:${dayColor}">Entrenamiento del ${todayName}</span>
+          <span class="spc-day" style="color:${escapeHtml(dayColor)}">Entrenamiento del ${escapeHtml(todayName)}</span>
           <span class="spc-sub">${escapeHtml(todayEx.length)} ejercicios · ${escapeHtml(totalSets)} series</span>
         </div>
         <div class="spc-list">${exPreview}</div>
@@ -1980,7 +1980,7 @@ function renderSesion(){
         <button class="up-arrow" data-move-up="${absIdx}" ${i===0?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia arriba">↑</button>
         <button class="up-arrow" data-move-down="${absIdx}" ${absIdx===session.exercises.length-1?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia abajo">↓</button>
       </div>
-      <span class="up-num" style="color:${col}">${escapeHtml(u.orden)}</span>
+      <span class="up-num" style="color:${escapeHtml(col)}">${escapeHtml(u.orden)}</span>
       <span class="up-name">${escapeHtml(getApodo(u))}</span>
       <span class="up-sets">${escapeHtml(u.sets.filter(s=>s.done).length)}/${escapeHtml(u.sets.length)}</span>
     </div>`;
@@ -2006,7 +2006,7 @@ function renderSesion(){
     <div class="sets-grid">
       ${setRows}
       <button class="add-set-btn" data-add-set aria-label="Añadir una serie extra">＋ Añadir serie</button>
-      ${nextEx ? `<div class="sess-next-hint">Siguiente: <b style="color:${DAY_COLORS[day]||"#fff"}">${escapeHtml(getApodo(nextEx))}</b></div>` : ""}
+      ${nextEx ? `<div class="sess-next-hint">Siguiente: <b style="color:${escapeHtml(DAY_COLORS[day]||"#fff")}">${escapeHtml(getApodo(nextEx))}</b></div>` : ""}
     </div>
 
     ${upcoming ? `<div class="up-list">
@@ -2110,7 +2110,7 @@ function showSummary(){
   document.getElementById("sumExList").innerHTML = s.exList.filter(e=>e.sets.some(x=>x.done)).slice(0,10).map(e=>{
     const done = e.sets.filter(x=>x.done);
     return `<div class="sum-ex">
-      <div class="sum-ex-top"><span style="color:${DAY_COLORS[session.day]||"#fff"}">${escapeHtml(getApodo(e))}</span><span>${escapeHtml(done.length)}×${escapeHtml(done[0]?.reps||0)} reps</span></div>
+      <div class="sum-ex-top"><span style="color:${escapeHtml(DAY_COLORS[session.day]||"#fff")}">${escapeHtml(getApodo(e))}</span><span>${escapeHtml(done.length)}×${escapeHtml(done[0]?.reps||0)} reps</span></div>
       <div class="sum-ex-sub">${done.map(x=>`${escapeHtml(x.kg)}kg`).join(" · ")}</div>
     </div>`;
   }).join("");
@@ -2415,7 +2415,7 @@ function renderHistDayDetail(history, dateStr){
       <div class="hist-content">
         <div class="hist-day-top">
           <div class="hist-tri open"></div>
-          <span class="hist-day-name" style="color:${color}">${escapeHtml(h.day)}</span>
+          <span class="hist-day-name" style="color:${escapeHtml(color)}">${escapeHtml(h.day)}</span>
           <span class="hist-day-date">${escapeHtml(timeLabel)} · ${escapeHtml(mins)}m ${escapeHtml(secs)}s</span>
           <button class="hist-edit-btn" data-edit-hist-date="${escapeHtmlAttr(dateStr)}" data-edit-hist-sessid="${escapeHtmlAttr(h.session_id||"")}" aria-label="Editar sesión">✏️</button>
           <button class="hist-del-btn" data-del-session="${escapeHtmlAttr(dateStr)}" data-del-sessid="${escapeHtmlAttr(h.session_id||"")}" aria-label="Eliminar sesión">🗑️</button>
@@ -4251,7 +4251,7 @@ function renderSessionProgressBar(){
     const pct = e.sets.length ? Math.round((doneSets/e.sets.length)*100) : 0;
     const marks = e.sets.map((_,si)=>`<span class="seg-mark" style="left:${(si+1)/e.sets.length*100}%"></span>`).join("");
     return `<div class="sess-seg" style="flex:${escapeHtml(e.sets.length)};">
-      <div class="seg-fill" style="width:${escapeHtml(pct)}%;background:${col};"></div>
+      <div class="seg-fill" style="width:${escapeHtml(pct)}%;background:${escapeHtml(col)};"></div>
       ${marks}
       <span class="seg-label">${escapeHtml(e.sets.filter(s=>s.done).length)}/${escapeHtml(e.sets.length)}</span>
     </div>`;

@@ -107,8 +107,8 @@ serve(async (req) => {
       status: 200, headers: { ...CORS, 'Content-Type': 'application/json' }
     })
   } catch (e) {
-    // codeql[js/stack-trace-exposure] No exponer detalles internos al cliente:
-    // se registran en el log del servidor y se devuelve un mensaje genérico.
+    // No exponer detalles internos al cliente: se registran en el log del
+    // servidor y se devuelve un mensaje genérico.
     console.error('[eyefit-push] error:', e && e.message || e)
     return new Response(JSON.stringify({ ok: false, error: 'Error interno del servidor' }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' }

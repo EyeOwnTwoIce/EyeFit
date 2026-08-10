@@ -970,9 +970,15 @@ function findExerciseInDataset(dataset, name){
 }
 
 function escapeHtml(s){
-  const el = document.createElement('div');
-  el.textContent = String(s||"");
-  return el.innerHTML;
+  /* Escapado por sustitución de cadenas (NUNCA vía el.innerHTML: leer
+     innerHTML crearía una fuente de "DOM text" para la regla CodeQL
+     js/xss-through-dom). Equivalente funcional al viejo texto-textContent. */
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 /* Frontera segura de renderizado (CWE-79).
    Las funciones render* construyen HTML con todos los textos dinámicos
@@ -981,10 +987,12 @@ function escapeHtml(s){
    ni carga recursos), y el resultado se inserta con replaceChildren. */
 function setHtml(el, html){
   const tpl = document.createElement("template");
-  // Frontera segura: <template> es un contexto inerte (no ejecuta scripts ni
-  // carga recursos) y todas las render* escapan textos (escapeHtml/escapeHtmlAttr)
-  // y castan números (Number()) antes de construir el HTML.
-  tpl.innerHTML = html; // codeql[js/xss-through-dom]
+  /* Frontera segura de renderizado: <template> es un contexto inerte (no
+     ejecuta scripts ni carga recursos) y todas las render* escapan textos
+     (escapeHtml/escapeHtmlAttr) y castan números (Number()). El viejo
+     escapeHtml vía textContent→innerHTML se sustituyó por reemplazo de
+     cadenas para no introducir una lectura de innerHTML en el flujo. */
+  tpl.innerHTML = html;
   el.replaceChildren(tpl.content.cloneNode(true));
 }
 function formatInstructions(text){

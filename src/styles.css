@@ -18,7 +18,7 @@
   }
   body{
     padding-top:0;
-    padding-bottom:calc(80px + env(safe-area-inset-bottom));
+    padding-bottom:env(safe-area-inset-bottom);
     width:100%; margin:0 auto;
     overscroll-behavior:none;
     -webkit-text-size-adjust:100%; text-size-adjust:100%;
@@ -30,7 +30,7 @@
     -webkit-overflow-scrolling:touch;
     scrollbar-width:none; -ms-overflow-style:none;
     /* La tabbar está pegada al borde inferior: padding fijo para no tapar contenido */
-    padding:12px 14px calc(110px + env(safe-area-inset-bottom));
+    padding:12px 14px calc(70px + env(safe-area-inset-bottom));
   }
   main::-webkit-scrollbar{ display:none; }
   main.no-scroll{ overflow:hidden; }
@@ -235,7 +235,7 @@
      contenido —tarjeta del ejercicio, todas las series y la lista de Pendientes—
      es alcanzable desplazando hacia abajo, sin que nada quede recortado.
      height:100% hace que la vista ocupe solo el área útil de main (que ya reserva
-     su padding-bottom de 80px para la tabbar), evitando que el final del scroll
+     su padding-bottom para la tabbar), evitando que el final del scroll
      quede oculto detrás de la tabbar flotante.
      Usamos .section.active.session-view (especificidad 0,3,0) para que
      display:flex venza a .section.active{ display:block }. */

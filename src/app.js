@@ -183,7 +183,8 @@ function progressionBadgeHtml(ex, history){
   if(!dec) return "";
   const cls = dec.action==="up" ? "up" : (dec.action==="down" ? "down" : "keep");
   const icon = dec.action==="up" ? "⬆️" : (dec.action==="down" ? "⬇️" : "➡️");
-  const deltaTxt = Number(dec.delta)>0 ? "+"+Number(dec.delta)+" kg" : Number(dec.delta)<0 ? Number(dec.delta)+" kg" : "sin cambio";
+  const d = Number(dec.delta);
+  const deltaTxt = escapeHtml(d>0 ? "+"+d+" kg" : d<0 ? d+" kg" : "sin cambio");
   return `<div class="prog-badge ${cls}" title="${escapeHtmlAttr(dec.reason)}">
     ${icon} ${dec.action==="up" ? "Sube" : dec.action==="down" ? "Baja" : "Mantiene"} · ${deltaTxt}
     <span class="prog-badge detail">${escapeHtml(dec.reason)}</span>
@@ -1326,9 +1327,9 @@ function renderRutina(){
         const instrRaw = getInstrucciones(e);
         const key = String(e.datasetOriginal||e.dataset||e.nombre_es||"").trim().toLowerCase();
         const best = getHistoricalBest(key);
-        const rmLabel = best && best.rm ? `${formatKg(Math.round(best.rm))}kg` : "";
+        const rmLabel = best && best.rm ? `${escapeHtml(formatKg(Math.round(best.rm)))}kg` : "";
         const rmHint = best && best.rm
-          ? ` title="1RM = ${formatKg(best.kg)} × (1 + ${best.reps}/30) = ${formatKg(Math.round(best.rm))} kg (Epley)" data-has-rm="1"`
+          ? ` title="1RM = ${escapeHtml(formatKg(best.kg))} × (1 + ${escapeHtml(best.reps)}/30) = ${escapeHtml(formatKg(Math.round(best.rm)))} kg (Epley)" data-has-rm="1"`
           : ` data-has-rm="0"`;
         /* Primer ejercicio: above-the-fold — sin lazy y alta prioridad (LCP) */
         const imgAttrs = ei === 0
@@ -1342,9 +1343,9 @@ function renderRutina(){
           <div class="rtc-info">
             <div class="rtc-name">${escapeHtml(getApodo(e))}</div>
             <div class="rtc-stats">
-              <div class="rtc-stat" data-rt-edit="series" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${Number(e.series)}</span><span class="rtc-stat-lbl">series</span></div>
-              <div class="rtc-stat" data-rt-edit="reps" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${Number(e.reps)}</span><span class="rtc-stat-lbl">reps</span></div>
-              <div class="rtc-stat" data-rt-edit="kg" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${formatKg(e.peso_kg)}</span><span class="rtc-stat-lbl">kg</span></div>
+              <div class="rtc-stat" data-rt-edit="series" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${escapeHtml(e.series)}</span><span class="rtc-stat-lbl">series</span></div>
+              <div class="rtc-stat" data-rt-edit="reps" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${escapeHtml(e.reps)}</span><span class="rtc-stat-lbl">reps</span></div>
+              <div class="rtc-stat" data-rt-edit="kg" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${escapeHtml(formatKg(e.peso_kg))}</span><span class="rtc-stat-lbl">kg</span></div>
               ${rmLabel ? `<div class="rtc-stat rm-tappable" ${rmHint}><span class="rtc-stat-val">${rmLabel}</span><span class="rtc-stat-lbl">1RM</span></div>` : ""}
             </div>
           </div>
@@ -1405,15 +1406,15 @@ function exerciseCard(ex, i, day){
       </div>
       <div class="ex-info">
         <div style="display:flex;gap:6px;">
-          <span class="ex-num" style="color:${color}">${Number(ex.orden)}</span>
+          <span class="ex-num" style="color:${color}">${escapeHtml(ex.orden)}</span>
           <span class="ex-name">${escapeHtml(apodo)}</span>
         </div>
         <div class="ex-stats">
-          <span class="stat-chip"><b>${Number(ex.series)}</b> series</span>
-          <span class="stat-chip"><b>${Number(ex.reps)}</b> reps</span>
-          <span class="stat-chip">⚖️ <b>${formatKg(ex.peso_kg)}</b> kg</span>
-          <span class="stat-chip">⏱ <b>${formatRest(ex.descanso_s)}</b></span>
-          <span class="stat-chip">↔️ <b>${Number(variantes)}</b> alt.</span>
+          <span class="stat-chip"><b>${escapeHtml(ex.series)}</b> series</span>
+          <span class="stat-chip"><b>${escapeHtml(ex.reps)}</b> reps</span>
+          <span class="stat-chip">⚖️ <b>${escapeHtml(formatKg(ex.peso_kg))}</b> kg</span>
+          <span class="stat-chip">⏱ <b>${escapeHtml(formatRest(ex.descanso_s))}</b></span>
+          <span class="stat-chip">↔️ <b>${escapeHtml(variantes)}</b> alt.</span>
         </div>
         ${ex.notas ? `<div class="ex-notes">${escapeHtml(ex.notas)}</div>` : ""}
         ${instr ? `<button class="ex-instr-btn" data-instr-toggle="${i}">📖 Instrucciones</button>
@@ -1467,7 +1468,7 @@ function renderEditRoutine(){
     });
     return `<div class="edit-ex-row">
       <div class="edit-ex-top">
-        <span class="edit-ex-idx">${Number(ex.orden)}</span>
+        <span class="edit-ex-idx">${escapeHtml(ex.orden)}</span>
         <span class="edit-ex-name">${escapeHtml(getApodo(ex))}</span>
         <div class="edit-ex-actions">
           <button class="edit-mini" data-edit-ex-toggle="${ei}" aria-label="Editar series de ${escapeHtmlAttr(getApodo(ex))}">✏️</button>
@@ -1476,14 +1477,14 @@ function renderEditRoutine(){
           <button class="edit-mini danger" data-edit-ex-del="${ei}" aria-label="Eliminar ${escapeHtmlAttr(getApodo(ex))}">✕</button>
         </div>
       </div>
-      <div class="edit-ex-summary">${Number(setsWithEdits.length)} series · ${Number(ex.reps)} reps · ${Number(ex.peso_kg)} kg · ⏱ ${formatRest(ex.descanso_s)}</div>
+      <div class="edit-ex-summary">${escapeHtml(setsWithEdits.length)} series · ${escapeHtml(ex.reps)} reps · ${escapeHtml(ex.peso_kg)} kg · ⏱ ${escapeHtml(formatRest(ex.descanso_s))}</div>
       <div class="edit-ex-body" data-edit-ex-body="${ei}">
         ${setsWithEdits.map((s,si)=>`
           <div class="edit-set-row">
             <span class="es-num">${si+1}</span>
-            <input type="number" class="es-input" data-edit-set-kg="${ei}|${si}" value="${Number(s.kg)}" step="0.5" min="0" inputmode="decimal" aria-label="Peso serie ${si+1}">
+            <input type="number" class="es-input" data-edit-set-kg="${ei}|${si}" value="${escapeHtml(s.kg)}" step="0.5" min="0" inputmode="decimal" aria-label="Peso serie ${si+1}">
             <span class="es-label">kg</span>
-            <input type="number" class="es-input" data-edit-set-reps="${ei}|${si}" value="${Number(s.reps)}" step="1" min="1" inputmode="numeric" aria-label="Reps serie ${si+1}">
+            <input type="number" class="es-input" data-edit-set-reps="${ei}|${si}" value="${escapeHtml(s.reps)}" step="1" min="1" inputmode="numeric" aria-label="Reps serie ${si+1}">
             <span class="es-label">reps</span>
             <button class="edit-set-del" data-edit-set-del="${ei}|${si}" aria-label="Eliminar serie ${si+1}">🗑</button>
           </div>`).join("")}
@@ -1915,7 +1916,7 @@ function renderSesion(){
         ${img?`<div class="spe-img"><img src="${escapeHtmlAttr(img)}" alt="" loading="lazy" decoding="async" data-img-fallback="hide"></div>`:`<div class="spe-img spe-emoji">🏋️</div>`}
         <div class="spe-info">
           <div class="spe-name">${escapeHtml(getApodo(e))}</div>
-          <div class="spe-meta">${Number(e.series)}×${Number(e.reps)} · ${formatKg(e.peso_kg)}kg</div>
+          <div class="spe-meta">${escapeHtml(e.series)}×${escapeHtml(e.reps)} · ${escapeHtml(formatKg(e.peso_kg))}kg</div>
         </div>
       </div>`;
     }).join("");
@@ -1924,7 +1925,7 @@ function renderSesion(){
       <div class="sess-preview-card">
         <div class="spc-head">
           <span class="spc-day" style="color:${dayColor}">Entrenamiento del ${todayName}</span>
-          <span class="spc-sub">${Number(todayEx.length)} ejercicios · ${Number(totalSets)} series</span>
+          <span class="spc-sub">${escapeHtml(todayEx.length)} ejercicios · ${escapeHtml(totalSets)} series</span>
         </div>
         <div class="spc-list">${exPreview}</div>
         <button class="btn spc-start" data-start-session="${escapeHtmlAttr(todayName)}">▶️ Entrenar</button>
@@ -1949,14 +1950,14 @@ function renderSesion(){
         <div class="set-control">
           <button class="stepper" data-kg-minus="${si}" aria-label="Reducir peso de la serie ${si+1}">−</button>
           <div style="text-align:center;min-width:36px;">
-            <div class="set-value" data-edit="${si}" data-field="kg" role="button" tabindex="0" aria-label="Editar peso de la serie ${si+1} (${Number(set.kg)} kg)">${Number(set.kg)}</div>
+            <div class="set-value" data-edit="${si}" data-field="kg" role="button" tabindex="0" aria-label="Editar peso de la serie ${si+1} (${escapeHtml(set.kg)} kg)">${escapeHtml(set.kg)}</div>
             <div class="set-label">kg</div>
           </div>
           <button class="stepper" data-kg-plus="${si}" aria-label="Aumentar peso de la serie ${si+1}">+</button>
           <div style="width:6px;"></div>
           <button class="stepper" data-reps-minus="${si}" aria-label="Reducir repeticiones de la serie ${si+1}">−</button>
           <div style="text-align:center;min-width:30px;">
-            <div class="set-value" data-edit="${si}" data-field="reps" role="button" tabindex="0" aria-label="Editar repeticiones de la serie ${si+1} (${Number(set.reps)} reps)">${Number(set.reps)}</div>
+            <div class="set-value" data-edit="${si}" data-field="reps" role="button" tabindex="0" aria-label="Editar repeticiones de la serie ${si+1} (${escapeHtml(set.reps)} reps)">${escapeHtml(set.reps)}</div>
             <div class="set-label">reps</div>
           </div>
           <button class="stepper" data-reps-plus="${si}" aria-label="Aumentar repeticiones de la serie ${si+1}">+</button>
@@ -1979,16 +1980,16 @@ function renderSesion(){
         <button class="up-arrow" data-move-up="${absIdx}" ${i===0?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia arriba">↑</button>
         <button class="up-arrow" data-move-down="${absIdx}" ${absIdx===session.exercises.length-1?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia abajo">↓</button>
       </div>
-      <span class="up-num" style="color:${col}">${Number(u.orden)}</span>
+      <span class="up-num" style="color:${col}">${escapeHtml(u.orden)}</span>
       <span class="up-name">${escapeHtml(getApodo(u))}</span>
-      <span class="up-sets">${Number(u.sets.filter(s=>s.done).length)}/${Number(u.sets.length)}</span>
+      <span class="up-sets">${escapeHtml(u.sets.filter(s=>s.done).length)}/${escapeHtml(u.sets.length)}</span>
     </div>`;
   }).join("");
 
   return `<div class="section active session-view">
     <div class="ex-active-card">
       <div class="ex-active-header">
-        <span class="ex-active-count">${Number(session.currentIdx+1)} / ${Number(totalEx)}</span>
+        <span class="ex-active-count">${escapeHtml(session.currentIdx+1)} / ${escapeHtml(totalEx)}</span>
       </div>
       <div class="ex-active-body">
         ${imgUrl ? `<div class="ex-img-wrap" data-img-zoom aria-label="Ampliar GIF de ${escapeHtmlAttr(apodo)}" role="button" tabindex="0">
@@ -2102,15 +2103,15 @@ function showSummary(){
   const mins = Math.floor(s.elapsed/60), secs = s.elapsed%60;
   document.getElementById("sumSub").textContent = `${session.day} · ${mins}m ${String(secs).padStart(2,"0")}s`;
   document.getElementById("sumGrid").innerHTML = `
-    <div class="sum-stat"><div class="sv">${Number(s.completedSets)}</div><div class="sl">Series</div></div>
-    <div class="sum-stat"><div class="sv">${Number(s.totalReps)}</div><div class="sl">Reps</div></div>
-    <div class="sum-stat"><div class="sv">${Number(s.completedEx)}/${Number(s.totalEx)}</div><div class="sl">Ejercicios</div></div>
-    <div class="sum-stat"><div class="sv">${Number(Math.round(s.totalWeight))}<span style="font-size:12px;"> kg</span></div><div class="sl">Peso total</div></div>`;
+    <div class="sum-stat"><div class="sv">${escapeHtml(s.completedSets)}</div><div class="sl">Series</div></div>
+    <div class="sum-stat"><div class="sv">${escapeHtml(s.totalReps)}</div><div class="sl">Reps</div></div>
+    <div class="sum-stat"><div class="sv">${escapeHtml(s.completedEx)}/${escapeHtml(s.totalEx)}</div><div class="sl">Ejercicios</div></div>
+    <div class="sum-stat"><div class="sv">${escapeHtml(Math.round(s.totalWeight))}<span style="font-size:12px;"> kg</span></div><div class="sl">Peso total</div></div>`;
   document.getElementById("sumExList").innerHTML = s.exList.filter(e=>e.sets.some(x=>x.done)).slice(0,10).map(e=>{
     const done = e.sets.filter(x=>x.done);
     return `<div class="sum-ex">
-      <div class="sum-ex-top"><span style="color:${DAY_COLORS[session.day]||"#fff"}">${escapeHtml(getApodo(e))}</span><span>${Number(done.length)}×${Number(done[0]?.reps)||0} reps</span></div>
-      <div class="sum-ex-sub">${done.map(x=>`${Number(x.kg)}kg`).join(" · ")}</div>
+      <div class="sum-ex-top"><span style="color:${DAY_COLORS[session.day]||"#fff"}">${escapeHtml(getApodo(e))}</span><span>${escapeHtml(done.length)}×${escapeHtml(done[0]?.reps||0)} reps</span></div>
+      <div class="sum-ex-sub">${done.map(x=>`${escapeHtml(x.kg)}kg`).join(" · ")}</div>
     </div>`;
   }).join("");
   document.getElementById("summaryOverlay").classList.add("show");
@@ -2398,12 +2399,12 @@ function renderHistDayDetail(history, dateStr){
       const prog = getExerciseProgression(key);
       const bestNow = getHistoricalBest(key);
       const spark = svgSparkline(prog);
-      const rmLabel = bestNow && bestNow.rm ? `${formatKg(Math.round(bestNow.rm))}` : "";
-      const rmHint = bestNow && bestNow.rm ? ` title="1RM = ${formatKg(bestNow.kg)} × (1 + ${bestNow.reps}/30) = ${formatKg(Math.round(bestNow.rm))} kg (Epley)" data-has-rm="1"` : "";
+      const rmLabel = bestNow && bestNow.rm ? `${escapeHtml(formatKg(Math.round(bestNow.rm)))}` : "";
+      const rmHint = bestNow && bestNow.rm ? ` title="1RM = ${escapeHtml(formatKg(bestNow.kg))} × (1 + ${escapeHtml(bestNow.reps)}/30) = ${escapeHtml(formatKg(Math.round(bestNow.rm)))} kg (Epley)" data-has-rm="1"` : "";
       return `<div class="hist-ex-line">
         <div class="hist-ex">
           <span class="hist-ex-name">${escapeHtml(getApodo(e))}</span>
-          <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${Number(s.reps)}×${formatKg(s.kg)}`).join(" · ")}</span>
+          <span class="hist-ex-set">${e.sets.filter(s=>s.done).map(s=>`${escapeHtml(s.reps)}×${escapeHtml(formatKg(s.kg))}`).join(" · ")}</span>
         </div>
         ${spark ? `<div class="hist-ex-prog"><span class="lbl rm-tappable" ${rmHint}>1RM ${rmLabel}</span>${spark}</div>` : ""}
       </div>`;
@@ -2415,12 +2416,12 @@ function renderHistDayDetail(history, dateStr){
         <div class="hist-day-top">
           <div class="hist-tri open"></div>
           <span class="hist-day-name" style="color:${color}">${escapeHtml(h.day)}</span>
-          <span class="hist-day-date">${timeLabel} · ${Number(mins)}m ${Number(secs)}s</span>
+          <span class="hist-day-date">${escapeHtml(timeLabel)} · ${escapeHtml(mins)}m ${escapeHtml(secs)}s</span>
           <button class="hist-edit-btn" data-edit-hist-date="${escapeHtmlAttr(dateStr)}" data-edit-hist-sessid="${escapeHtmlAttr(h.session_id||"")}" aria-label="Editar sesión">✏️</button>
           <button class="hist-del-btn" data-del-session="${escapeHtmlAttr(dateStr)}" data-del-sessid="${escapeHtmlAttr(h.session_id||"")}" aria-label="Eliminar sesión">🗑️</button>
         </div>
         <div class="hist-day-body open">
-          <div class="hist-day-stats">${Number(exDone.length)} ejercicios · ${Number(h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0))} series</div>
+          <div class="hist-day-stats">${escapeHtml(exDone.length)} ejercicios · ${escapeHtml(h.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0))} series</div>
           ${exHtml}
         </div>
       </div>
@@ -2445,16 +2446,16 @@ function renderHistorial(){
   const totalTime = history.reduce((a,h)=>a+(h.duration||0),0);
   const totalSets = history.reduce((a,h)=>a+h.exercises.reduce((b,e)=>b+e.sets.filter(s=>s.done).length,0),0);
   const streak = getStreak();
-  const streakHtml = streak > 0 ? `<div class="streak-banner">🔥 Racha: ${Number(streak)} día${Number(streak)>1?"s":""}</div>` : "";
+  const streakHtml = streak > 0 ? `<div class="streak-banner">🔥 Racha: ${escapeHtml(streak)} día${Number(streak)>1?"s":""}</div>` : "";
   const cal = renderHistCalendar(history);
   const detail = histActiveDate ? renderHistDayDetail(history, histActiveDate) : "";
   return `<div class="section active">
     <h2 class="title">📈 Historial</h2>
     ${streakHtml}
     <div class="hist-summary">
-      <div class="hist-stat"><div class="v">${Number(totalSessions)}</div><div class="l">Sesiones</div></div>
-      <div class="hist-stat"><div class="v">${Number(Math.floor(totalTime/60))}m</div><div class="l">Tiempo total</div></div>
-      <div class="hist-stat"><div class="v">${Number(totalSets)}</div><div class="l">Series</div></div>
+      <div class="hist-stat"><div class="v">${escapeHtml(totalSessions)}</div><div class="l">Sesiones</div></div>
+      <div class="hist-stat"><div class="v">${escapeHtml(Math.floor(totalTime/60))}m</div><div class="l">Tiempo total</div></div>
+      <div class="hist-stat"><div class="v">${escapeHtml(totalSets)}</div><div class="l">Series</div></div>
     </div>
     ${cal}
     ${detail}
@@ -2484,9 +2485,9 @@ function openEditHistSession(h){
       const rows = sets.length ? sets.map((s,si)=>`
         <div class="edit-hist-set">
           <span class="ehs-num">${si+1}</span>
-          <input type="number" class="ehs-input" data-eh-kg="${ei}|${si}" value="${Number(s.kg)}" step="0.5" min="0" inputmode="decimal" aria-label="Peso">
+          <input type="number" class="ehs-input" data-eh-kg="${ei}|${si}" value="${escapeHtml(s.kg)}" step="0.5" min="0" inputmode="decimal" aria-label="Peso">
           <span class="ehs-label">kg</span>
-          <input type="number" class="ehs-input" data-eh-reps="${ei}|${si}" value="${Number(s.reps)}" step="1" min="1" inputmode="numeric" aria-label="Reps">
+          <input type="number" class="ehs-input" data-eh-reps="${ei}|${si}" value="${escapeHtml(s.reps)}" step="1" min="1" inputmode="numeric" aria-label="Reps">
           <span class="ehs-label">reps</span>
           <button class="ehs-del-set" data-eh-del="${ei}|${si}" aria-label="Eliminar serie ${si+1}">🗑</button>
         </div>`).join("")
@@ -2734,7 +2735,7 @@ function renderAjustes(){
   const pending = getPending();
   const pendingCount = pending.sessions.length;
   const syncMsg = Number(pendingCount)>0
-    ? `${Number(pendingCount)} sesión${Number(pendingCount)>1?"es":""} pendiente${Number(pendingCount)>1?"s":""} de subir`
+    ? `${escapeHtml(pendingCount)} sesión${Number(pendingCount)>1?"es":""} pendiente${Number(pendingCount)>1?"s":""} de subir`
     : authUser ? "Todo sincronizado" : "Sin conexión a la nube";
   const syncClass = pendingCount>0 ? "pending" : (authUser ? "" : "off");
   const tc = trainingConfig;
@@ -2757,7 +2758,7 @@ function renderAjustes(){
       <div class="set-group-title">🏋️ Entrenamiento</div>
       <div class="set-row-item">
         <div><div class="label">Peso corporal</div><div class="desc">Para métricas relativas a tu masa</div></div>
-        <input type="number" class="set-input" value="${Number(tc.peso_corporal)}" data-train-input="peso_corporal" data-float="1" step="0.5" min="30">
+        <input type="number" class="set-input" value="${escapeHtml(tc.peso_corporal)}" data-train-input="peso_corporal" data-float="1" step="0.5" min="30">
       </div>
       <div class="set-row-item">
         <div><div class="label">Tipo de progresión</div><div class="desc">Doble progresión (recomendada) o lineal</div></div>
@@ -2787,30 +2788,30 @@ function renderAjustes(){
       <div class="set-row-item">
         <div><div class="label">Rango reps compuestos</div><div class="desc">Sentadilla, press banca, remo…</div></div>
         <div style="display:flex;gap:4px;align-items:center;">
-          <input type="number" class="set-input" style="width:56px;" value="${Number(tc.rango_compuesto_min)}" data-train-input="rango_compuesto_min" min="1" max="20">
+          <input type="number" class="set-input" style="width:56px;" value="${escapeHtml(tc.rango_compuesto_min)}" data-train-input="rango_compuesto_min" min="1" max="20">
           <span style="color:var(--muted);font-size:10px;">–</span>
-          <input type="number" class="set-input" style="width:56px;" value="${Number(tc.rango_compuesto_max)}" data-train-input="rango_compuesto_max" min="1" max="30">
+          <input type="number" class="set-input" style="width:56px;" value="${escapeHtml(tc.rango_compuesto_max)}" data-train-input="rango_compuesto_max" min="1" max="30">
         </div>
       </div>
       <div class="set-row-item">
         <div><div class="label">Rango reps aislamiento</div><div class="desc">Curls, elevaciones, extensiones…</div></div>
         <div style="display:flex;gap:4px;align-items:center;">
-          <input type="number" class="set-input" style="width:56px;" value="${Number(tc.rango_aislamiento_min)}" data-train-input="rango_aislamiento_min" min="1" max="20">
+          <input type="number" class="set-input" style="width:56px;" value="${escapeHtml(tc.rango_aislamiento_min)}" data-train-input="rango_aislamiento_min" min="1" max="20">
           <span style="color:var(--muted);font-size:10px;">–</span>
-          <input type="number" class="set-input" style="width:56px;" value="${Number(tc.rango_aislamiento_max)}" data-train-input="rango_aislamiento_max" min="1" max="30">
+          <input type="number" class="set-input" style="width:56px;" value="${escapeHtml(tc.rango_aislamiento_max)}" data-train-input="rango_aislamiento_max" min="1" max="30">
         </div>
       </div>
       <div class="set-row-item">
         <div><div class="label">RIR objetivo</div><div class="desc">Reps en reserva al terminar cada serie (2 = casi al fallo)</div></div>
-        <input type="number" class="set-input" value="${Number(tc.rir_objetivo)}" data-train-input="rir_objetivo" min="0" max="5">
+        <input type="number" class="set-input" value="${escapeHtml(tc.rir_objetivo)}" data-train-input="rir_objetivo" min="0" max="5">
       </div>
       <div class="set-row-item">
         <div><div class="label">Incremento barra</div><div class="desc">Kilos a subir en ejercicios con barra</div></div>
-        <input type="number" class="set-input" value="${Number(tc.incremento_barra)}" data-train-input="incremento_barra" data-float="1" step="0.5" min="0.5">
+        <input type="number" class="set-input" value="${escapeHtml(tc.incremento_barra)}" data-train-input="incremento_barra" data-float="1" step="0.5" min="0.5">
       </div>
       <div class="set-row-item">
         <div><div class="label">Incremento mancuerna</div><div class="desc">Kilos a subir en ejercicios con mancuernas</div></div>
-        <input type="number" class="set-input" value="${Number(tc.incremento_mancuerna)}" data-train-input="incremento_mancuerna" data-float="1" step="0.5" min="0.5">
+        <input type="number" class="set-input" value="${escapeHtml(tc.incremento_mancuerna)}" data-train-input="incremento_mancuerna" data-float="1" step="0.5" min="0.5">
       </div>
     </div>
     <div class="set-group">
@@ -2818,7 +2819,7 @@ function renderAjustes(){
       <div class="set-row-item">
         <div>
           <div class="label">Rutina actual: <b class="accent">${escapeHtml(routineSrc)}</b></div>
-          <div class="desc">${Number(routine.length)} ejercicios · Lunes-Viernes</div>
+          <div class="desc">${escapeHtml(routine.length)} ejercicios · Lunes-Viernes</div>
         </div>
       </div>
       <div class="prog-info">
@@ -3104,7 +3105,7 @@ function attachEvents(){
         return `<div class="confirm-ex-row">
           ${img?`<img src="${escapeHtmlAttr(img)}" alt="" class="confirm-ex-img" data-img-fallback="hide">`:""}
           <span class="confirm-ex-name">${escapeHtml(getApodo(e))}</span>
-          <span class="confirm-ex-meta">${Number(e.series)}×${Number(e.reps)} <b>${escapeHtml(formatKg(e.peso_kg))}</b>kg</span>
+          <span class="confirm-ex-meta">${escapeHtml(e.series)}×${escapeHtml(e.reps)} <b>${escapeHtml(formatKg(e.peso_kg))}</b>kg</span>
         </div>`;
       }).join("");
       const totalSets = dayEx.reduce((a,e)=>a+Number(e.series||3),0);
@@ -3113,7 +3114,7 @@ function attachEvents(){
       modal.innerHTML = `
         <div class="session-confirm-card">
           <div class="sc-title">Entrenamiento del ${escapeHtml(day)}</div>
-          <div class="sc-sub">${Number(dayEx.length)} ejercicios · ${Number(totalSets)} series</div>
+          <div class="sc-sub">${escapeHtml(dayEx.length)} ejercicios · ${escapeHtml(totalSets)} series</div>
           <div class="sc-list">${exList}</div>
           <button class="btn sc-start" data-sc-start>▶️ Entrenar</button>
           <button class="btn btn-outline sc-cancel" data-sc-cancel>Cancelar</button>
@@ -4249,10 +4250,10 @@ function renderSessionProgressBar(){
     const doneSets = e.sets.filter(s=>s.done).length;
     const pct = e.sets.length ? Math.round((doneSets/e.sets.length)*100) : 0;
     const marks = e.sets.map((_,si)=>`<span class="seg-mark" style="left:${(si+1)/e.sets.length*100}%"></span>`).join("");
-    return `<div class="sess-seg" style="flex:${Number(e.sets.length)};">
-      <div class="seg-fill" style="width:${Number(pct)}%;background:${col};"></div>
+    return `<div class="sess-seg" style="flex:${escapeHtml(e.sets.length)};">
+      <div class="seg-fill" style="width:${escapeHtml(pct)}%;background:${col};"></div>
       ${marks}
-      <span class="seg-label">${Number(e.sets.filter(s=>s.done).length)}/${Number(e.sets.length)}</span>
+      <span class="seg-label">${escapeHtml(e.sets.filter(s=>s.done).length)}/${escapeHtml(e.sets.length)}</span>
     </div>`;
   }).join("");
   bar.innerHTML = segs;

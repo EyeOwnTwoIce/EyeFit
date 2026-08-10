@@ -1244,21 +1244,24 @@ function updateStopBtn(){
 }
 let routineEditMode = false;
 
+let lastRenderedHtml = "";
 function renderMain(){
   const main = document.getElementById("main");
   updateSessionHeader();
   if(routineEditMode && currentTab === "rutina"){
     const html = renderEditRoutine();
-    if(main.innerHTML !== html){
+    if(lastRenderedHtml !== html){
       main.innerHTML = html;
+      lastRenderedHtml = html;
       attachEvents();
     }
     return;
   }
   const views = { rutina:renderRutina, sesion:renderSesion, historial:renderHistorial, ajustes:renderAjustes };
   const html = views[currentTab] ? views[currentTab]() : renderRutina();
-  if(main.innerHTML !== html){
+  if(lastRenderedHtml !== html){
     main.innerHTML = html;
+    lastRenderedHtml = html;
     attachEvents();
   }
 }
@@ -2083,15 +2086,15 @@ function showSummary(){
   const mins = Math.floor(s.elapsed/60), secs = s.elapsed%60;
   document.getElementById("sumSub").textContent = `${session.day} · ${mins}m ${String(secs).padStart(2,"0")}s`;
   document.getElementById("sumGrid").innerHTML = `
-    <div class="sum-stat"><div class="sv">${s.completedSets}</div><div class="sl">Series</div></div>
-    <div class="sum-stat"><div class="sv">${s.totalReps}</div><div class="sl">Reps</div></div>
-    <div class="sum-stat"><div class="sv">${s.completedEx}/${s.totalEx}</div><div class="sl">Ejercicios</div></div>
-    <div class="sum-stat"><div class="sv">${Math.round(s.totalWeight)}<span style="font-size:12px;"> kg</span></div><div class="sl">Peso total</div></div>`;
+    <div class="sum-stat"><div class="sv">${Number(s.completedSets)}</div><div class="sl">Series</div></div>
+    <div class="sum-stat"><div class="sv">${Number(s.totalReps)}</div><div class="sl">Reps</div></div>
+    <div class="sum-stat"><div class="sv">${Number(s.completedEx)}/${Number(s.totalEx)}</div><div class="sl">Ejercicios</div></div>
+    <div class="sum-stat"><div class="sv">${Number(Math.round(s.totalWeight))}<span style="font-size:12px;"> kg</span></div><div class="sl">Peso total</div></div>`;
   document.getElementById("sumExList").innerHTML = s.exList.filter(e=>e.sets.some(x=>x.done)).slice(0,10).map(e=>{
     const done = e.sets.filter(x=>x.done);
     return `<div class="sum-ex">
-      <div class="sum-ex-top"><span style="color:${DAY_COLORS[session.day]||"#fff"}">${escapeHtml(getApodo(e))}</span><span>${done.length}×${done[0]?.reps||0} reps</span></div>
-      <div class="sum-ex-sub">${done.map(x=>`${x.kg}kg`).join(" · ")}</div>
+      <div class="sum-ex-top"><span style="color:${DAY_COLORS[session.day]||"#fff"}">${escapeHtml(getApodo(e))}</span><span>${Number(done.length)}×${Number(done[0]?.reps)||0} reps</span></div>
+      <div class="sum-ex-sub">${done.map(x=>`${Number(x.kg)}kg`).join(" · ")}</div>
     </div>`;
   }).join("");
   document.getElementById("summaryOverlay").classList.add("show");
@@ -2465,9 +2468,9 @@ function openEditHistSession(h){
       const rows = sets.length ? sets.map((s,si)=>`
         <div class="edit-hist-set">
           <span class="ehs-num">${si+1}</span>
-          <input type="number" class="ehs-input" data-eh-kg="${ei}|${si}" value="${s.kg}" step="0.5" min="0" inputmode="decimal" aria-label="Peso">
+          <input type="number" class="ehs-input" data-eh-kg="${ei}|${si}" value="${Number(s.kg)}" step="0.5" min="0" inputmode="decimal" aria-label="Peso">
           <span class="ehs-label">kg</span>
-          <input type="number" class="ehs-input" data-eh-reps="${ei}|${si}" value="${s.reps}" step="1" min="1" inputmode="numeric" aria-label="Reps">
+          <input type="number" class="ehs-input" data-eh-reps="${ei}|${si}" value="${Number(s.reps)}" step="1" min="1" inputmode="numeric" aria-label="Reps">
           <span class="ehs-label">reps</span>
           <button class="ehs-del-set" data-eh-del="${ei}|${si}" aria-label="Eliminar serie ${si+1}">🗑</button>
         </div>`).join("")
@@ -3083,18 +3086,18 @@ function attachEvents(){
       const exList = dayEx.map((e,i)=>{
         const img = getExerciseImage(e, datasetCache);
         return `<div class="confirm-ex-row">
-          ${img?`<img src="${img}" alt="" class="confirm-ex-img" data-img-fallback="hide">`:""}
+          ${img?`<img src="${escapeHtmlAttr(img)}" alt="" class="confirm-ex-img" data-img-fallback="hide">`:""}
           <span class="confirm-ex-name">${escapeHtml(getApodo(e))}</span>
-          <span class="confirm-ex-meta">${e.series}×${e.reps} <b>${formatKg(e.peso_kg)}</b>kg</span>
+          <span class="confirm-ex-meta">${Number(e.series)}×${Number(e.reps)} <b>${escapeHtml(formatKg(e.peso_kg))}</b>kg</span>
         </div>`;
       }).join("");
-      const totalSets = dayEx.reduce((a,e)=>a+parseInt(e.series||3,10),0);
+      const totalSets = dayEx.reduce((a,e)=>a+Number(e.series||3),0);
       const modal = document.createElement("div");
       modal.className = "session-confirm-overlay";
       modal.innerHTML = `
         <div class="session-confirm-card">
-          <div class="sc-title">Entrenamiento del ${day}</div>
-          <div class="sc-sub">${dayEx.length} ejercicios · ${totalSets} series</div>
+          <div class="sc-title">Entrenamiento del ${escapeHtml(day)}</div>
+          <div class="sc-sub">${Number(dayEx.length)} ejercicios · ${Number(totalSets)} series</div>
           <div class="sc-list">${exList}</div>
           <button class="btn sc-start" data-sc-start>▶️ Entrenar</button>
           <button class="btn btn-outline sc-cancel" data-sc-cancel>Cancelar</button>

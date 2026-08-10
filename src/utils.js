@@ -199,7 +199,7 @@
     return String(s || "")
       .toLowerCase()
       .trim()
-      .replace(/[^\w\sà-úá-ú]/g, "")
+      .replace(/[^\w\sà-ú]/g, "")
       .replace(/\s+/g, " ");
   }
 

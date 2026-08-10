@@ -65,6 +65,14 @@ self.addEventListener('sync', event => {
 
 /* Actualización disponible → notificar al cliente para el prompt "recargar" */
 self.addEventListener('message', event => {
+  // Seguridad (CWE-20/940): verificar que el mensaje proviene de un cliente
+  // de nuestra propia app (mismo origen), no de una ventana externa.
+  const src = event.source;
+  if (src && typeof src.url === 'string' && src.url) {
+    try {
+      if (new URL(src.url).origin !== self.location.origin) return;
+    } catch (_) { return; }
+  }
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }

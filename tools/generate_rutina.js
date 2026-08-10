@@ -3,7 +3,21 @@
    Uso: node tools/generate_rutina.js
    Edita los datos aquí y vuelve a ejecutar para regenerar el xlsx.
 */
-const XLSX = require("xlsx");
+/* SheetJS CE está abandonado en npm (no hay versiones corregidas de las
+   CVEs 2023-30533 / 2024-22363). Cargamos el bundle corregido (v0.20.2)
+   directamente desde vendor/ en un sandbox de Node. */
+const fs = require("fs");
+const vm = require("vm");
+const path = require("path");
+const __sandbox = { console, process, Buffer };
+vm.createContext(__sandbox);
+vm.runInContext(
+  fs.readFileSync(path.join(__dirname, "..", "vendor", "xlsx.full.min.js"), "utf8"),
+  __sandbox
+);
+const XLSX = __sandbox.XLSX;
+/* El bundle corre en sandbox sin acceso a Node fs: se lo inyectamos */
+XLSX.set_fs(fs);
 
 /* ------------------------------------------------------------------
    RUTINA BASE — edita libremente esta estructura

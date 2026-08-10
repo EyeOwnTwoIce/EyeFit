@@ -13,16 +13,19 @@
     "test:e2e": "npm run build && playwright test",
     "lighthouse": "npm run build && npx http-server dist -p 4173 -c-1 & lhci autorun"
   },
-  "dependencies": {
-    "xlsx": "^0.18.5"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@lhci/cli": "^0.14.0",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.62.1",
     "esbuild": "^0.28.1",
     "fake-indexeddb": "^5.0.2",
     "http-server": "^14.1.1",
     "web-push": "^3.6.7"
+  },
+  "overrides": {
+    "tmp": "0.2.7",
+    "cookie": "0.7.0",
+    "uuid": "11.1.1"
   },
   "allowScripts": {
     "esbuild@0.28.1": true

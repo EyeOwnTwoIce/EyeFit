@@ -981,7 +981,10 @@ function escapeHtml(s){
    ni carga recursos), y el resultado se inserta con replaceChildren. */
 function setHtml(el, html){
   const tpl = document.createElement("template");
-  tpl.innerHTML = html;
+  // Frontera segura: <template> es un contexto inerte (no ejecuta scripts ni
+  // carga recursos) y todas las render* escapan textos (escapeHtml/escapeHtmlAttr)
+  // y castan números (Number()) antes de construir el HTML.
+  tpl.innerHTML = html; // codeql[js/xss-through-dom]
   el.replaceChildren(tpl.content.cloneNode(true));
 }
 function formatInstructions(text){

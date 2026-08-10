@@ -36,8 +36,8 @@ async function main() {
   const full = await resp.json();
   console.log(`   ${full.length} ejercicios en total`);
 
-  // Fuente de ejercicios usados (DEFAULT_ROUTINE + ALTERNATIVAS)
-  const utilsSrc = fs.readFileSync(path.join(__dirname, '..', 'utils.js'), 'utf8');
+  // Fuente de ejercicios usados (DEFAULT_ROUTINE + ALTERNATIVAS, en constants.js)
+  const utilsSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'constants.js'), 'utf8');
 
   // Extraer todos los datasets de DEFAULT_ROUTINE (campos "dataset:")
   const used = new Set();

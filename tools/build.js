@@ -22,14 +22,14 @@ const VENDOR = path.join(ROOT, 'vendor');
 /* Origen de cada arquivo que se copia tal cual a dist/ */
 const STATIC_SOURCES = [
   'public/manifest.json', 'public/rutina.xlsx', 'data/slim-dataset.json', 'data/exercise-meta.json',
-  'public/robots.txt', 'public/sitemap.xml', 'src/utils.js', 'vendor/supabase.js',
+  'public/robots.txt', 'public/sitemap.xml', 'src/utils.js', 'src/constants.js', 'vendor/supabase.js',
   'vendor/xlsx.full.min.js'
 ];
 
 // Destino en dist/ (nombre archivo)
 const STATIC_FILES = [
   'manifest.json', 'rutina.xlsx', 'slim-dataset.json', 'exercise-meta.json',
-  'robots.txt', 'sitemap.xml', 'utils.js', 'supabase.js',
+  'robots.txt', 'sitemap.xml', 'utils.js', 'constants.js', 'supabase.js',
   'xlsx.full.min.js'
 ];
 
@@ -142,7 +142,7 @@ function buildSw(coreAssets) {
   const [cssName, jsName, criticalCss] = await Promise.all([buildCss(), buildJs(), buildCriticalCss()]);
   buildHtml(cssName, jsName, criticalCss);
   const coreAssets = ['./', './index.html', `./${cssName}`, `./${jsName}`,
-    './manifest.json', './utils.js', './db.js', './supabase.js', './rutina.xlsx',
+    './manifest.json', './constants.js', './utils.js', './db.js', './supabase.js', './rutina.xlsx',
     './slim-dataset.json', './exercise-meta.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
   buildSw(coreAssets);
   console.log(`✔ Build OK → dist/ (${cssName}, ${jsName}, critical ${criticalCss.length} bytes)`);

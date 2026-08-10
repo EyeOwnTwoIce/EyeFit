@@ -32,6 +32,7 @@ drop index if exists public.sesiones_user_id_idx;
 create index if not exists sesiones_user_idx on public.sesiones(user_id);
 -- Clave única para idempotencia: el mismo session_id del mismo usuario
 -- solo se inserta/upsertea una vez (evita duplicados en sync concurrente)
+alter table public.sesiones drop constraint if exists sesiones_user_session_unique;
 alter table public.sesiones
   add constraint sesiones_user_session_unique unique (user_id, session_id);
 

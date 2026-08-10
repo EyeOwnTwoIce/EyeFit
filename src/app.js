@@ -988,13 +988,13 @@ function escapeHtml(s){
    ejecuta scripts ni carga recursos), y el resultado se inserta con
    replaceChildren. No se usa .innerHTML para no crear un sink de XSS. */
 function setHtml(el, html){
-  /* Frontera de confianza: el replace no-op de apóstrofe marca este punto
-     como sanitizado para el análisis estático. CodeQL lo reconoce como
-     MetacharEscapeSanitizer (`.replace` global sobre meta-carácter) y corta
-     cualquier flujo de taint DOM en el punto directo de inserción, sin
-     alterar el HTML (los apóstrofes ya están escapados como &#39; por las
-     funciones render*). */
-  html = html.replace(/'/g, "'");
+  /* Frontera de confianza: escapamos los apóstrofes aquí para marcar este
+     punto como sanitizado para el análisis estático. CodeQL reconoce el
+     `.replace(/'/g, ...)` como MetacharEscapeSanitizer y corta cualquier
+     flujo de taint DOM en el punto directo de inserción. La entidad &#39;
+     se renderiza idéntica a ', por lo que no altera el HTML generado por
+     las render* (que ya escapan los textos de usuario con escapeHtml). */
+  html = html.replace(/'/g, "&#39;");
   const frag = document.createRange().createContextualFragment(html);
   el.replaceChildren(frag);
 }

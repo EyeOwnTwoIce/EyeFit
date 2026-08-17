@@ -8,7 +8,7 @@
 
   const EyeFit = global.EyeFit = global.EyeFit || {};
   const INSTRUCCIONES = global.INSTRUCCIONES || {};
-  const WEEKDAY_NAMES = global.WEEKDAY_NAMES || [];
+  const WEEKDAY_NAMES = (global.EyeFitUtils && global.EyeFitUtils.WEEKDAY_NAMES) || [];
 
   function escapeHtml(s){
     /* Escapado por sustitución de cadenas (NUNCA vía el.innerHTML: leer

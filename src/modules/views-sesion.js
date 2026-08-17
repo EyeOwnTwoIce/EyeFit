@@ -170,6 +170,18 @@ function showSummary(){
   if(!Session.session) return;
   RT().stopRest();
   pendingSummary = computeSummary();
+  /* BUG-2 (historial): avisar antes de guardar sesiones sospechosamente cortas
+     (< 1 min y con pocas series completadas, p.ej. 1 serie + STOP en 30s). */
+  if(U.isSuspectShortSession(pendingSummary.elapsed, pendingSummary.completedSets)){
+    const mins = Math.floor(pendingSummary.elapsed/60), secs = pendingSummary.elapsed%60;
+    if(!confirm(`⚠️ Sesión muy corta (${mins}m ${secs}s) con ${pendingSummary.completedSets} serie(s) completada(s).\n¿Guardarla en el historial igualmente?`)){
+      Session.session = null;
+      Session.clearSessionState();
+      Router().setTab("rutina");
+      Ui().showToast("🗑️ Sesión descartada (no se guardó)");
+      return;
+    }
+  }
   Session.autoSaveSession();
   const s = pendingSummary;
   if(s.completedSets === 0){

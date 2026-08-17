@@ -102,11 +102,17 @@ function renderHistDayDetail(history, dateStr){
     }).join("");
     const mins = Math.floor((h.duration||0)/60), secs=(h.duration||0)%60;
     const timeLabel = new Date(h.date).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"});
+    /* BUG-2 (historial): si el día de la rutina no coincide con la fecha real
+       (p.ej. "Viernes" entrenado en sábado), mostrarlo en la card. */
+    const mismatch = U.dayMismatchLabel(h.day, h.date);
+    const dayLabel = mismatch
+      ? `${escapeHtml(h.day)} <span class="hist-day-actual">(${escapeHtml(mismatch)})</span>`
+      : escapeHtml(h.day);
     return `<div class="hist-day open" data-hist-date="${U.escapeHtmlAttr(dateStr)}">
       <div class="hist-content">
         <div class="hist-day-top">
           <div class="hist-tri open"></div>
-          <span class="hist-day-name" style="color:${escapeHtml(color)}">${escapeHtml(h.day)}</span>
+          <span class="hist-day-name" style="color:${escapeHtml(color)}">${dayLabel}</span>
           <span class="hist-day-date">${escapeHtml(timeLabel)} · ${escapeHtml(mins)}m ${escapeHtml(secs)}s</span>
           <button class="hist-edit-btn" data-edit-hist-date="${U.escapeHtmlAttr(dateStr)}" data-edit-hist-sessid="${U.escapeHtmlAttr(h.session_id||"")}" aria-label="Editar sesión">✏️</button>
           <button class="hist-del-btn" data-del-session="${U.escapeHtmlAttr(dateStr)}" data-del-sessid="${U.escapeHtmlAttr(h.session_id||"")}" aria-label="Eliminar sesión">🗑️</button>

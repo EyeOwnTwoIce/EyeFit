@@ -7,7 +7,8 @@ const assert = require('node:assert/strict');
 /* Funciones edge de utils.js */
 const {
   isValidSessionRecord, computeRemainingSessions,
-  sanitizeRoutineRow, rebaseElapsed, mergeHistoryBySessionId
+  sanitizeRoutineRow, rebaseElapsed, mergeHistoryBySessionId,
+  weekdayNameOf, isSuspectShortSession, dayMismatchLabel
 } = require('../src/utils.js');
 
 /* Constantes desde constants.js (fuente única, refactor #1) */
@@ -235,6 +236,58 @@ test('constantes: INSTRUCCIONES ordenadas por dataset coinciden con las claves d
     assert.ok(imgKeys.includes(k), `EMBEDDED_IMAGES cubre la clave ${k}`);
   }
   assert.ok(imgKeys.length >= instrKeys.length, 'EMBEDDED_IMAGES tiene >= claves que INSTRUCCIONES');
+});
+
+/* ============ weekdayNameOf / isSuspectShortSession / dayMismatchLabel
+   (BUG-2 historial: sesión accidental de 30s con día de rutina distinto) ============ */
+test('weekdayNameOf: día real de una fecha ISO (BUG-2: 8/8/2026 es sábado)', () => {
+  assert.equal(weekdayNameOf('2026-08-07T08:43:30.596Z'), 'Viernes');
+  assert.equal(weekdayNameOf('2026-08-08T14:57:42.307Z'), 'Sábado');
+});
+
+test('weekdayNameOf: fecha inválida → cadena vacía', () => {
+  assert.equal(weekdayNameOf(''), '');
+  assert.equal(weekdayNameOf('fecha-rota'), '');
+});
+
+test('isSuspectShortSession: sesión accidental (30s, 1 serie) → true', () => {
+  assert.equal(isSuspectShortSession(30, 1), true);
+});
+
+test('isSuspectShortSession: sesión corta pero con suficientes series → false', () => {
+  assert.equal(isSuspectShortSession(50, 2), false);
+  assert.equal(isSuspectShortSession(59, 3), false);
+});
+
+test('isSuspectShortSession: sesión larga → false', () => {
+  assert.equal(isSuspectShortSession(3221, 1), false);
+});
+
+test('isSuspectShortSession: sin series completadas (elapsed>0) → false', () => {
+  assert.equal(isSuspectShortSession(30, 0), false);
+});
+
+test('isSuspectShortSession: elapsed 0 (reloj fijado en tests E2E) → false', () => {
+  assert.equal(isSuspectShortSession(0, 20), false);
+});
+
+test('isSuspectShortSession: umbrales configurables por opts', () => {
+  assert.equal(isSuspectShortSession(90, 1, { minElapsed: 120, minSets: 2 }), true);
+  assert.equal(isSuspectShortSession(90, 2, { minElapsed: 120, minSets: 2 }), false);
+});
+
+test('dayMismatchLabel: rutina Viernes entrenada en sábado → etiqueta real', () => {
+  const label = dayMismatchLabel('Viernes', '2026-08-08T14:57:42.307Z');
+  assert.ok(label && label.startsWith('Sábado'), `debe indicar el día real, obtuve: ${label}`);
+});
+
+test('dayMismatchLabel: día de rutina coincide con la fecha → null', () => {
+  assert.equal(dayMismatchLabel('Viernes', '2026-08-07T08:43:30.596Z'), null);
+  assert.equal(dayMismatchLabel('Lunes', '2026-08-03T10:00:00.000Z'), null);
+});
+
+test('dayMismatchLabel: fecha inválida → null', () => {
+  assert.equal(dayMismatchLabel('Viernes', 'fecha-rota'), null);
 });
 
 /* ============ mergeHistoryBySessionId: edge cases adicionales ============ */

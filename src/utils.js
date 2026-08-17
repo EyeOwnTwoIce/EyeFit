@@ -154,6 +154,40 @@
     return `${y}-${m}-${day}`;
   }
 
+  /** Nombre del día de la semana (es-ES, capitalizado) de una fecha ISO.
+      "" si la fecha es inválida. */
+  function weekdayNameOf(dateIso) {
+    const d = new Date(dateIso);
+    if (isNaN(d.getTime())) return "";
+    return WEEKDAY_NAMES[d.getDay()] || "";
+  }
+
+  /** ¿Sesión sospechosamente corta (accidente tipo "1 serie + STOP en 30s")?
+      Verdadero solo si se completó alguna serie pero en menos de `minElapsed`
+      segundos y con menos de `minSets` series hechas. Umbrales ajustables por
+      opts (minElapsed por defecto 60s, minSets por defecto 2). */
+  function isSuspectShortSession(elapsedSecs, doneSets, opts) {
+    const o = opts || {};
+    const minElapsed = Number.isFinite(o.minElapsed) ? o.minElapsed : 60;
+    const minSets = Number.isFinite(o.minSets) ? o.minSets : 2;
+    const e = Number(elapsedSecs) || 0;
+    const s = Number(doneSets) || 0;
+    return e > 0 && e < minElapsed && s > 0 && s < minSets;
+  }
+
+  /** Cuando el día de la rutina de una sesión no coincide con el día real de
+      su fecha (p.ej. rutina "Viernes" entrenada un sábado), devuelve la
+      etiqueta legible de la fecha real ("Sábado 8 ago"). null si coinciden o
+      la fecha es inválida. */
+  function dayMismatchLabel(day, dateIso) {
+    const actual = weekdayNameOf(dateIso);
+    if (!actual || actual === day) return null;
+    const d = new Date(dateIso);
+    if (isNaN(d.getTime())) return null;
+    const dateShort = d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+    return `${actual} ${dateShort}`;
+  }
+
   let _uuidSeq = 0; /* contador para el último recurso sin Web Crypto */
 
   /** Genera un UUID v4 con Web Crypto (randomUUID o getRandomValues).
@@ -285,7 +319,8 @@
     DEFAULT_ROUTINE, INSTRUCCIONES, ALTERNATIVAS, EMBEDDED_IMAGES,
     getApodo, epley1RM, formatRest, normalizeName,
     buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine,
-    escapeHtmlAttr, localDateKey, genUUID, clampNum, isValidDay, sanitizeRoutineRow,
+    escapeHtmlAttr, localDateKey, weekdayNameOf, isSuspectShortSession, dayMismatchLabel,
+    genUUID, clampNum, isValidDay, sanitizeRoutineRow,
     rebaseElapsed, mergeHistoryBySessionId
   };
 

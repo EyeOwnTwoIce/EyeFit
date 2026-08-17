@@ -110,38 +110,24 @@ const findExerciseInDataset = Dataset.findExerciseInDataset;
 const getExerciseImage = Dataset.getExerciseImage;
 const getExerciseImageForName = Dataset.getExerciseImageForName;
 
+/* Supabase Auth + Sync → src/modules/supabase.js (issue #10) */
+const SB = window.EyeFit.Supabase;
+const SUPABASE_URL = SB.SUPABASE_URL;
+const SUPABASE_ANON_KEY = SB.SUPABASE_ANON_KEY;
+const loadSupabaseSDK = SB.loadSupabaseSDK;
+const ensureSupabaseClient = SB.ensureSupabaseClient;
+const pullServerData = SB.pullServerData;
+const pushRoutineToServer = SB.pushRoutineToServer;
+const pushSessionToServer = SB.pushSessionToServer;
+const scheduleSync = SB.scheduleSync;
+const syncPending = SB.syncPending;
+
 /* Import/export XLSX → src/modules/xlsx-io.js (issue #13) */
 const loadXLSX = window.EyeFit.XlsxIO.loadXLSX;
 const parseRoutineSheet = window.EyeFit.XlsxIO.parseRoutineSheet;
 const exportRoutineXlsx = window.EyeFit.XlsxIO.exportRoutineXlsx;
 
-/* ---------- Supabase (lazy: el SDK ~180KB solo se carga si hace falta) ---------- */
-const SUPABASE_URL = "https://vkaxxphminfinufitcyp.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_9mIRx8rfkAtHv9w57cbCKw_P_btyOou";
-let sbClient = null;
-let authUser = null;
-let supabasePromise = null;
-/* Carga bajo demanda del SDK de Supabase (igual que xlsx: solo al hacer login/
-   registro). El archivo supabase.js existe en dist/ pero NO se ejecuta en el
-   arranque, reduciendo JS ejecutado ~180KB y el main-thread work. */
-function loadSupabaseSDK(){
-  if(window.supabase) return Promise.resolve(window.supabase);
-  if(supabasePromise) return supabasePromise;
-  supabasePromise = new Promise((resolve, reject)=>{
-    const s = document.createElement("script");
-    s.src = "./supabase.js";
-    s.onload = ()=> resolve(window.supabase);
-    s.onerror = ()=>{ supabasePromise = null; reject(new Error("supabase SDK load error")); };
-    document.head.appendChild(s);
-  });
-  return supabasePromise;
-}
-async function ensureSupabaseClient(){
-  if(sbClient) return sbClient;
-  const sb = await loadSupabaseSDK();
-  sbClient = sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  return sbClient;
-}
+/* SDK Supabase lazy + ensureSupabaseClient → src/modules/supabase.js (issue #10) */
 
 /* Datos estáticos (rutina/instrucciones/alternativas/imágenes) → src/constants.js (issue #1) */
 /* Imágenes de ejercicios (IMG_BASE/imgNorm/findEmbeddedImage/getExerciseImage*) → src/modules/dataset.js (issue #12) */
@@ -203,8 +189,8 @@ async function persistPushSubscription(sub){
       localStorage.setItem(K_NEWS_KEYS.pushSubJson, JSON.stringify(json));
       /* Subir el endpoint a Supabase para que la Edge Function eyefit-push
          lo use al acabar cada deploy (flush separado, no bloquea al caller). */
-      if(sbClient && json && json.endpoint){
-        sbClient.from("push_subscriptions").upsert({
+      if(SB.sbClient && json && json.endpoint){
+        SB.sbClient.from("push_subscriptions").upsert({
           endpoint: json.endpoint,
           keys: json.keys || {}
         }, { onConflict: "endpoint" }).then(({error})=>{
@@ -218,8 +204,8 @@ async function persistPushSubscription(sub){
       let endpoint = null;
       try{ if(jsonStr) endpoint = (JSON.parse(jsonStr)||{}).endpoint; }catch(e){}
       localStorage.removeItem(K_NEWS_KEYS.pushSubJson);
-      if(sbClient && endpoint){
-        sbClient.from("push_subscriptions").delete().eq("endpoint", endpoint)
+      if(SB.sbClient && endpoint){
+        SB.sbClient.from("push_subscriptions").delete().eq("endpoint", endpoint)
           .then(({error})=>{ if(error) console.warn("[EyeFit] push sub delete error:", error.message); });
       }
     }
@@ -309,7 +295,7 @@ function showAuthOverlay(show){
      pero getSession() lanza), mostrar "Continuar sin conexión" para no
      bloquear el uso local de la app. */
   const skipBtn = document.getElementById("authSkip");
-  if(skipBtn) skipBtn.style.display = (!sbClient || authBlocked) ? "block" : "none";
+  if(skipBtn) skipBtn.style.display = (!SB.sbClient || authBlocked) ? "block" : "none";
   setFocusTrap("authOverlay", show ? document.getElementById("authOverlay") : null);
 }
 
@@ -347,7 +333,7 @@ async function handleAuthSubmit(){
   errEl.textContent = "";
   /* Lazy Supabase: si el SDK no se cargó (no había sesión guardada), se carga
      aquí antes de intentar autenticar. */
-  if(!sbClient){
+  if(!SB.sbClient){
     try{
       errEl.textContent = "⏳ Conectando…";
       await ensureSupabaseClient();
@@ -364,8 +350,8 @@ async function handleAuthSubmit(){
   btn.disabled = true; btn.textContent = "…";
   try{
     let result;
-    if(authMode === "register") result = await sbClient.auth.signUp({ email, password: pass });
-    else result = await sbClient.auth.signInWithPassword({ email, password: pass });
+    if(authMode === "register") result = await SB.sbClient.auth.signUp({ email, password: pass });
+    else result = await SB.sbClient.auth.signInWithPassword({ email, password: pass });
     if(result.error) throw result.error;
     const session = result.data.session;
     const user = result.data.user || null;
@@ -384,14 +370,14 @@ async function handleAuthSubmit(){
     }
     /* Verificar que el email esté confirmado antes de permitir el acceso */
     if(!isEmailVerified(user)){
-      await sbClient.auth.signOut().catch(()=>{});
+      await SB.sbClient.auth.signOut().catch(()=>{});
       errEl.textContent = "⚠️ Debes confirmar tu email antes de acceder. Revisa tu bandeja de entrada.";
       btn.disabled = false;
       btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
       return;
     }
     authBlocked = false;
-    authUser = user;
+    SB.authUser = user;
     await afterLogin();
     btn.disabled = false;
     btn.textContent = authMode === "register" ? "Registrarse" : "Acceder";
@@ -409,128 +395,7 @@ async function afterLogin(){
   await pullServerData();
   renderMain();
 }
-async function pullServerData(){
-  if(!sbClient || !authUser) return;
-  /* Usar el mismo mutex que saveHistory para evitar condiciones de carrera:
-     la descarga no debe intersectarse con una escritura concurrente. */
-  P.historyLock = P.historyLock.then(async ()=>{
-    try{
-      const { data: routineRow, error: errR } = await sbClient.from("rutinas").select("routine, meta, updated_at").eq("user_id", authUser.id).maybeSingle();
-      if(!errR && routineRow && routineRow.routine && Array.isArray(routineRow.routine)){
-        const localTs = localStorage.getItem(K.routineUpdated);
-        const serverTs = routineRow.updated_at;
-        if(!localTs || !serverTs || new Date(serverTs) > new Date(localTs)){
-          setRoutine(routineRow.routine);
-          if(serverTs) localStorage.setItem(K.routineUpdated, serverTs);
-          selectedDay = null;
-          /* Restaurar config de entrenamiento desde el servidor si viene */
-          if(routineRow.meta && routineRow.meta.config) Config.trainingConfig = { ...Config.TRAINING_DEFAULTS, ...routineRow.meta.config };
-          if(routineRow.meta && Array.isArray(routineRow.meta.trainingDays)) Config.trainingDays = routineRow.meta.trainingDays;
-        }
-      }
-      /* Descargar sesiones con paginación (Supabase limita a 1000 filas por
-         request; con range() aseguramos TODAS las sesiones). */
-      const PAGE_SIZE = 500;
-      let allSesRows = [];
-      let from = 0;
-      let to = PAGE_SIZE - 1;
-      let hasMore = true;
-      while(hasMore){
-        const { data: sesRows, error: errS } = await sbClient
-          .from("sesiones")
-          .select("data")
-          .eq("user_id", authUser.id)
-          .order("created_at", { ascending: false })
-          .range(from, to);
-        if(errS){
-          console.error("[EyeFit] pullServerData: error descargando sesiones", errS);
-          break;
-        }
-        if(Array.isArray(sesRows)) allSesRows = allSesRows.concat(sesRows);
-        if(!sesRows || sesRows.length < PAGE_SIZE) hasMore = false;
-        else { from += PAGE_SIZE; to += PAGE_SIZE; }
-      }
-      if(allSesRows.length > 0){
-        const serverHistory = allSesRows.map(r=>r.data).filter(Boolean);
-        const merged = mergeHistoryBySessionId(getHistory(), serverHistory);
-        const sanitized = merged.filter(isValidSessionRecord);
-        /* Actualizar la caché y persistir de forma explícita
-           (ya estamos dentro de historyLock.then → deadlock si llamamos saveHistory) */
-        P.historyCache = sanitized;
-        await persistHistory(sanitized);
-        console.log(`[EyeFit] pullServerData: ${allSesRows.length} sesiones en servidor → ${merged.length} en historial local`);
-      } else {
-        if(getHistory().length === 0){
-          console.log("[EyeFit] pullServerData: 0 sesiones en el servidor y 0 en local");
-        } else {
-          console.log(`[EyeFit] pullServerData: 0 sesiones en servidor, manteniendo ${getHistory().length} locales`);
-        }
-      }
-    }catch(e){
-      console.error("[EyeFit] pullServerData error:", e);
-    }
-  }).catch(()=>{});
-  return P.historyLock;
-}
-async function pushRoutineToServer(){
-  if(!sbClient || !authUser) return false;
-  try{
-    const { error } = await sbClient.from("rutinas").upsert(
-      { user_id:authUser.id, routine:getRoutine(), meta:{ config:Config.trainingConfig, trainingDays:Config.trainingDays }, updated_at: new Date().toISOString() },
-      { onConflict:"user_id" }
-    );
-    if(!error) localStorage.setItem(K.routineUpdated, new Date().toISOString());
-    return !error;
-  }catch(e){ return false; }
-}
-async function pushSessionToServer(record){
-  if(!sbClient || !authUser) return false;
-  const sid = (record && record.session_id) || genUUID();
-  try{
-    const { error } = await sbClient.from("sesiones").upsert(
-      { user_id:authUser.id, session_id: sid, data: record },
-      { onConflict: "user_id,session_id" }
-    );
-    return !error;
-  }catch(e){ return false; }
-}
-
-/* Fix subida automática: reintento cada 30s mientras haya pendientes.
-   Mutex: serializa syncPending para evitar carreras entre interval/online/pageshow. */
-let syncLock = Promise.resolve();
-let syncQueued = false;
-function scheduleSync(){
-  if(!authUser || !sbClient) return;
-  if(syncQueued) return syncLock;
-  syncQueued = true;
-  syncLock = syncLock.then(()=>{ syncQueued = false; return syncPending(); }).catch(()=>{ syncQueued = false; });
-  return syncLock;
-}
-async function syncPending(){
-  if(!sbClient || !authUser) return;
-  const pending = getPending();
-  let changed = false;
-  const remaining = [];
-  for(let i = 0; i < pending.sessions.length; i++){
-    const rec = pending.sessions[i];
-    if(!isValidSessionRecord(rec)) continue;
-    const ok = await pushSessionToServer(rec);
-    if(ok){ changed = true; } else { remaining.push(...pending.sessions.slice(i)); break; }
-  }
-  if(pending.routine){
-    const { error } = await sbClient.from("rutinas").upsert(
-      { user_id:authUser.id, routine:pending.routine, meta:{ config:Config.trainingConfig, trainingDays:Config.trainingDays }, updated_at: new Date().toISOString() },
-      { onConflict:"user_id" }
-    ).catch(()=>({error:true}));
-    if(!error){ setRoutine(pending.routine); pending.routine = null; changed = true; localStorage.setItem(K.routineUpdated, new Date().toISOString()); }
-  }
-  pending.sessions = remaining;
-  setPending(pending);
-  if(changed){
-    showToast("🔄 Sincronizado con la nube");
-    if(currentTab === "ajustes" || currentTab === "historial") renderMain();
-  }
-}
+/* pullServerData, push*, scheduleSync, syncPending → src/modules/supabase.js (issue #10) */
 
 /* ================================================================
    ROUTER
@@ -548,7 +413,7 @@ function setTab(tab){
      el servidor para asegurar que se muestran TODAS las sesiones guardadas
      (no solo las locales). El refresh es async: renderMain() muestra lo
      que hay ahora y se re-renderiza cuando lleguen los datos. */
-  if(tab === "historial" && authUser && sbClient && navigator.onLine){
+  if(tab === "historial" && SB.authUser && SB.sbClient && navigator.onLine){
     pullServerData().then(()=>{
       if(currentTab === "historial") renderMain();
     });
@@ -1024,7 +889,7 @@ function handleEditRoutineEvent(btn){
     ex.reps = setArr[0] ? setArr[0].reps : (parseInt(ex.reps)||8);
     delete ex._edit_dirty_set;
     setRoutine(routine);
-    if(sbClient && authUser) pushRoutineToServer();
+    if(SB.sbClient && SB.authUser) pushRoutineToServer();
     renderMain();
     showToast("🗑️ Serie eliminada");
     return;
@@ -1047,7 +912,7 @@ function handleEditRoutineEvent(btn){
     ex["kg"+next] = nb;
     ex["reps"+next] = nr;
     setRoutine(routine);
-    if(sbClient && authUser) pushRoutineToServer();
+    if(SB.sbClient && SB.authUser) pushRoutineToServer();
     renderMain();
     return;
   }
@@ -1374,7 +1239,7 @@ async function autoSaveSession(){
   session.saved = true;
   clearSessionState();
   const savedMsg = document.getElementById("sumSavedMsg");
-  if(sbClient && authUser){
+  if(SB.sbClient && SB.authUser){
     const ok = await pushSessionToServer(record);
     if(ok){
       if(savedMsg) savedMsg.textContent = "✅ Sesión guardada en la nube";
@@ -1746,7 +1611,7 @@ async function saveEditHist(){
     r === editingHistRecord ? { ...r, updated_at: editedNowIso } : r
   );
   saveHistory(updated);
-  if(sbClient && authUser){
+  if(SB.sbClient && SB.authUser){
     /* Subir SOLO la sesión editada al servidor, esperando el resultado. Si el
        envío falla, dejarla en pending para que el sync de 30s la reintente. */
     const ok = await pushSessionToServer(editingHistRecord);
@@ -1903,8 +1768,8 @@ function renderAjustes(){
   const pendingCount = pending.sessions.length;
   const syncMsg = Number(pendingCount)>0
     ? `${escapeHtml(pendingCount)} sesión${Number(pendingCount)>1?"es":""} pendiente${Number(pendingCount)>1?"s":""} de subir`
-    : authUser ? "Todo sincronizado" : "Sin conexión a la nube";
-  const syncClass = pendingCount>0 ? "pending" : (authUser ? "" : "off");
+    : SB.authUser ? "Todo sincronizado" : "Sin conexión a la nube";
+  const syncClass = pendingCount>0 ? "pending" : (SB.authUser ? "" : "off");
   const tc = Config.trainingConfig;
 
   return `<div class="section active">
@@ -1913,10 +1778,10 @@ function renderAjustes(){
       <div class="set-group-title">Cuenta</div>
       <div class="set-row-item">
         <div>
-          <div class="label">${authUser ? escapeHtml(authUser.email) : "Sin sesión"}</div>
+          <div class="label">${SB.authUser ? escapeHtml(SB.authUser.email) : "Sin sesión"}</div>
           <div class="desc"><span class="sync-status ${syncClass}"><span class="dot"></span> ${syncMsg}</span></div>
         </div>
-        ${authUser
+        ${SB.authUser
           ? `<button class="btn btn-outline" data-logout>🚪 Salir</button>${pendingCount>0?`<button class="btn" data-sync-now>🔄 Subir</button>`:""}`
           : `<button class="btn" data-open-auth>🔑 Acceder</button>`}
       </div>
@@ -2146,7 +2011,7 @@ function attachEvents(){
         if(ex["reps1"] !== undefined) ex.reps = ex["reps1"];
       }
       setRoutine(routine);
-      if(sbClient && authUser) pushRoutineToServer();
+      if(SB.sbClient && SB.authUser) pushRoutineToServer();
       routineEditMode = false;
       routineEditDay = null;
       renderMain();
@@ -2601,7 +2466,7 @@ function attachEvents(){
         /* Nota: saveHistory([]) con el mutex ya persiste [] a IndexedDB o localStorage.
            Eliminar DB.clearHistoryDB() redundante que podría interrumpir el mutex. */
         const p = getPending(); p.sessions = []; setPending(p);
-        if(sbClient && authUser){ try{ await sbClient.from("sesiones").delete().eq("user_id", authUser.id); }catch(e){} }
+        if(SB.sbClient && SB.authUser){ try{ await SB.sbClient.from("sesiones").delete().eq("user_id", SB.authUser.id); }catch(e){} }
         renderMain(); showToast("🗑️ Historial borrado");
       }
     });
@@ -2610,7 +2475,7 @@ function attachEvents(){
     btn.addEventListener("click", async ()=>{
       localStorage.removeItem(K.routine);
       selectedDay = null;
-      if(sbClient && authUser){ try{ await sbClient.from("rutinas").delete().eq("user_id", authUser.id); }catch(e){} }
+      if(SB.sbClient && SB.authUser){ try{ await SB.sbClient.from("rutinas").delete().eq("user_id", SB.authUser.id); }catch(e){} }
       showToast("↺ Rutina restaurada");
       setTab("rutina");
     });
@@ -2618,8 +2483,8 @@ function attachEvents(){
   document.querySelectorAll("[data-logout]").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
       if(confirm("¿Cerrar sesión?")){
-        if(sbClient) await sbClient.auth.signOut().catch(()=>{});
-        authUser = null;
+        if(SB.sbClient) await SB.sbClient.auth.signOut().catch(()=>{});
+        SB.authUser = null;
         showToast("🚪 Sesión cerrada");
         showAuthOverlay(true);
         if(currentTab==="ajustes") renderMain();
@@ -2668,9 +2533,9 @@ function attachEvents(){
       p.sessions = p.sessions.filter(s=>!(s.date===date && s.day===day));
       setPending(p);
       /* Eliminar de la nube si hay sesión (mismo date + day) */
-      if(sbClient && authUser){
+      if(SB.sbClient && SB.authUser){
         try{
-          const { data: rows } = await sbClient.from("sesiones").select("id, data").eq("user_id", authUser.id);
+          const { data: rows } = await SB.sbClient.from("sesiones").select("id, data").eq("user_id", SB.authUser.id);
           if(Array.isArray(rows)){
             /* Buscar por session_id (preciso) o fallback por date+day (legacy) */
             const matches = rows.filter(r=>r.data && (
@@ -2679,18 +2544,18 @@ function attachEvents(){
             ));
             for(const m of matches){
               if(m.data.session_id){
-                await sbClient.from("sesiones").delete().eq("session_id", m.data.session_id).eq("user_id", authUser.id).catch(()=>{});
+                await SB.sbClient.from("sesiones").delete().eq("session_id", m.data.session_id).eq("user_id", SB.authUser.id).catch(()=>{});
               } else {
-                await sbClient.from("sesiones").delete().eq("id", m.id).catch(()=>{});
+                await SB.sbClient.from("sesiones").delete().eq("id", m.id).catch(()=>{});
               }
             }
           }
         }catch(e){}
       }
       /* Forzar sincronización para confirmar el borrado en la nube */
-      if(sbClient && authUser) scheduleSync();
+      if(SB.sbClient && SB.authUser) scheduleSync();
       renderMain();
-      showToast("🗑️ Sesión eliminada" + (sbClient && authUser ? " · sincronizada" : ""));
+      showToast("🗑️ Sesión eliminada" + (SB.sbClient && SB.authUser ? " · sincronizada" : ""));
     }
   }
   document.querySelectorAll("[data-swipable-hist]").forEach(row=>{
@@ -3100,7 +2965,7 @@ document.querySelectorAll("[data-auth-tab]").forEach(btn=>{
     document.getElementById("authError").textContent = "";
     updateAuthTabs();
     /* Lazy Supabase: precargar el SDK al entrar en la pestaña de auth */
-    if(!sbClient && !authBlocked){
+    if(!SB.sbClient && !authBlocked){
       ensureSupabaseClient().then(()=>{
         const skipBtn = document.getElementById("authSkip");
         if(skipBtn) skipBtn.style.display = "none";
@@ -3118,7 +2983,7 @@ if(authForm){
 }
 /* B3: continuar sin conexión esconde el overlay y deja usar la app en local */
 document.getElementById("authSkip").addEventListener("click", ()=>{
-  authUser = null;
+  SB.authUser = null;
   showAuthOverlay(false);
   renderMain();
 });
@@ -3406,7 +3271,7 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
           if(routine.length===0){ showToast("⚠️ Archivo sin ejercicios válidos"); return; }
           setRoutine(routine);
           selectedDay = null;
-          if(sbClient && authUser){
+          if(SB.sbClient && SB.authUser){
             const ok = await pushRoutineToServer();
             if(!ok){ const p=getPending(); p.routine=routine; setPending(p); }
           }
@@ -3470,13 +3335,13 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
   if(hasStoredSession){
     try{
       await ensureSupabaseClient();
-      const { data: authData } = await sbClient.auth.getSession();
-      authUser = authData.session ? authData.session.user : null;
+      const { data: authData } = await SB.sbClient.auth.getSession();
+      SB.authUser = authData.session ? authData.session.user : null;
       /* Solo permitir acceso si el email está verificado */
-      if(authUser && isEmailVerified(authUser)) authenticated = true;
+      if(SB.authUser && isEmailVerified(SB.authUser)) authenticated = true;
       else{
-        if(authUser) await sbClient.auth.signOut().catch(()=>{});
-        authUser = null;
+        if(SB.authUser) await SB.sbClient.auth.signOut().catch(()=>{});
+        SB.authUser = null;
         showAuthOverlay(true);
       }
     }catch(e){ authBlocked = true; showAuthOverlay(true); }
@@ -3507,7 +3372,7 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
 
 /* Fix subida automática: reintento cada 30s si hay pendientes */
 setInterval(()=>{
-  if(authUser && sbClient){
+  if(SB.authUser && SB.sbClient){
     const pending = getPending();
     if(pending.sessions.length > 0 || pending.routine){
       scheduleSync().then(()=>{
@@ -3557,7 +3422,7 @@ if('serviceWorker' in navigator){
   });
   navigator.serviceWorker.addEventListener('message', (event)=>{
     if(event.data && event.data.type === 'EYEFIT_SYNC'){
-      if(authUser) scheduleSync();
+      if(SB.authUser) scheduleSync();
     } else if(event.data && event.data.type === 'EYEFIT_RELOAD'){
       /* El usuario tocó la notificación push → recargar a la nueva versión */
       window.location.reload();
@@ -3575,7 +3440,7 @@ if('serviceWorker' in navigator){
   function registerBgSync(){
     if(!('sync' in navigator)) return;
     const pending = getPending();
-    if((pending.sessions.length > 0 || pending.routine) && authUser){
+    if((pending.sessions.length > 0 || pending.routine) && SB.authUser){
       navigator.sync.register('eyefit-sync').catch(()=>{});
     }
   }
@@ -3584,7 +3449,7 @@ if('serviceWorker' in navigator){
 
 window.addEventListener("online", async ()=>{
   showToast("🌐 Conexión restablecida");
-  if(authUser){
+  if(SB.authUser){
     await scheduleSync();
     /* Pequeño delay para que el servidor procese los upserts antes del pull */
     await new Promise(r => setTimeout(r, 800));
@@ -3613,7 +3478,7 @@ document.addEventListener("visibilitychange", ()=>{
       }
     }
     /* Sincronizar pendientes al volver */
-    if(authUser && sbClient && navigator.onLine){
+    if(SB.authUser && SB.sbClient && navigator.onLine){
       scheduleSync().then(()=>{
         if(currentTab === "ajustes" || currentTab === "historial") renderMain();
       });
@@ -3633,14 +3498,14 @@ document.addEventListener("keydown", (e)=>{
       if(el && el.classList.contains("show")){
         setFocusTrap(id, null);
         el.classList.remove("show");
-        if(id === "authOverlay") authUser = null;
+        if(id === "authOverlay") SB.authUser = null;
         break;
       }
     }
   }
 });
 document.addEventListener("pageshow", async ()=>{
-  if(authUser && sbClient && navigator.onLine){
+  if(SB.authUser && SB.sbClient && navigator.onLine){
     await scheduleSync();
     /* Pequeño delay para que el servidor procese los upserts antes del pull */
     await new Promise(r => setTimeout(r, 800));
@@ -3712,3 +3577,14 @@ document.getElementById("onbNext").addEventListener("click", ()=>{
 });
 document.getElementById("onbSkip").addEventListener("click", closeOnboarding);
 window.EyeFitShowOnboarding = ()=>showOnboarding(true);
+
+/* Bridge temporal del router (sustituido por src/modules/router.js en la issue #17):
+   expone estado y navegación para que los módulos puedan acceder a ellos. */
+window.EyeFit.Router = {
+  get currentTab(){ return currentTab; },
+  set currentTab(v){ currentTab = v; },
+  get selectedDay(){ return selectedDay; },
+  set selectedDay(v){ selectedDay = v; },
+  setTab, updateStopBtn, renderMain
+};
+

@@ -18,6 +18,7 @@
   const Ui = () => EyeFit.Ui || {};
   const Router = () => EyeFit.Router || {};
   const EditR = () => EyeFit.ViewsEditRutina || {};
+  const VS = () => EyeFit.ViewsSesion || {};
   const Bridge = () => EyeFit.Bridge || {};
 
   /* ================================================================
@@ -150,9 +151,9 @@
     setTimeout(()=>{ input.focus(); input.select(); }, 100);
   }
   function confirmRoutineNumPad(){
-    if(!numPadRoutineCtx){ EditR().closeNumPad(); return; }
+    if(!numPadRoutineCtx){ VS().closeNumPad(); return; }
     const val = parseFloat(document.getElementById("numInput").value);
-    if(isNaN(val)){ EditR().closeNumPad(); return; }
+    if(isNaN(val)){ VS().closeNumPad(); return; }
     const { name, day, field } = numPadRoutineCtx;
     EditR().applyRoutineChange(r=>{
       const ex = r.find(e=>e.dia===day && e.nombre_es===name);
@@ -162,7 +163,7 @@
       else if(field==="kg") ex.peso_kg = clampNum(val, 0, 500, 0);
       return r;
     });
-    EditR().closeNumPad();
+    VS().closeNumPad();
     numPadRoutineCtx = null;
     Router().renderMain();
     Ui().showToast("💾 Rutina actualizada");

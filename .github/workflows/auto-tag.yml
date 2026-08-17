@@ -1,0 +1,37 @@
+name: Etiquetado Automático y Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+        with:
+          # Historial completo: github-tag-action calcula el changelog
+          # convencional desde el último tag y necesita el historial de commits.
+          fetch-depth: '0'
+
+      - name: Bump version y crear tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+
+      - name: Crear GitHub Release
+        uses: softprops/action-gh-release@v2
+        # Solo crea el release si realmente se generó un tag nuevo
+        if: ${{ steps.tag_version.outputs.new_tag != '' }}
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          # Aquí inyectamos el changelog generado en el paso anterior
+          body: ${{ steps.tag_version.outputs.changelog }}

@@ -1799,7 +1799,7 @@ function checkPR(ex, set){
   if(newRM <= Math.max(best ? best.rm : 0, sessBest)) return;
   sessionBestByEx[key] = newRM;
   const diff = best ? ` (+${(newRM-best.rm).toFixed(0)}kg 1RM)` : "";
-  showComicBubble(`🏆 ¡NUEVO PR! ${getApodo(ex)} · ${set.kg}kg × ${set.reps}${diff}`);
+  EyeFit.RestTimer.showComicBubble(`🏆 ¡NUEVO PR! ${getApodo(ex)} · ${set.kg}kg × ${set.reps}${diff}`);
 }
 
 /* Serie de fechas → mejor 1RM por sesión (cronológico, últimas 12) */
@@ -2099,7 +2099,7 @@ async function autoSaveSession(){
 
 function showSummary(){
   if(!session) return;
-  stopRest();
+  EyeFit.RestTimer.stopRest();
   pendingSummary = computeSummary();
   autoSaveSession();
   const s = pendingSummary;
@@ -2139,140 +2139,7 @@ document.getElementById("sumDoneToday").addEventListener("click", ()=>{
   setTab("rutina");
   showToast("👍 ¡Buen entrenamiento!");
 });
-
-/* ================================================================
-   DESCANSO — barra superior (se vacía hacia la izquierda)
-   ================================================================ */
-let restTimer = null;
-let restRemaining = 0;
-let restTotal = 0;
-let restPaused = false;
-let restActive = false;
-let restEndTime = 0;      /* Timestamp (ms) cuando termina el descanso */
-let restPausedRemaining = 0; /* Segundos restantes congelados cuando se pausa */
-
-function clearRestTimer(){
-  if(restTimer){ clearInterval(restTimer); restTimer = null; }
-}
-
-/* Fix cronómetro: se usa un timestamp absoluto (restEndTime) en lugar de
-   decrementar un contador con setInterval. Así, si la app pasa a segundo
-   plano o se bloquea el dispositivo, al volver el descanso refleja el
-   tiempo REAL transcurrido. */
-function recomputeRestRemaining(){
-  if(!restActive || restPaused) return;
-  if(restEndTime <= 0){
-    restRemaining = 0;
-    return;
-  }
-  restRemaining = Math.max(0, Math.round((restEndTime - Date.now())/1000));
-}
-
-function getRestState(){
-  if(!restActive) return null;
-  if(restPaused){
-    return { remaining: restPausedRemaining, total: restTotal, paused: true, endTime: 0 };
-  }
-  return { remaining: restRemaining, total: restTotal, paused: false, endTime: restEndTime };
-}
-
-function startRest(seconds){
-  clearRestTimer();
-  restRemaining = seconds;
-  restTotal = seconds;
-  restPaused = false;
-  restPausedRemaining = seconds;
-  restEndTime = Date.now() + seconds*1000;
-  restActive = true;
-  const bar = document.getElementById("restBar");
-  if(bar){
-    bar.style.display = "flex";
-    const btn = document.getElementById("restPauseBtn");
-    if(btn) btn.textContent = "⏸";
-    renderRestTime();
-  }
-  restTimer = setInterval(()=>{
-    if(restPaused) return;
-    recomputeRestRemaining();
-    if(restRemaining <= 0){
-      restFinished();
-      return;
-    }
-    renderRestTime();
-    if(restRemaining <= 3 && restRemaining > 0) vibrate(60);
-    if(restRemaining === 0) vibrate([100,80,100]);
-  }, 500);
-}
-
-function stopRest(){
-  clearRestTimer();
-  restActive = false;
-  restEndTime = 0;
-  restPausedRemaining = 0;
-  const bar = document.getElementById("restBar");
-  if(bar) bar.style.display = "none";
-}
-
-function restFinished(){
-  clearRestTimer();
-  restActive = false;
-  restEndTime = 0;
-  const bar = document.getElementById("restBar");
-  if(bar) bar.style.display = "none";
-  vibrate([150,100,150]);
-  showMotivation();
-  /* Auto-navegar a la pantalla del ejercicio si el usuario está en otra pestaña */
-  if(session && currentTab !== "sesion"){
-    setTab("sesion");
-  }
-}
-
-function renderRestTime(){
-  const m = Math.floor(restRemaining/60), s = restRemaining%60;
-  const timeEl = document.getElementById("restBarTime");
-  if(timeEl) timeEl.textContent = `${m}:${String(s).padStart(2,"0")}`;
-  const fill = document.getElementById("restBarFill");
-  if(fill && restTotal > 0){
-    fill.style.transform = `scaleX(${restRemaining/restTotal})`;
-  }
-  const btn = document.getElementById("restPauseBtn");
-  if(btn) btn.textContent = restPaused ? "▶" : "⏸";
-}
-
-/* Bocadillo cómic motivador — "ÚLTIMO ESFUERZO" solo al empezar la última serie del último ejercicio */
-const MOTIVACIONES = [
-  "¡A POR ELLO!","¡TÚ PUEDES!","¡FUERZA!","¡ROMPE MARCAS!",
-  "¡DALE CAÑA!","¡MUÉVETE!","¡A DEJARLO TODO!",
-  "¡SIN EXCUSAS!","¡VAMOS, CAMPEÓN!","¡POWER!","¡UN SET MÁS!"
-];
-const LAST_EFFORT_MSG = "¡ÚLTIMO ESFUERZO!";
-let comicTimeout = null;
-function isLastEffort(){
-  if(!session) return false;
-  const ex = session.exercises[session.currentIdx];
-  return session.currentIdx === session.exercises.length-1 && ex && ex.currentSet >= ex.sets.length;
-}
-function showComicBubble(text){
-  const overlay = document.getElementById("comicOverlay");
-  const bubble = document.getElementById("comicBubble");
-  bubble.textContent = text;
-  overlay.classList.add("show");
-  bubble.classList.add("comic-shake");
-  clearTimeout(comicTimeout);
-  comicTimeout = setTimeout(()=>{
-    overlay.classList.remove("show");
-    bubble.classList.remove("comic-shake");
-  }, 2600);
-}
-function showMotivation(){
-  showComicBubble(isLastEffort() ? LAST_EFFORT_MSG : MOTIVACIONES[Math.floor(Math.random()*MOTIVACIONES.length)]);
-}
-comicOverlay.addEventListener("click", ()=>{
-  clearTimeout(comicTimeout);
-  comicOverlay.classList.remove("show");
-  document.getElementById("comicBubble").classList.remove("comic-shake");
-});
-
+/* Temporizador de descanso + motivación → src/modules/rest-timer.js (issue #15) */
 /* ================================================================
    VARIANTES (grid con GIFs, rellenan la pantalla)
    ================================================================ */
@@ -3179,18 +3046,18 @@ function attachEvents(){
       saveSessionState();
       if(ex.currentSet < ex.sets.length){
         ex.currentSet++;
-        startRest(ex.descanso_s);
+        EyeFit.RestTimer.startRest(ex.descanso_s);
         renderMain();
       } else {
         /* Última serie del ejercicio: descanso antes de pasar al siguiente */
         ex.completed = true;
         if(session.currentIdx+1 < session.exercises.length){
           session.currentIdx++;
-          startRest(ex.descanso_s); /* Descanso inter-ejercicio */
+          EyeFit.RestTimer.startRest(ex.descanso_s); /* Descanso inter-ejercicio */
           renderMain();
         } else {
           /* Fin de la sesión */
-          stopRest();
+          EyeFit.RestTimer.stopRest();
           showSummary();
         }
       }
@@ -4065,7 +3932,7 @@ function setFocusTrap(id, el){
 /* Persistencia de sesión activa */
 function saveSessionState(){
   if(!session) return;
-  session.restState = getRestState();
+  session.restState = EyeFit.RestTimer.getRestState();
   lsSet(K.session, session);
   renderSessionProgressBar();
   updateSessionHeader();
@@ -4075,50 +3942,13 @@ function clearSessionState(){
   renderSessionProgressBar();
   updateSessionHeader();
 }
-function restoreRestState(st){
-  if(!st) return;
-  restTotal = st.total || 0;
-  restPaused = !!st.paused;
-  if(st.paused){
-    /* Descanso pausado: congelado en remaining segundos */
-    restPausedRemaining = st.remaining || 0;
-    restRemaining = restPausedRemaining;
-    restEndTime = 0;
-    restActive = restRemaining > 0;
-  } else if(st.endTime && st.endTime > 0){
-    /* Descanso activo: recalcular el tiempo REAL transcurrido */
-    restActive = true;
-    restEndTime = st.endTime;
-    restPausedRemaining = st.remaining || 0;
-    recomputeRestRemaining();
-    if(restRemaining <= 0){
-      /* El descanso ya terminó mientras la app estaba cerrada */
-      restActive = false;
-      restEndTime = 0;
-      restPausedRemaining = 0;
-      return;
-    }
-  } else {
-    /* Fallback legacy (formatos antiguos guardados sin endTime) */
-    restRemaining = st.remaining || 0;
-    restActive = restRemaining > 0;
-    restEndTime = restActive ? Date.now() + restRemaining*1000 : 0;
-    restPausedRemaining = restRemaining;
-  }
-  if(restActive){
-    const bar = document.getElementById("restBar");
-    if(bar){
-      bar.style.display = "flex";
-      renderRestTime();
-    }
-  }
-}
+/* restoreRestState → src/modules/rest-timer.js (issue #15) */
 function restoreSession(){
   const saved = lsGet(K.session, null);
   if(saved && saved.exercises && Array.isArray(saved.exercises) && saved.exercises.length && !saved.saved){
     session = rebaseElapsed(saved, Date.now());
-    stopRest();
-    restoreRestState(saved.restState || null);
+    EyeFit.RestTimer.stopRest();
+    EyeFit.RestTimer.restoreRestState(saved.restState || null);
   }
 }
 
@@ -4297,38 +4127,10 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
      15s se desplaza endTime para mantener sincronía con el reloj real. */
   document.querySelectorAll("[data-rest]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      if(btn.dataset.rest==="skip"){ stopRest(); }
-      else if(btn.dataset.rest==="toggle"){
-        if(restActive && !restPaused){
-          /* Pausar: congelar remaining y anular endTime */
-          recomputeRestRemaining();
-          restPausedRemaining = restRemaining;
-          restPaused = true;
-          restEndTime = 0;
-        } else if(restActive && restPaused){
-          /* Reanudar: relanzar endTime desde remaining congelado */
-          restPaused = false;
-          restEndTime = Date.now() + Math.max(0, restPausedRemaining)*1000;
-        }
-        renderRestTime();
-      }
-      else if(btn.dataset.rest==="minus15"){
-        recomputeRestRemaining();
-        restRemaining = Math.max(0, restRemaining-15);
-        if(restRemaining <= 0){ restFinished(); return; }
-        restTotal = restRemaining;
-        restPausedRemaining = restRemaining;
-        if(!restPaused) restEndTime = Date.now() + restRemaining*1000;
-        renderRestTime();
-      }
-      else if(btn.dataset.rest==="plus15"){
-        recomputeRestRemaining();
-        restRemaining += 15;
-        restTotal = restRemaining;
-        restPausedRemaining = restRemaining;
-        if(!restPaused) restEndTime = Date.now() + restRemaining*1000;
-        renderRestTime();
-      }
+      if(btn.dataset.rest==="skip"){ EyeFit.RestTimer.stopRest(); }
+      else if(btn.dataset.rest==="toggle"){ EyeFit.RestTimer.toggleRestPause(); }
+      else if(btn.dataset.rest==="minus15"){ EyeFit.RestTimer.adjustRest(-15); }
+      else if(btn.dataset.rest==="plus15"){ EyeFit.RestTimer.adjustRest(15); }
       saveSessionState();
     });
   });
@@ -4542,12 +4344,12 @@ document.addEventListener("visibilitychange", ()=>{
     persistActiveSession();
   } else if(document.visibilityState === "visible"){
     /* Al volver a la app: recalcular el descanso con el tiempo real */
-    if(restActive && !restPaused){
-      recomputeRestRemaining();
-      if(restRemaining <= 0){
-        restFinished();
+    if(EyeFit.RestTimer.restActive && !EyeFit.RestTimer.restPaused){
+      EyeFit.RestTimer.recomputeRestRemaining();
+      if(EyeFit.RestTimer.restRemaining <= 0){
+        EyeFit.RestTimer.restFinished();
       } else {
-        renderRestTime();
+        EyeFit.RestTimer.renderRestTime();
       }
     }
     /* Sincronizar pendientes al volver */

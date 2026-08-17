@@ -52,6 +52,9 @@ const STATIC_FILES = [
 // Archivos que viven en src/ y se copian tal cual a dist/
 const SRC_FILES = ['db.js'];
 
+// Módulos EyeFit (src/modules/*.js) — se copian a dist/modules/ en el build
+const MODULES_DIR = path.join(SRC, 'modules');
+
 // Carpetas fuente (relativas a ROOT) cuyo CONTENIDO va a dist/<basename>
 const STATIC_DIRS = ['public/icons'];
 
@@ -77,6 +80,10 @@ function copyStatic() {
     const from = path.join(SRC, f);
     if (!fs.existsSync(from)) continue;
     fs.copyFileSync(from, path.join(DIST, f));
+  }
+  // Módulos EyeFit (src/modules/) → dist/modules/
+  if (fs.existsSync(MODULES_DIR)) {
+    fs.cpSync(MODULES_DIR, path.join(DIST, 'modules'), { recursive: true });
   }
   // Directorios: icons vive en public/ y se copia a la raíz de dist/ (como dist/icons)
   for (const src of STATIC_DIRS) {
@@ -157,9 +164,13 @@ function buildSw(coreAssets) {
   copyStatic();
   const [cssName, jsName, criticalCss] = await Promise.all([buildCss(), buildJs(), buildCriticalCss()]);
   buildHtml(cssName, jsName, criticalCss);
+  const moduleAssets = fs.existsSync(MODULES_DIR)
+    ? fs.readdirSync(MODULES_DIR).filter(f => f.endsWith('.js')).map(f => `./modules/${f}`)
+    : [];
   const coreAssets = ['./', './index.html', `./${cssName}`, `./${jsName}`,
     './manifest.json', './constants.js', './utils.js', './db.js', './supabase.js', './rutina.xlsx',
-    './slim-dataset.json', './exercise-meta.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
+    './slim-dataset.json', './exercise-meta.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
+    ...moduleAssets];
   buildSw(coreAssets);
   console.log(`✔ Build OK → dist/ (${cssName}, ${jsName}, critical ${criticalCss.length} bytes)`);
 })();

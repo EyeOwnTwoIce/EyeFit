@@ -21,7 +21,7 @@
   const D = () => EyeFit.Dataset || {};
   const Ui = () => EyeFit.Ui || {};
   const Router = () => EyeFit.Router || {};
-  const Bridge = () => EyeFit.Bridge || {};
+  const Hist = () => EyeFit.ViewsHistorial || {};
 
   let routineEditDay = null;
   let pickerDay = null;
@@ -159,9 +159,9 @@
     const image = el.getAttribute("data-pick-image") || "";
     if(!name) return;
     /* ---- Sustituir ejercicio dentro del historial (F5) ---- */
-    const B = Bridge();
-    if(editHistSubIdx >= 0 && B.editingHistRecord){
-      const ex = B.editingHistRecord.exercises[editHistSubIdx];
+    const H = Hist();
+    if(editHistSubIdx >= 0 && H.editingHistRecord){
+      const ex = H.editingHistRecord.exercises[editHistSubIdx];
       if(ex){
         const oldSets = ex.sets || [];
         const oldSeries = ex.series || oldSets.length || 3;
@@ -183,7 +183,7 @@
         }
       }
       /* Redibujar el overlay con el ejercicio sustituido */
-      B.openEditHistSession(B.editingHistRecord);
+      H.openEditHistSession(H.editingHistRecord);
       closeExercisePicker();
       editHistSubIdx = -1;
       Ui().showToast("↔️ Ejercicio sustituido");

@@ -56,7 +56,7 @@ const SRC_FILES = ['db.js'];
 const MODULES_DIR = path.join(SRC, 'modules');
 
 // Carpetas fuente (relativas a ROOT) cuyo CONTENIDO va a dist/<basename>
-const STATIC_DIRS = ['public/icons'];
+const STATIC_DIRS = ['public/icons', 'data/videos'];
 
 function hashSum(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 8);

@@ -12,7 +12,21 @@
   const normalizeName = U.normalizeName;
   const EMBEDDED_IMAGES = global.EMBEDDED_IMAGES || {};
 
+  /* Conjunto curado de GIFs auto-alojados en ./videos/ (los códigos de
+     EMBEDDED_IMAGES, copiados por el build desde data/videos). El repo de
+     ejercicios se servía desde raw.githubusercontent.com, que devuelve 429
+     (rate-limit) al usarse como CDN de producción — por eso la rutina,
+     alternativas y sesión usan GIFs del propio origen (y offline-first).
+     El resto del dataset (p. ej. miniaturas del picker) cae al remoto. */
+  const LOCAL_GIFS = new Set(Object.values(EMBEDDED_IMAGES));
+
   const IMG_BASE = "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/";
+  /* URL del GIF para un código base: local (./videos/) si está auto-alojado,
+     remoto (IMG_BASE) en caso contrario. */
+  function resolveGifUrl(base){
+    if(!base) return null;
+    return LOCAL_GIFS.has(base) ? "./videos/" + base + ".gif" : IMG_BASE + "videos/" + base + ".gif";
+  }
   const DATASET_URL = "./slim-dataset.json";
   const DATASET_CACHE = "eyefit-slim-v1";
   const META_URL = "./exercise-meta.json";
@@ -62,7 +76,7 @@
         base = found.image.replace("images/","").replace(".jpg","").replace(".png","");
       }
     }
-    if(base) return IMG_BASE + "videos/" + base + ".gif";
+    if(base) return resolveGifUrl(base);
     return null;
   }
   /* Devuelve el GIF de una alternativa por nombre.
@@ -74,14 +88,14 @@
   function getExerciseImageForName(name, dataset){
     if(!name) return null;
     const embedded = findEmbeddedImage(name);
-    if(embedded) return IMG_BASE + "videos/" + embedded + ".gif";
+    if(embedded) return resolveGifUrl(embedded);
     if(dataset){
       const n = normalizeName(name);
       /* Exacta primero */
       let found = dataset.find(d=>d.name && normalizeName(d.name)===n);
       if(found && found.image){
         const base = String(found.image).replace("images/","").replace(".jpg","").replace(".png","");
-        return IMG_BASE + "videos/" + base + ".gif";
+        return resolveGifUrl(base);
       }
       /* Fallback por palabras clave: busca coincidencias parciales del nombre
          de la alternativa dentro del dataset. Solo acepta si la palabra es
@@ -91,7 +105,7 @@
         found = dataset.find(d=>d.name && normalizeName(d.name).includes(w));
         if(found && found.image){
           const base = String(found.image).replace("images/","").replace(".jpg","").replace(".png","");
-          return IMG_BASE + "videos/" + base + ".gif";
+          return resolveGifUrl(base);
         }
       }
     }
@@ -212,7 +226,7 @@
     set datasetCache(v){ datasetCache = v; },
     get exerciseMetaCache(){ return exerciseMetaCache; },
     set exerciseMetaCache(v){ exerciseMetaCache = v; },
-    imgNorm, findEmbeddedImage, getExerciseImage, getExerciseImageForName,
+    imgNorm, findEmbeddedImage, getExerciseImage, getExerciseImageForName, resolveGifUrl,
     loadExerciseDataset, loadExerciseMeta, getExerciseMeta,
     buildDatasetIndex, getDatasetIndex, findExerciseInDataset
   };

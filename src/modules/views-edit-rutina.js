@@ -130,7 +130,7 @@
       ? shown.map((d,i)=>{
           let imgBase = D().findEmbeddedImage(d.name);
           if(!imgBase && d.image) imgBase = String(d.image).replace("images/","").replace(".jpg","").replace(".png","");
-          const imgUrl = imgBase ? D().IMG_BASE + "videos/" + imgBase + ".gif" : null;
+          const imgUrl = imgBase ? D().resolveGifUrl(imgBase) : null;
           /* M5: metadatos de músculo/equipamiento desde exercise-meta.json */
           const meta = D().getExerciseMeta(d.name);
           const partLabel = escapeHtml(meta && meta.muscle ? meta.muscle : (d.part||""));

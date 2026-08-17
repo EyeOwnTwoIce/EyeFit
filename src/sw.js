@@ -43,7 +43,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE && k !== 'eyefit-img-v1').map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && k !== 'eyefit-img-v1' && k !== 'eyefit-videos-v1').map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -164,6 +164,24 @@ self.addEventListener('fetch', event => {
     const IMG_CACHE = 'eyefit-img-v1';
     event.respondWith(
       caches.open(IMG_CACHE).then(cache =>
+        cache.match(request).then(cached => {
+          const fetched = fetch(request).then(response => {
+            if (response && response.ok) cache.put(request, response.clone());
+            return response;
+          }).catch(() => cached);
+          return (cached || fetched) || OFFLINE_RESPONSE;
+        })
+      )
+    );
+    return;
+  }
+
+  // GIFs auto-alojados (dist/videos/, mismo origen): stale-while-revalidate con
+  // caché persistente 'eyefit-videos-v1' (sirve al instante y refresca en 2º plano).
+  if (url.pathname.includes('/videos/') && url.pathname.endsWith('.gif')) {
+    const VID_CACHE = 'eyefit-videos-v1';
+    event.respondWith(
+      caches.open(VID_CACHE).then(cache =>
         cache.match(request).then(cached => {
           const fetched = fetch(request).then(response => {
             if (response && response.ok) cache.put(request, response.clone());

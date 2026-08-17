@@ -17,6 +17,7 @@
   const D = () => EyeFit.Dataset || {};
   const Ui = () => EyeFit.Ui || {};
   const Router = () => EyeFit.Router || {};
+  const EditR = () => EyeFit.ViewsEditRutina || {};
   const Bridge = () => EyeFit.Bridge || {};
 
   /* ================================================================
@@ -149,11 +150,11 @@
     setTimeout(()=>{ input.focus(); input.select(); }, 100);
   }
   function confirmRoutineNumPad(){
-    if(!numPadRoutineCtx){ Bridge().closeNumPad(); return; }
+    if(!numPadRoutineCtx){ EditR().closeNumPad(); return; }
     const val = parseFloat(document.getElementById("numInput").value);
-    if(isNaN(val)){ Bridge().closeNumPad(); return; }
+    if(isNaN(val)){ EditR().closeNumPad(); return; }
     const { name, day, field } = numPadRoutineCtx;
-    Bridge().applyRoutineChange(r=>{
+    EditR().applyRoutineChange(r=>{
       const ex = r.find(e=>e.dia===day && e.nombre_es===name);
       if(!ex) return r;
       if(field==="series") ex.series = clampNum(Math.round(val), 1, 20, 3);
@@ -161,7 +162,7 @@
       else if(field==="kg") ex.peso_kg = clampNum(val, 0, 500, 0);
       return r;
     });
-    Bridge().closeNumPad();
+    EditR().closeNumPad();
     numPadRoutineCtx = null;
     Router().renderMain();
     Ui().showToast("💾 Rutina actualizada");

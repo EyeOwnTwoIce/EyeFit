@@ -3,8 +3,8 @@
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync
    - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
-const CACHE = "eyefit-vmsx15lm7"; // build inyecta CACHE versionado (tools/build.js)
-const CORE_ASSETS = ["./","./index.html","./styles.a7cb4cb1.css","./app.3c7a38c3.js","./manifest.json","./constants.js","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png","./modules/auth.js","./modules/config.js","./modules/dataset.js","./modules/persistence.js","./modules/push.js","./modules/rest-timer.js","./modules/session.js","./modules/supabase.js","./modules/ui.js","./modules/views-edit-rutina.js","./modules/views-historial.js","./modules/views-rutina.js","./modules/views-sesion.js","./modules/xlsx-io.js"]; // build inyecta los assets hasheados
+const CACHE = "eyefit-vmsx1784z"; // build inyecta CACHE versionado (tools/build.js)
+const CORE_ASSETS = ["./","./index.html","./styles.a7cb4cb1.css","./app.21f5c578.js","./manifest.json","./constants.js","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png","./modules/auth.js","./modules/config.js","./modules/dataset.js","./modules/persistence.js","./modules/push.js","./modules/rest-timer.js","./modules/session.js","./modules/supabase.js","./modules/ui.js","./modules/views-ajustes.js","./modules/views-edit-rutina.js","./modules/views-historial.js","./modules/views-rutina.js","./modules/views-sesion.js","./modules/xlsx-io.js"]; // build inyecta los assets hasheados
 
 /* Shell offline: página mínima para un cold-load sin red */
 const OFFLINE_SHELL = `<!DOCTYPE html>

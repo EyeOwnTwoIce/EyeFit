@@ -129,6 +129,17 @@ const updateAuthTabs = Auth.updateAuthTabs;
 const isEmailVerified = Auth.isEmailVerified;
 const handleAuthSubmit = Auth.handleAuthSubmit;
 
+/* Notificaciones push → src/modules/push.js (issue #14) */
+const K_NEWS_KEYS = window.EyeFit.Push.K_NEWS_KEYS;
+const vapidKey = window.EyeFit.Push.vapidKey;
+const ensurePushSubscription = window.EyeFit.Push.ensurePushSubscription;
+const persistPushSubscription = window.EyeFit.Push.persistPushSubscription;
+const enablePushNotifications = window.EyeFit.Push.enablePushNotifications;
+const disablePushNotifications = window.EyeFit.Push.disablePushNotifications;
+const isPushEnabled = window.EyeFit.Push.isPushEnabled;
+const isIOS = window.EyeFit.Push.isIOS;
+const isStandalonePWA = window.EyeFit.Push.isStandalonePWA;
+
 /* Import/export XLSX → src/modules/xlsx-io.js (issue #13) */
 const loadXLSX = window.EyeFit.XlsxIO.loadXLSX;
 const parseRoutineSheet = window.EyeFit.XlsxIO.parseRoutineSheet;
@@ -143,140 +154,7 @@ const exportRoutineXlsx = window.EyeFit.XlsxIO.exportRoutineXlsx;
    PERSISTENCIA
    ================================================================ */
 /* K → src/modules/persistence.js (issue #9) */
-/* Claves para Web Push / notificaciones */
-const K_NEWS_KEYS = {
-  pushSubscribed: "eyefit_push_subscribed_v1",
-  pushSubJson: "eyefit_push_sub_v1"
-};
-/* VAPID_PUBLIC_KEY → src/modules/persistence.js (issue #9) */
-
-/* ================================================================
-   NOTIFICACIONES PUSH (Web Push / iOS PWA 16.4+)
-   ================================================================ */
-function urlBase64ToUint8Array(base64String){
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = atob(base64);
-  const output = new Uint8Array(raw.length);
-  for(let i=0; i<raw.length; ++i) output[i] = raw.charCodeAt(i);
-  return output;
-}
-
-/* Comprueba si la PWA se ejecuta en modo standalone (requisito iOS) */
-function isStandalonePWA(){
-  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
-    || window.navigator.standalone === true
-    || window.navigator.standalone === 1;
-}
-
-/* Normaliza/crea la suscripción push del SW registrado */
-async function ensurePushSubscription(reg){
-  try{
-    if(!reg || !reg.pushManager) return null;
-    let sub = await reg.pushManager.getSubscription();
-    if(sub) return sub;
-    if(Notification && Notification.permission !== 'granted') return null;
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-    });
-    return sub;
-  }catch(e){
-    console.warn("[EyeFit] push subscribe error:", e);
-    return null;
-  }
-}
-
-/* Guarda la suscripción en localStorage + Supabase (para el dispatch del backend) */
-async function persistPushSubscription(sub){
-  try{
-    if(sub){
-      localStorage.setItem(K_NEWS_KEYS.pushSubscribed, "1");
-      const json = sub.toJSON ? sub.toJSON() : sub;
-      localStorage.setItem(K_NEWS_KEYS.pushSubJson, JSON.stringify(json));
-      /* Subir el endpoint a Supabase para que la Edge Function eyefit-push
-         lo use al acabar cada deploy (flush separado, no bloquea al caller). */
-      if(SB.sbClient && json && json.endpoint){
-        SB.sbClient.from("push_subscriptions").upsert({
-          endpoint: json.endpoint,
-          keys: json.keys || {}
-        }, { onConflict: "endpoint" }).then(({error})=>{
-          if(error) console.warn("[EyeFit] push sub upsert error:", error.message);
-        });
-      }
-    } else {
-      localStorage.setItem(K_NEWS_KEYS.pushSubscribed, "");
-      /* Recuperar y eliminar el endpoint de Supabase */
-      const jsonStr = localStorage.getItem(K_NEWS_KEYS.pushSubJson);
-      let endpoint = null;
-      try{ if(jsonStr) endpoint = (JSON.parse(jsonStr)||{}).endpoint; }catch(e){}
-      localStorage.removeItem(K_NEWS_KEYS.pushSubJson);
-      if(SB.sbClient && endpoint){
-        SB.sbClient.from("push_subscriptions").delete().eq("endpoint", endpoint)
-          .then(({error})=>{ if(error) console.warn("[EyeFit] push sub delete error:", error.message); });
-      }
-    }
-  }catch(e){}
-}
-
-/* iOS PWA (16.4+) exige estar instalada (standalone) para recibir push.
-   En Android/desktop Chrome el push funciona sin instalar. */
-function isIOS(){
-  return /iP(hone|ad|od)/.test(navigator.userAgent);
-}
-
-/* Acción del botón "Activar notificaciones" (debe llamarse desde un gesture) */
-async function enablePushNotifications(){
-  if(!('serviceWorker' in navigator)){ showToast("⚠️ Service Worker no soportado"); return; }
-  if(!('PushManager' in window)){ showToast("⚠️ Este navegador no soporta Push"); return; }
-  /* Solo en iOS es obligatorio estar en modo standalone (PWA instalada) para
-     que el Push Service entregue notificaciones con la app cerrada. */
-  if(isIOS() && !isStandalonePWA()){
-    showToast("📲 Instala EyeFit en tu pantalla de inicio para activar notificaciones");
-    return;
-  }
-  try{
-    const permission = await Notification.requestPermission();
-    if(permission !== 'granted'){
-      showToast("🔕 Permiso de notificaciones denegado");
-      return;
-    }
-    const reg = window.__swReg || await navigator.serviceWorker.ready;
-    const sub = await ensurePushSubscription(reg);
-    if(sub && sub.endpoint){
-      await persistPushSubscription(sub);
-      showToast("🔔 Notificaciones activadas");
-      renderMain();
-    } else {
-      showToast("⚠️ No se pudo suscribir a notificaciones");
-    }
-  }catch(e){
-    console.warn(e);
-    showToast("⚠️ Error al activar notificaciones");
-  }
-}
-
-/* Desactivar notificaciones (elimina suscripción local + Supabase) */
-async function disablePushNotifications(){
-  let endpoint = null;
-  try{
-    const reg = window.__swReg || (navigator.serviceWorker ? await navigator.serviceWorker.ready : null);
-    if(reg && reg.pushManager){
-      const sub = await reg.pushManager.getSubscription();
-      if(sub){
-        endpoint = sub.endpoint;
-        await sub.unsubscribe();
-      }
-    }
-  }catch(e){}
-  await persistPushSubscription(null);
-  showToast("🔕 Notificaciones desactivadas");
-  renderMain();
-}
-
-function isPushEnabled(){
-  try{ return !!localStorage.getItem(K_NEWS_KEYS.pushSubscribed); }catch(e){ return false; }
-}
+/* Notificaciones push (K_NEWS_KEYS, ensurePushSubscription, enable/disable...) → src/modules/push.js (issue #14) */
 /* lsGet/lsSet/getRoutine/setRoutine → src/modules/persistence.js (issue #9) */
 /* Historial (caché+mutex+migraciones) y pending → src/modules/persistence.js (issue #9) */
 

@@ -315,7 +315,7 @@ document.getElementById("sumDoneToday").addEventListener("click", ()=>{
   document.getElementById("summaryOverlay").classList.remove("show");
   Session.session = null;
   clearSessionState();
-  setTab("rutina");
+  Router.setTab("rutina");
   showToast("👍 ¡Buen entrenamiento!");
 });
 /* Temporizador de descanso + motivación → src/modules/rest-timer.js (issue #15) */

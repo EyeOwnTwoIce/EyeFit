@@ -87,7 +87,16 @@
           else { from += PAGE_SIZE; to += PAGE_SIZE; }
         }
         if(allSesRows.length > 0){
-          const serverHistory = allSesRows.map(r=>r.data).filter(Boolean);
+          let serverHistory = allSesRows.map(r=>r.data).filter(Boolean);
+          /* BUG-2 (tombstones): no resucitar sesiones que el usuario borró
+             localmente aunque el DELETE aún no se haya confirmado en la nube.
+             Si la sesión sigue en el servidor (fallo transitorio), se reintenta
+             borrarla en syncPending (cola pending.deleted). */
+          const pending = P().getPending();
+          const deletedKeys = (pending.deleted||[]).map(e=>U.sessionKeyOf(e));
+          if(deletedKeys.length > 0){
+            serverHistory = U.filterDeletedServerRecords(serverHistory, deletedKeys);
+          }
           const merged = mergeHistoryBySessionId(P().getHistory(), serverHistory);
           const sanitized = merged.filter(isValidSessionRecord);
           /* Actualizar la caché y persistir de forma explícita
@@ -132,6 +141,34 @@
     }catch(e){ return false; }
   }
 
+  /* Borra una sesión de la nube de forma VERIFICADA. Devuelve true solo si ya
+     no queda ninguna fila en el servidor (borrado confirmado o no existía).
+     El tombstone en pending.deleted se mantiene hasta que devuelva true.
+     Antes (BUG-2): los errores se tragaban con .catch(()=>{}) y el siguiente
+     pull resucitaba la sesión porque el servidor aún la tenía. */
+  async function deleteSessionFromServer(tomb){
+    if(!sbClient || !authUser) return false;
+    try{
+      if(tomb && tomb.session_id){
+        const { error } = await sbClient.from("sesiones").delete().eq("session_id", tomb.session_id).eq("user_id", authUser.id);
+        return !error;
+      }
+      if(tomb && tomb.date){
+        /* Registro legacy (sin session_id): localizar por date+day y borrar por id */
+        const { data: rows, error: errS } = await sbClient.from("sesiones").select("id, data").eq("user_id", authUser.id);
+        if(errS) return false;
+        const matches = (Array.isArray(rows) ? rows : []).filter(r=>r.data && r.data.date===tomb.date && r.data.day===tomb.day);
+        let ok = true;
+        for(const m of matches){
+          const { error } = await sbClient.from("sesiones").delete().eq("id", m.id).catch(e=>({error:e}));
+          if(error) ok = false;
+        }
+        return ok;
+      }
+      return false;
+    }catch(e){ return false; }
+  }
+
   /* Fix subida automática: reintento cada 30s mientras haya pendientes.
      Mutex: serializa syncPending para evitar carreras entre interval/online/pageshow. */
   let syncLock = Promise.resolve();
@@ -154,6 +191,13 @@
       const ok = await pushSessionToServer(rec);
       if(ok){ changed = true; } else { remaining.push(...pending.sessions.slice(i)); break; }
     }
+    /* BUG-2 (tombstones): reintentar el borrado en la nube de las sesiones que
+       el usuario eliminó, hasta confirmar que ya no existen en el servidor. */
+    const remainingDeleted = [];
+    for(const tomb of (pending.deleted||[])){
+      const ok = await deleteSessionFromServer(tomb);
+      if(ok){ changed = true; } else { remainingDeleted.push(tomb); }
+    }
     if(pending.routine){
       const { error } = await sbClient.from("rutinas").upsert(
         { user_id:authUser.id, routine:pending.routine, meta:{ config:C().trainingConfig, trainingDays:C().trainingDays }, updated_at: new Date().toISOString() },
@@ -162,6 +206,7 @@
       if(!error){ P().setRoutine(pending.routine); pending.routine = null; changed = true; localStorage.setItem(P().K.routineUpdated, new Date().toISOString()); }
     }
     pending.sessions = remaining;
+    pending.deleted = remainingDeleted;
     P().setPending(pending);
     if(changed){
       Ui().showToast("🔄 Sincronizado con la nube");
@@ -183,7 +228,7 @@
     get syncQueued(){ return syncQueued; },
     set syncQueued(v){ syncQueued = v; },
     loadSupabaseSDK, ensureSupabaseClient, pullServerData,
-    pushRoutineToServer, pushSessionToServer, scheduleSync, syncPending
+    pushRoutineToServer, pushSessionToServer, deleteSessionFromServer, scheduleSync, syncPending
   };
 })(typeof window !== "undefined" ? window : globalThis);
 

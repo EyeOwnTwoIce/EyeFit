@@ -364,31 +364,29 @@ function openHistExercisePicker(){
       /* Eliminar también de la cola de pendientes si aún no se había subido */
       const p = P().getPending();
       p.sessions = p.sessions.filter(s=>!(s.date===date && s.day===day));
+      /* BUG-2 (tombstones): si el DELETE a la nube falla (offline/transitorio),
+         este rastro impide que el próximo pullServerData resucite la sesión.
+         Se reintenta en cada sync (cola pending.deleted) hasta confirmar. */
+      const tomb = { session_id: targetSid || null, date, day };
+      p.deleted = (p.deleted||[]).filter(e=>!(e.session_id===tomb.session_id && e.date===date && e.day===day));
+      p.deleted.push(tomb);
       P().setPending(p);
-      /* Eliminar de la nube si hay sesión (mismo date + day) */
+      /* Eliminar de la nube de forma verificada (retry vía tombstone) */
+      let synced = false;
       if(S().sbClient && S().authUser){
-        try{
-          const { data: rows } = await S().sbClient.from("sesiones").select("id, data").eq("user_id", S().authUser.id);
-          if(Array.isArray(rows)){
-            /* Buscar por session_id (preciso) o fallback por date+day (legacy) */
-            const matches = rows.filter(r=>r.data && (
-              (r.data.session_id && targetSid && r.data.session_id === targetSid) ||
-              (r.data.date===date && r.data.day===day)
-            ));
-            for(const m of matches){
-              if(m.data.session_id){
-                await S().sbClient.from("sesiones").delete().eq("session_id", m.data.session_id).eq("user_id", S().authUser.id).catch(()=>{});
-              } else {
-                await S().sbClient.from("sesiones").delete().eq("id", m.id).catch(()=>{});
-              }
-            }
-          }
-        }catch(e){}
+        synced = await S().deleteSessionFromServer(tomb);
+        if(synced){
+          /* Borrado confirmado en la nube → quitar el tombstone */
+          const q = P().getPending();
+          q.deleted = (q.deleted||[]).filter(e=>!(e.session_id===tomb.session_id && e.date===date && e.day===day));
+          P().setPending(q);
+        }
       }
-      /* Forzar sincronización para confirmar el borrado en la nube */
+      /* Forzar sincronización para confirmar/reintentar el borrado en la nube */
       if(S().sbClient && S().authUser) S().scheduleSync();
       Router().renderMain();
-      Ui().showToast("🗑️ Sesión eliminada" + (S().sbClient && S().authUser ? " · sincronizada" : ""));
+      const online = !!(S().sbClient && S().authUser);
+      Ui().showToast("🗑️ Sesión eliminada" + (synced ? " · sincronizada" : (online ? " · se eliminará al sincronizar" : "")));
     }
   }
 

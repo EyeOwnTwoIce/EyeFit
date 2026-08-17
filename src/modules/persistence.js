@@ -101,9 +101,15 @@
 
   function getPending(){
     const p = lsGet(K.pending, null);
-    return p && typeof p === "object" ? { sessions:Array.isArray(p.sessions)?p.sessions:[], routine:p.routine||null } : { sessions:[], routine:null };
+    return p && typeof p === "object"
+      ? { sessions:Array.isArray(p.sessions)?p.sessions:[], routine:p.routine||null, deleted:Array.isArray(p.deleted)?p.deleted:[] }
+      : { sessions:[], routine:null, deleted:[] };
   }
-  function setPending(p){ lsSet(K.pending, { sessions:p.sessions||[], routine:p.routine||null }); }
+  function setPending(p){
+    /* Preservar también los tombstones de sesiones borradas (BUG-2): si el
+       DELETE falla en la nube, este rastro evita que el pull las resucite. */
+    lsSet(K.pending, { sessions:p.sessions||[], routine:p.routine||null, deleted:Array.isArray(p.deleted)?p.deleted:[] });
+  }
 
   EyeFit.Persistence = {
     K, VAPID_PUBLIC_KEY, DATA_VERSION, MIGRATIONS,

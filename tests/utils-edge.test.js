@@ -8,7 +8,8 @@ const assert = require('node:assert/strict');
 const {
   isValidSessionRecord, computeRemainingSessions,
   sanitizeRoutineRow, rebaseElapsed, mergeHistoryBySessionId,
-  weekdayNameOf, isSuspectShortSession, dayMismatchLabel
+  weekdayNameOf, isSuspectShortSession, dayMismatchLabel,
+  sessionKeyOf, filterDeletedServerRecords
 } = require('../src/utils.js');
 
 /* Constantes desde constants.js (fuente única, refactor #1) */
@@ -288,6 +289,50 @@ test('dayMismatchLabel: día de rutina coincide con la fecha → null', () => {
 
 test('dayMismatchLabel: fecha inválida → null', () => {
   assert.equal(dayMismatchLabel('Viernes', 'fecha-rota'), null);
+});
+
+/* ============ sessionKeyOf / filterDeletedServerRecords
+   (BUG-2: tombstones para que el pull no resucite sesiones borradas) ============ */
+test('sessionKeyOf: usa session_id si existe', () => {
+  assert.equal(sessionKeyOf({ session_id: 'abc-123', date: '2026-08-08', day: 'Viernes' }), 'sid:abc-123');
+});
+
+test('sessionKeyOf: fallback legacy con date+day', () => {
+  assert.equal(sessionKeyOf({ date: '2026-08-08', day: 'Viernes' }), 'legacy:2026-08-08|Viernes');
+});
+
+test('sessionKeyOf: null/undefined/primitivos → cadena vacía', () => {
+  assert.equal(sessionKeyOf(null), '');
+  assert.equal(sessionKeyOf(undefined), '');
+  assert.equal(sessionKeyOf('x'), '');
+});
+
+test('filterDeletedServerRecords: sin tombstones devuelve todo', () => {
+  const rows = [{ session_id: 'a', date: '2026-08-08' }, { date: '2026-08-07', day: 'Viernes' }];
+  assert.equal(filterDeletedServerRecords(rows, []).length, 2);
+});
+
+test('filterDeletedServerRecords: filtra la sesión borrada (sid)', () => {
+  const rows = [
+    { session_id: 'a992d60c-2897-4791-a1b9-982052079437', date: '2026-08-08T14:57:42.307Z', day: 'Viernes' },
+    { session_id: 'ec00cea3-6a23-4b98-88e0-61d7a189b605', date: '2026-08-07T08:43:30.596Z', day: 'Viernes' }
+  ];
+  const keys = [sessionKeyOf({ session_id: 'a992d60c-2897-4791-a1b9-982052079437' })];
+  const out = filterDeletedServerRecords(rows, keys);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].session_id, 'ec00cea3-6a23-4b98-88e0-61d7a189b605');
+});
+
+test('filterDeletedServerRecords: filtra legacy por date+day', () => {
+  const rows = [{ date: '2026-08-08', day: 'Viernes', duration: 30 }];
+  const out = filterDeletedServerRecords(rows, ['legacy:2026-08-08|Viernes']);
+  assert.equal(out.length, 0);
+});
+
+test('filterDeletedServerRecords: inputs no-array no crashean', () => {
+  assert.deepEqual(filterDeletedServerRecords(null, ['sid:x']), []);
+  assert.deepEqual(filterDeletedServerRecords(undefined, []), []);
+  assert.deepEqual(filterDeletedServerRecords('nope', ['sid:x']), []);
 });
 
 /* ============ mergeHistoryBySessionId: edge cases adicionales ============ */

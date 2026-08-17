@@ -188,6 +188,26 @@
     return `${actual} ${dateShort}`;
   }
 
+  /** Clave estable de una sesión para deduplicar/borrar (misma lógica que
+      mergeHistoryBySessionId): "sid:<session_id>" si existe, si no
+      "legacy:<date>|<day>" para registros antiguos. */
+  function sessionKeyOf(h) {
+    if (!h || typeof h !== "object") return "";
+    if (h.session_id) return "sid:" + h.session_id;
+    return "legacy:" + (h.date || "") + "|" + (h.day || "");
+  }
+
+  /** Filtra registros del servidor que el usuario ya borró (tombstones).
+      Evita que el merge los resucite cuando el DELETE aún no se ha confirmado
+      en la nube (fallo transitorio / offline). */
+  function filterDeletedServerRecords(serverRecords, deletedKeys) {
+    const dk = new Set(Array.isArray(deletedKeys) ? deletedKeys : []);
+    if (dk.size === 0) return Array.isArray(serverRecords) ? serverRecords : [];
+    return (Array.isArray(serverRecords) ? serverRecords : []).filter(r =>
+      r && typeof r === "object" && !dk.has(sessionKeyOf(r))
+    );
+  }
+
   let _uuidSeq = 0; /* contador para el último recurso sin Web Crypto */
 
   /** Genera un UUID v4 con Web Crypto (randomUUID o getRandomValues).
@@ -320,6 +340,7 @@
     getApodo, epley1RM, formatRest, normalizeName,
     buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine,
     escapeHtmlAttr, localDateKey, weekdayNameOf, isSuspectShortSession, dayMismatchLabel,
+    sessionKeyOf, filterDeletedServerRecords,
     genUUID, clampNum, isValidDay, sanitizeRoutineRow,
     rebaseElapsed, mergeHistoryBySessionId
   };

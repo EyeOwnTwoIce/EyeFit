@@ -159,6 +159,12 @@ const updateSessionHeader = Session.updateSessionHeader;
 const renderSessionProgressBar = Session.renderSessionProgressBar;
 const checkPR = Session.checkPR;
 
+/* Vista rutina → src/modules/views-rutina.js (issue #18) */
+const VR = window.EyeFit.ViewsRutina;
+const renderRutina = VR.renderRutina;
+const openRoutineNumPad = VR.openRoutineNumPad;
+const confirmRoutineNumPad = VR.confirmRoutineNumPad;
+
 /* Import/export XLSX → src/modules/xlsx-io.js (issue #13) */
 const loadXLSX = window.EyeFit.XlsxIO.loadXLSX;
 const parseRoutineSheet = window.EyeFit.XlsxIO.parseRoutineSheet;
@@ -243,106 +249,7 @@ function renderMain(){
   }
 }
 
-/* ================================================================
-   VISTA RUTINA — carga directa del día actual
-   ================================================================ */
-function renderRutina(){
-  const routine = getRoutine();
-  const ALL_DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
-  const todayName = getTodayName();
-  const defaultDay = selectedDay || (ALL_DAYS.includes(todayName) ? todayName : "Lunes");
-  const sel = ALL_DAYS.includes(defaultDay) ? defaultDay : "Lunes";
-  selectedDay = sel;
-
-  const noData = routine.length===0;
-  if(noData) return `<div class="section active">
-    <h2 class="title">📅 Rutina Semanal</h2>
-    <div class="empty-state">No hay rutina cargada.<br>Importa un .xlsx en Ajustes.</div>
-  </div>`;
-
-  /* Carrusel de los 7 días de la semana (F3/F4): cards deslizables horizontalmente.
-     Al hacer swipe, el día del centro se actualiza y el detalle inferior responde. */
-  const now = new Date();
-  const DAY_NUM = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-  function dayNameOffset(offset){
-    const d = new Date(now);
-    d.setDate(d.getDate()+offset);
-    return { name: DAY_NUM[d.getDay()], date: d };
-  }
-  /* Mostrar los 7 días de la semana actual (Lunes a Domingo de la semana actual) */
-  const todayIdx = DAY_NUM.indexOf(todayName);
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - ((todayIdx + 6) % 7)); /* Lunes de esta semana */
-  const weekDays = [0,1,2,3,4,5,6].map(offset=>{
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + offset);
-    return { name: DAY_ORDER[offset] || DAY_NUM[d.getDay()], date: d };
-  });
-
-  const dayEx = routine.filter(e=>e.dia===sel).sort((a,b)=>(a.orden||0)-(b.orden||0));
-  const dayCards = dayEx.length===0
-    ? `<div class="empty-state">${escapeHtml(sel)} es día de descanso.<br>Pulsa «Editar» para añadir ejercicios si lo deseas.</div>`
-    : dayEx.map((e,ei)=>{
-        const img = getExerciseImage(e, Dataset.datasetCache);
-        const instrRaw = getInstrucciones(e);
-        const key = String(e.datasetOriginal||e.dataset||e.nombre_es||"").trim().toLowerCase();
-        const best = getHistoricalBest(key);
-        const rmLabel = best && best.rm ? `${escapeHtml(formatKg(Math.round(best.rm)))}kg` : "";
-        const rmHint = best && best.rm
-          ? ` title="1RM = ${escapeHtml(formatKg(best.kg))} × (1 + ${escapeHtml(best.reps)}/30) = ${escapeHtml(formatKg(Math.round(best.rm)))} kg (Epley)" data-has-rm="1"`
-          : ` data-has-rm="0"`;
-        /* Primer ejercicio: above-the-fold — sin lazy y alta prioridad (LCP) */
-        const imgAttrs = ei === 0
-          ? `fetchpriority="high" decoding="async"`
-          : `loading="lazy" decoding="async"`;
-        return `<div class="rt-ex-card">
-          ${img ? `<div class="rtc-img-wrap" data-img-zoom data-ex-name="${escapeHtmlAttr(e.nombre_es)}" data-ex-dataset="${escapeHtmlAttr(e.dataset||"")}" data-ex-dataset-original="${escapeHtmlAttr(e.datasetOriginal||"")}" data-img-instr="${escapeHtmlAttr(instrRaw)}" role="button" tabindex="0" aria-label="Ampliar GIF de ${escapeHtmlAttr(getApodo(e))}">
-            <img class="rtc-img" src="${escapeHtmlAttr(img)}" alt="${escapeHtml(getApodo(e))}" ${imgAttrs} data-img-fallback="hide">
-            <div class="rtc-zoom-hint">⛶</div>
-          </div>` : ""}
-          <div class="rtc-info">
-            <div class="rtc-name">${escapeHtml(getApodo(e))}</div>
-            <div class="rtc-stats">
-              <div class="rtc-stat" data-rt-edit="series" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${escapeHtml(e.series)}</span><span class="rtc-stat-lbl">series</span></div>
-              <div class="rtc-stat" data-rt-edit="reps" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${escapeHtml(e.reps)}</span><span class="rtc-stat-lbl">reps</span></div>
-              <div class="rtc-stat" data-rt-edit="kg" data-rt-name="${escapeHtmlAttr(e.nombre_es)}" data-rt-day="${escapeHtmlAttr(sel)}" role="button" tabindex="0"><span class="rtc-stat-val">${escapeHtml(formatKg(e.peso_kg))}</span><span class="rtc-stat-lbl">kg</span></div>
-              ${rmLabel ? `<div class="rtc-stat rm-tappable" ${rmHint}><span class="rtc-stat-val">${rmLabel}</span><span class="rtc-stat-lbl">1RM</span></div>` : ""}
-            </div>
-          </div>
-        </div>`;
-      }).join("");
-
-  return `<div class="section active">
-    <h2 class="title">📅 Rutina Semanal</h2>
-    <div class="routine-carousel" id="routineCarousel" data-routine-carousel>
-      ${weekDays.map(({name,date},wi)=>{
-        const dayEx = routine.filter(e=>e.dia===name).sort((a,b)=>(a.orden||0)-(b.orden||0));
-        const isToday = name === todayName;
-        const isSel = name === sel;
-        const color = DAY_COLORS[name] || "#888";
-        const dateLabel = date.toLocaleDateString("es-ES",{day:"numeric",month:"short"});
-        const body = dayEx.length===0
-          ? `<div class="rc-rest">😴</div>`
-          : `<div class="rc-list">${dayEx.map(e=>`<div class="rc-item">${escapeHtml(getApodo(e))}</div>`).join("")}</div>`;
-        return `<div class="rc-cell ${isToday?"rc-today":""} ${isSel?"rc-active":""}" data-day="${escapeHtmlAttr(name)}" role="button" tabindex="0" aria-pressed="${isSel}">
-          <div class="rc-top">
-            <span class="rc-day" style="color:${escapeHtml(color)}">${escapeHtml(DAY_SHORT[name]||name.slice(0,3))}</span>
-            <span class="rc-date">${dateLabel}</span>
-          </div>
-          ${body}
-        </div>`;
-      }).join("")}
-    </div>
-    <div class="rt-day-nav">
-      <span style="font-weight:800;font-size:13px;color:${escapeHtml(DAY_COLORS[sel]||"#fff")};">${escapeHtml(sel)}</span>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-outline" data-edit-routine data-edit-routine-day="${escapeHtmlAttr(sel)}" style="min-height:36px;">✏️ Editar</button>
-        ${dayEx.length>0?`<button class="btn" style="min-height:36px;" data-start-session="${escapeHtmlAttr(sel)}">🏋️ Entrenar</button>`:""}
-      </div>
-    </div>
-    <div class="rt-day-view">${dayCards}</div>
-  </div>`;
-}
+/* renderRutina → src/modules/views-rutina.js (issue #18) */
 
 function exerciseCard(ex, i, day){
   const color = DAY_COLORS[day] || "#888";
@@ -2482,54 +2389,10 @@ function confirmNumPad(){
   updateSessionSetValues();
 }
 /* F2: numpad para editar series/reps/kg de la rutina (sin sesión activa) */
-let numPadRoutineCtx = null; /* { name, day, field } */
-function openRoutineNumPad(el){
-  const field = el.dataset.rtEdit;
-  const name = el.dataset.rtName;
-  const day = el.dataset.rtDay;
-  if(!name) return;
-  const routine = getRoutine();
-  const ex = routine.find(e=>e.dia===day && e.nombre_es===name);
-  if(!ex) return;
-  const cur = field==="series" ? parseFloat(ex.series||0)
-             : field==="reps"  ? parseFloat(ex.reps||0)
-             : parseFloat(ex.peso_kg||0);
-  numPadRoutineCtx = { name, day, field };
-  const labelMap = { series:"Series", reps:"Reps por serie", kg:"Peso inicial (kg)" };
-  document.getElementById("numLabel").textContent = labelMap[field] || field;
-  const input = document.getElementById("numInput");
-  input.value = isNaN(cur) ? 0 : cur;
-  input.step = (field==="series"||field==="reps") ? "1" : "0.5";
-  input.min = (field==="kg") ? "0" : "1";
-  input.max = (field==="series") ? "20" : (field==="reps" ? "100" : "500");
-  const slider = document.getElementById("numSlider");
-  slider.min = input.min; slider.max = input.max; slider.step = input.step;
-  slider.value = input.value;
-  document.getElementById("numOverlay").classList.add("show");
-  setFocusTrap("numOverlay", document.getElementById("numOverlay"));
-  setTimeout(()=>{ input.focus(); input.select(); }, 100);
-}
-function confirmRoutineNumPad(){
-  if(!numPadRoutineCtx){ closeNumPad(); return; }
-  const val = parseFloat(document.getElementById("numInput").value);
-  if(isNaN(val)){ closeNumPad(); return; }
-  const { name, day, field } = numPadRoutineCtx;
-  applyRoutineChange(r=>{
-    const ex = r.find(e=>e.dia===day && e.nombre_es===name);
-    if(!ex) return r;
-    if(field==="series") ex.series = clampNum(Math.round(val), 1, 20, 3);
-    else if(field==="reps") ex.reps = clampNum(Math.round(val), 1, 100, 8);
-    else if(field==="kg") ex.peso_kg = clampNum(val, 0, 500, 0);
-    return r;
-  });
-  closeNumPad();
-  numPadRoutineCtx = null;
-  renderMain();
-  showToast("💾 Rutina actualizada");
-}
+/* numpad de rutina (VR.numPadRoutineCtx/openRoutineNumPad/confirmRoutineNumPad) → src/modules/views-rutina.js (issue #18) */
 /* Interceptar el OK del numpad según contexto (sesión vs rutina) */
 document.getElementById("numOk").addEventListener("click", ()=>{
-  if(numPadRoutineCtx){ confirmRoutineNumPad(); }
+  if(VR.numPadRoutineCtx){ confirmRoutineNumPad(); }
   else confirmNumPad();
 });
 document.getElementById("numCancel").addEventListener("click", closeNumPad);
@@ -2542,7 +2405,7 @@ document.getElementById("numSlider").addEventListener("input", e=>{
 });
 document.getElementById("numSlider").addEventListener("change", e=>{
   document.getElementById("numInput").value = e.target.value;
-  if(numPadRoutineCtx){ confirmRoutineNumPad(); }
+  if(VR.numPadRoutineCtx){ confirmRoutineNumPad(); }
   else confirmNumPad();
 });
 
@@ -2980,5 +2843,11 @@ window.EyeFit.Router = {
   get selectedDay(){ return selectedDay; },
   set selectedDay(v){ selectedDay = v; },
   setTab, updateStopBtn, renderMain
+};
+/* Bridge temporal: funciones que aún viven en app.js y que los módulos necesitan
+   (applyRoutineChange → views-edit-rutina #20; closeNumPad → views-sesion #19).
+   Se eliminan de aquí cuando se extraigan esos módulos. */
+window.EyeFit.Bridge = {
+  applyRoutineChange, closeNumPad
 };
 

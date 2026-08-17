@@ -172,6 +172,120 @@
     </div>`;
   }
 
+  /* ============ Métricas de progresión (1RM Epley, PR, sparklines, racha) ============ */
+
+  /* Mejor registro histórico (por 1RM) de un ejercicio, excluyendo la sesión actual */
+  function getHistoricalBest(exKey){
+    const history = P().getHistory();
+    const key = String(exKey||"").trim().toLowerCase();
+    if(!key) return null;
+    let best = null;
+    for(const h of history){
+      for(const e of (h.exercises||[])){
+        const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
+        if(eKey === key){
+          for(const s of (e.sets||[])){
+            if(!s.done) continue;
+            const rm = U.epley1RM(s.kg, s.reps);
+            if(!best || rm > best.rm) best = { rm, kg:s.kg, reps:s.reps, date:h.date };
+          }
+          break;
+        }
+      }
+    }
+    return best;
+  }
+
+  /* Serie de fechas → mejor 1RM por sesión (cronológico, últimas 12) */
+  function getExerciseProgression(exKey){
+    const history = P().getHistory();
+    const key = String(exKey||"").trim().toLowerCase();
+    const pts = [];
+    for(const h of history){
+      for(const e of (h.exercises||[])){
+        const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
+        if(eKey === key){
+          const done = (e.sets||[]).filter(s=>s.done);
+          if(done.length){
+            pts.push({ date:h.date, bestRM: Math.max(...done.map(s=>U.epley1RM(s.kg,s.reps))) });
+          }
+          break;
+        }
+      }
+    }
+    pts.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    return pts.slice(-12);
+  }
+
+  /* Mini-gráfica SVG de la evolución del 1RM (sin librerías, Fase 2 M2) */
+  function svgSparkline(pts, w=140, h=36){
+    if(!pts || pts.length < 2) return "";
+    const vals = pts.map(p=>p.bestRM);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = (max-min) || 1;
+    const step = (pts.length>1) ? w/(pts.length-1) : 0;
+    const coords = pts.map((p,i)=>{
+      const x = i*step;
+      const y = h - 4 - ((p.bestRM-min)/range)*(h-8);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    const last = vals[vals.length-1];
+    const lastY = h - 4 - ((last-min)/range)*(h-8);
+    return `<svg width="${escapeHtml(w)}" height="${escapeHtml(h)}" viewBox="0 0 ${escapeHtml(w)} ${escapeHtml(h)}" preserveAspectRatio="none">
+      <polygon points="0,${escapeHtml(h)} ${escapeHtml(coords)} ${escapeHtml(w)},${escapeHtml(h)}" fill="rgba(200,255,0,.12)"/>
+      <polyline points="${escapeHtml(coords)}" fill="none" stroke="#C8FF00" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="${escapeHtml((pts.length-1)*step)}" cy="${escapeHtml(lastY.toFixed(1))}" r="3" fill="#C8FF00"/>
+    </svg>`;
+  }
+
+  /* Racha de días consecutivos entrenados (Fase 2 M5).
+     Solo cuenta los días seleccionados en trainingDays (ajustes). */
+  function getStreak(){
+    const history = P().getHistory();
+    if(!history || !history.length) return 0;
+    loadTrainingDays();
+    const days = new Set();
+    for(const h of history){
+      try{ days.add(U.localDateKey(new Date(h.date))); }catch(e){}
+    }
+    const DAY_NAMES = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+    const isTrainingDay = (d) => {
+      const dn = DAY_NAMES[d.getDay()];
+      /* Si trainingDays tiene todos los días, usar todos. Si está parcialmente seleccionado, respetarlo */
+      return trainingDays.length === 0 || trainingDays.includes(dn);
+    };
+    /* Función para retroceder al anterior día de entrenamiento configurado */
+    const prevTrainingDate = (d) => {
+      const p = new Date(d);
+      for(let i=1; i<=7; i++){
+        p.setDate(p.getDate()-1);
+        if(isTrainingDay(p)) return p;
+      }
+      return p;
+    };
+    /* Partir desde hoy y ver si hay sesión entrenando hoy */
+    const cursor = new Date();
+    /* Si hoy no es día de entrenamiento, retroceder al último día de entrenamiento */
+    while(!isTrainingDay(cursor)){
+      cursor.setDate(cursor.getDate()-1);
+    }
+    /* Si el último día de entrenamiento no tiene sesión, comprobar sesiones previas */
+    if(!days.has(U.localDateKey(cursor))){
+      const prev = prevTrainingDate(cursor);
+      if(days.has(U.localDateKey(prev))) cursor.setTime(prev.getTime());
+      else return 0;
+    }
+    let streak = 0;
+    const d = new Date(cursor);
+    while(days.has(U.localDateKey(d))){
+      streak++;
+      const prevD = prevTrainingDate(d);
+      if(!days.has(U.localDateKey(prevD))) break;
+      d.setTime(prevD.getTime());
+    }
+    return streak;
+  }
+
   EyeFit.Config = {
     K_CONFIG, K_TRAIN_DAYS, DEFAULT_TRAIN_DAYS, TRAINING_DEFAULTS, COMPUESTOS,
     get trainingDays(){ return trainingDays; },
@@ -180,6 +294,7 @@
     set trainingConfig(v){ trainingConfig = v; },
     loadTrainingDays, saveTrainingDays, loadTrainingConfig, saveTrainingConfig,
     scheduleRoutineSync, isCompoundExercise, getRepRange, getIncrementFor,
-    computeProgressionDecision, progressionBadgeHtml, pendingDoneKg, round1
+    computeProgressionDecision, progressionBadgeHtml, pendingDoneKg, round1,
+    getHistoricalBest, getExerciseProgression, svgSparkline, getStreak
   };
 })(typeof window !== "undefined" ? window : globalThis);

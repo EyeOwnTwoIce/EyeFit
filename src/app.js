@@ -81,6 +81,10 @@ const computeProgressionDecision = Config.computeProgressionDecision;
 const progressionBadgeHtml = Config.progressionBadgeHtml;
 const pendingDoneKg = Config.pendingDoneKg;
 const round1 = Config.round1;
+const getHistoricalBest = Config.getHistoricalBest;
+const getExerciseProgression = Config.getExerciseProgression;
+const svgSparkline = Config.svgSparkline;
+const getStreak = Config.getStreak;
 
 /* Persistencia → src/modules/persistence.js (issue #9) */
 const P = window.EyeFit.Persistence;
@@ -140,6 +144,21 @@ const isPushEnabled = window.EyeFit.Push.isPushEnabled;
 const isIOS = window.EyeFit.Push.isIOS;
 const isStandalonePWA = window.EyeFit.Push.isStandalonePWA;
 
+/* Sesión de entrenamiento → src/modules/session.js (issue #16) */
+const Session = window.EyeFit.Session;
+const sessionProgress = Session.sessionProgress;
+const autoSaveSession = Session.autoSaveSession;
+const saveSessionState = Session.saveSessionState;
+const clearSessionState = Session.clearSessionState;
+const restoreSession = Session.restoreSession;
+const getLastExercisePerformance = Session.getLastExercisePerformance;
+const startSession = Session.startSession;
+const getSessionElapsed = Session.getSessionElapsed;
+const fmtDuration = Session.fmtDuration;
+const updateSessionHeader = Session.updateSessionHeader;
+const renderSessionProgressBar = Session.renderSessionProgressBar;
+const checkPR = Session.checkPR;
+
 /* Import/export XLSX → src/modules/xlsx-io.js (issue #13) */
 const loadXLSX = window.EyeFit.XlsxIO.loadXLSX;
 const parseRoutineSheet = window.EyeFit.XlsxIO.parseRoutineSheet;
@@ -179,7 +198,7 @@ const exportRoutineXlsx = window.EyeFit.XlsxIO.exportRoutineXlsx;
 let currentTab = "rutina";
 let selectedDay = null;
 /* Dataset.datasetCache/Dataset.exerciseMetaCache → src/modules/dataset.js (issue #12) */
-let session = null;
+/* Session.session → src/modules/session.js (issue #16) */
 
 function setTab(tab){
   currentTab = tab;
@@ -198,7 +217,7 @@ function setTab(tab){
 }
 function updateStopBtn(){
   const btn = document.getElementById("stopSessionBtn");
-  if(btn) btn.style.display = (currentTab==="sesion" && session) ? "block" : "none";
+  if(btn) btn.style.display = (currentTab==="sesion" && Session.session) ? "block" : "none";
 }
 let routineEditMode = false;
 
@@ -694,150 +713,14 @@ function handleEditRoutineEvent(btn){
   }
 }
 
-/* ================================================================
-   FASE 2 · MÉTRICAS DE PROGRESIÓN (1RM Epley, PR, sparklines, racha)
-   ================================================================ */
-
-/* Mejor registro histórico (por 1RM) de un ejercicio, excluyendo la sesión actual */
-function getHistoricalBest(exKey){
-  const history = getHistory();
-  const key = String(exKey||"").trim().toLowerCase();
-  if(!key) return null;
-  let best = null;
-  for(const h of history){
-    for(const e of (h.exercises||[])){
-      const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
-      if(eKey === key){
-        for(const s of (e.sets||[])){
-          if(!s.done) continue;
-          const rm = epley1RM(s.kg, s.reps);
-          if(!best || rm > best.rm) best = { rm, kg:s.kg, reps:s.reps, date:h.date };
-        }
-        break;
-      }
-    }
-  }
-  return best;
-}
-
-/* Registro del mejor 1RM visto dentro de la sesión actual (evita PRs duplicados) */
-let sessionBestByEx = {};
-
-/* Comprueba si el set completado es un récord personal y lo celebra en el comic-bubble */
-function checkPR(ex, set){
-  const key = String(ex.dataset||ex.nombre_es||"").trim().toLowerCase();
-  const best = getHistoricalBest(key);
-  const newRM = epley1RM(set.kg, set.reps);
-  if(!sessionBestByEx) sessionBestByEx = {};
-  const sessBest = sessionBestByEx[key] || 0;
-  if(newRM <= Math.max(best ? best.rm : 0, sessBest)) return;
-  sessionBestByEx[key] = newRM;
-  const diff = best ? ` (+${(newRM-best.rm).toFixed(0)}kg 1RM)` : "";
-  EyeFit.RestTimer.showComicBubble(`🏆 ¡NUEVO PR! ${getApodo(ex)} · ${set.kg}kg × ${set.reps}${diff}`);
-}
-
-/* Serie de fechas → mejor 1RM por sesión (cronológico, últimas 12) */
-function getExerciseProgression(exKey){
-  const history = getHistory();
-  const key = String(exKey||"").trim().toLowerCase();
-  const pts = [];
-  for(const h of history){
-    for(const e of (h.exercises||[])){
-      const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
-      if(eKey === key){
-        const done = (e.sets||[]).filter(s=>s.done);
-        if(done.length){
-          pts.push({ date:h.date, bestRM: Math.max(...done.map(s=>epley1RM(s.kg,s.reps))) });
-        }
-        break;
-      }
-    }
-  }
-  pts.sort((a,b)=>new Date(a.date)-new Date(b.date));
-  return pts.slice(-12);
-}
-
-/* Mini-gráfica SVG de la evolución del 1RM (sin librerías, Fase 2 M2) */
-function svgSparkline(pts, w=140, h=36){
-  if(!pts || pts.length < 2) return "";
-  const vals = pts.map(p=>p.bestRM);
-  const min = Math.min(...vals), max = Math.max(...vals);
-  const range = (max-min) || 1;
-  const step = (pts.length>1) ? w/(pts.length-1) : 0;
-  const coords = pts.map((p,i)=>{
-    const x = i*step;
-    const y = h - 4 - ((p.bestRM-min)/range)*(h-8);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  const last = vals[vals.length-1];
-  const lastY = h - 4 - ((last-min)/range)*(h-8);
-  return `<svg width="${escapeHtml(w)}" height="${escapeHtml(h)}" viewBox="0 0 ${escapeHtml(w)} ${escapeHtml(h)}" preserveAspectRatio="none">
-    <polygon points="0,${escapeHtml(h)} ${escapeHtml(coords)} ${escapeHtml(w)},${escapeHtml(h)}" fill="rgba(200,255,0,.12)"/>
-    <polyline points="${escapeHtml(coords)}" fill="none" stroke="#C8FF00" stroke-width="2" stroke-linejoin="round"/>
-    <circle cx="${escapeHtml((pts.length-1)*step)}" cy="${escapeHtml(lastY.toFixed(1))}" r="3" fill="#C8FF00"/>
-  </svg>`;
-}
-
-/* Racha de días consecutivos entrenados (Fase 2 M5).
-   Solo cuenta los días seleccionados en trainingDays (ajustes). */
-function getStreak(){
-  const history = getHistory();
-  if(!history || !history.length) return 0;
-  loadTrainingDays();
-  const days = new Set();
-  for(const h of history){
-    try{ days.add(localDateKey(new Date(h.date))); }catch(e){}
-  }
-  const DAY_NAMES = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-  const isTrainingDay = (d) => {
-    const dn = DAY_NAMES[d.getDay()];
-    /* Si trainingDays tiene todos los días, usar todos. Si está parcialmente seleccionado, respetarlo */
-    return Config.trainingDays.length === 0 || Config.trainingDays.includes(dn);
-  };
-  /* Función para retroceder al anterior día de entrenamiento configurado */
-  const prevTrainingDate = (d) => {
-    const p = new Date(d);
-    for(let i=1; i<=7; i++){
-      p.setDate(p.getDate()-1);
-      if(isTrainingDay(p)) return p;
-    }
-    return p;
-  };
-  /* Partir desde hoy y ver si hay sesión entrenando hoy */
-  const cursor = new Date();
-  /* Si hoy no es día de entrenamiento, retroceder al último día de entrenamiento */
-  while(!isTrainingDay(cursor)){
-    cursor.setDate(cursor.getDate()-1);
-  }
-  /* Si el último día de entrenamiento no tiene sesión, comprobar sesiones previas */
-  if(!days.has(localDateKey(cursor))){
-    const prev = prevTrainingDate(cursor);
-    if(days.has(localDateKey(prev))) cursor.setTime(prev.getTime());
-    else return 0;
-  }
-  let streak = 0;
-  const d = new Date(cursor);
-  while(days.has(localDateKey(d))){
-    streak++;
-    const prevD = prevTrainingDate(d);
-    if(!days.has(localDateKey(prevD))) break;
-    d.setTime(prevD.getTime());
-  }
-  return streak;
-}
-
+/* Métricas de progresión (getHistoricalBest, svgSparkline, getStreak...) → src/modules/config.js (issue #16) */
 /* ================================================================
    VISTA SESIÓN sin scroll
    ================================================================ */
-function sessionProgress(){
-  const totalSets = session.exercises.reduce((a,e)=>a+e.sets.length,0);
-  const doneSets = session.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0);
-  const pct = totalSets>0 ? Math.round((doneSets/totalSets)*100) : 0;
-  return { totalSets, doneSets, pct };
-}
+/* sessionProgress → src/modules/session.js (issue #16) */
 
 function renderSesion(){
-  if(!session){
+  if(!Session.session){
     const routine = getRoutine();
     const todayName = getTodayName();
     /* Solo permitir entrenar el día de hoy */
@@ -874,9 +757,9 @@ function renderSesion(){
     </div>`;
   }
 
-  const day = session.day;
-  const ex = session.exercises[session.currentIdx];
-  const totalEx = session.exercises.length;
+  const day = Session.session.day;
+  const ex = Session.session.exercises[Session.session.currentIdx];
+  const totalEx = Session.session.exercises.length;
   const imgUrl = getExerciseImage(ex, Dataset.datasetCache);
   const apodo = getApodo(ex);
   const hasVariants = getVariants(ex).length > 0;
@@ -908,18 +791,18 @@ function renderSesion(){
     </div>`;
   }).join("");
 
-  const completedEx = session.exercises.filter(e=>e.completed).length;
-  const nextEx = session.currentIdx+1 < session.exercises.length ? session.exercises[session.currentIdx+1] : null;
+  const completedEx = Session.session.exercises.filter(e=>e.completed).length;
+  const nextEx = Session.session.currentIdx+1 < Session.session.exercises.length ? Session.session.exercises[Session.session.currentIdx+1] : null;
   const instr = formatInstructions(getInstrucciones(ex));
 
   /* Lista de ejercicios pendientes (reordenable con flechas) */
-  const upcoming = session.exercises.slice(session.currentIdx+1).map((u,i)=>{
-    const absIdx = session.currentIdx+1+i;
+  const upcoming = Session.session.exercises.slice(Session.session.currentIdx+1).map((u,i)=>{
+    const absIdx = Session.session.currentIdx+1+i;
     const col = DAY_COLORS[day]||"#fff";
     return `<div class="up-row">
       <div class="up-arrows">
         <button class="up-arrow" data-move-up="${absIdx}" ${i===0?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia arriba">↑</button>
-        <button class="up-arrow" data-move-down="${absIdx}" ${absIdx===session.exercises.length-1?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia abajo">↓</button>
+        <button class="up-arrow" data-move-down="${absIdx}" ${absIdx===Session.session.exercises.length-1?"disabled":""} aria-label="Mover ${escapeHtmlAttr(getApodo(u))} hacia abajo">↓</button>
       </div>
       <span class="up-num" style="color:${escapeHtml(col)}">${escapeHtml(u.orden)}</span>
       <span class="up-name">${escapeHtml(getApodo(u))}</span>
@@ -927,10 +810,10 @@ function renderSesion(){
     </div>`;
   }).join("");
 
-  return `<div class="section active session-view">
+  return `<div class="section active Session.session-view">
     <div class="ex-active-card">
       <div class="ex-active-header">
-        <span class="ex-active-count">${escapeHtml(session.currentIdx+1)} / ${escapeHtml(totalEx)}</span>
+        <span class="ex-active-count">${escapeHtml(Session.session.currentIdx+1)} / ${escapeHtml(totalEx)}</span>
       </div>
       <div class="ex-active-body">
         ${imgUrl ? `<div class="ex-img-wrap" data-img-zoom aria-label="Ampliar GIF de ${escapeHtmlAttr(apodo)}" role="button" tabindex="0">
@@ -961,8 +844,8 @@ function renderSesion(){
    ACTUALIZACIÓN IN-PLACE (evita parpadeos al tocar kg/reps)
    ================================================================ */
 function updateSessionSetValues(){
-  if(!session) return;
-  const ex = session.exercises[session.currentIdx];
+  if(!Session.session) return;
+  const ex = Session.session.exercises[Session.session.currentIdx];
   ex.sets.forEach((set,si)=>{
     const kgEl = document.querySelector(`.set-value[data-edit="${si}"][data-field="kg"]`);
     const repsEl = document.querySelector(`.set-value[data-edit="${si}"][data-field="reps"]`);
@@ -977,62 +860,19 @@ function updateSessionSetValues(){
 let pendingSummary = null;
 
 function computeSummary(){
-  const completedSets = session.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0);
-  const totalReps = session.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).reduce((b,s)=>b+s.reps,0),0);
-  const totalWeight = session.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).reduce((b,s)=>b+(s.kg*s.reps),0),0);
-  const elapsed = Math.floor((Date.now()-session.startTime)/1000)+session.baseElapsed;
-  const completedEx = session.exercises.filter(e=>e.completed).length;
-  return { completedSets, totalReps, totalWeight, elapsed, completedEx, totalEx: session.exercises.length, exList: session.exercises };
+  const completedSets = Session.session.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0);
+  const totalReps = Session.session.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).reduce((b,s)=>b+s.reps,0),0);
+  const totalWeight = Session.session.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).reduce((b,s)=>b+(s.kg*s.reps),0),0);
+  const elapsed = Math.floor((Date.now()-session.startTime)/1000)+Session.session.baseElapsed;
+  const completedEx = Session.session.exercises.filter(e=>e.completed).length;
+  return { completedSets, totalReps, totalWeight, elapsed, completedEx, totalEx: Session.session.exercises.length, exList: Session.session.exercises };
 }
 
 /* Guarda la sesión automáticamente (sin botones Guardar/Descartar) */
-async function autoSaveSession(){
-  if(!session) return;
-  const anyDone = session.exercises.some(e=>e.sets.some(s=>s.done));
-  if(!anyDone) return;
-  session.elapsed = Math.floor((Date.now()-session.startTime)/1000)+session.baseElapsed;
-  const nowIso = new Date().toISOString();
-  const record = {
-    session_id: session.session_id || genUUID(),
-    date: nowIso,
-    day: session.day,
-    duration: session.elapsed,
-    updated_at: nowIso,
-    exercises: session.exercises.map(e=>{
-      const decid = computeProgressionDecision(e, []);
-      return {
-        nombre_es: e.nombre_es, dataset: e.dataset, datasetOriginal: e.datasetOriginal, orden: e.orden, completed: e.completed,
-        sets: e.sets.map(s=>({ kg:s.kg, reps:s.reps, done:s.done })),
-        progresion: decid ? { accion: decid.action, delta: decid.delta, motivo: decid.reason } : null
-      };
-    })
-  };
-  const history = getHistory();
-  const dupeIdx = history.findIndex(h=>h.session_id && h.session_id === record.session_id);
-  if(dupeIdx !== -1) history.splice(dupeIdx, 1);
-  history.push(record);
-  saveHistory(history);
-  session.saved = true;
-  clearSessionState();
-  const savedMsg = document.getElementById("sumSavedMsg");
-  if(SB.sbClient && SB.authUser){
-    const ok = await pushSessionToServer(record);
-    if(ok){
-      if(savedMsg) savedMsg.textContent = "✅ Sesión guardada en la nube";
-      showToast("✅ Sesión guardada en la nube");
-    } else {
-      const p = getPending(); p.sessions.push(record); setPending(p);
-      if(savedMsg) savedMsg.textContent = "📴 Sin conexión: se subirá sola";
-      showToast("📴 Sin conexión: se subirá sola");
-    }
-  } else {
-    if(savedMsg) savedMsg.textContent = "✅ Sesión guardada en este dispositivo";
-    showToast("✅ Sesión guardada");
-  }
-}
+/* autoSaveSession → src/modules/session.js (issue #16) */
 
 function showSummary(){
-  if(!session) return;
+  if(!Session.session) return;
   EyeFit.RestTimer.stopRest();
   pendingSummary = computeSummary();
   autoSaveSession();
@@ -1042,7 +882,7 @@ function showSummary(){
     if(m) m.textContent = "⚠️ No se completó ninguna serie — no se guardó nada";
   }
   const mins = Math.floor(s.elapsed/60), secs = s.elapsed%60;
-  document.getElementById("sumSub").textContent = `${session.day} · ${mins}m ${String(secs).padStart(2,"0")}s`;
+  document.getElementById("sumSub").textContent = `${Session.session.day} · ${mins}m ${String(secs).padStart(2,"0")}s`;
   document.getElementById("sumGrid").innerHTML = `
     <div class="sum-stat"><div class="sv">${escapeHtml(s.completedSets)}</div><div class="sl">Series</div></div>
     <div class="sum-stat"><div class="sv">${escapeHtml(s.totalReps)}</div><div class="sl">Reps</div></div>
@@ -1051,7 +891,7 @@ function showSummary(){
   document.getElementById("sumExList").innerHTML = s.exList.filter(e=>e.sets.some(x=>x.done)).slice(0,10).map(e=>{
     const done = e.sets.filter(x=>x.done);
     return `<div class="sum-ex">
-      <div class="sum-ex-top"><span style="color:${escapeHtml(DAY_COLORS[session.day]||"#fff")}">${escapeHtml(getApodo(e))}</span><span>${escapeHtml(done.length)}×${escapeHtml(done[0]?.reps||0)} reps</span></div>
+      <div class="sum-ex-top"><span style="color:${escapeHtml(DAY_COLORS[Session.session.day]||"#fff")}">${escapeHtml(getApodo(e))}</span><span>${escapeHtml(done.length)}×${escapeHtml(done[0]?.reps||0)} reps</span></div>
       <div class="sum-ex-sub">${done.map(x=>`${escapeHtml(x.kg)}kg`).join(" · ")}</div>
     </div>`;
   }).join("");
@@ -1061,14 +901,14 @@ function showSummary(){
 }
 
 document.getElementById("stopSessionBtn").addEventListener("click", ()=>{
-  if(session) showSummary();
+  if(Session.session) showSummary();
 });
 
 /* "Vale por hoy": cerrar resumen y volver a la Rutina */
 document.getElementById("sumDoneToday").addEventListener("click", ()=>{
   setFocusTrap("summaryOverlay", null);
   document.getElementById("summaryOverlay").classList.remove("show");
-  session = null;
+  Session.session = null;
   clearSessionState();
   setTab("rutina");
   showToast("👍 ¡Buen entrenamiento!");
@@ -1092,7 +932,7 @@ function getVariants(ex){
 }
 
 function openVariants(){
-  const ex = session.exercises[session.currentIdx];
+  const ex = Session.session.exercises[Session.session.currentIdx];
   const variants = getVariants(ex);
   document.getElementById("varCurrentEx").textContent = "Ejercicio actual: " + getApodo(ex);
   /* 4 tarjetas en grid 2x2: mantener actual + 3 alternativas (con GIF) */
@@ -1111,7 +951,7 @@ function openVariants(){
 }
 
 function selectVariant(i){
-  const ex = session.exercises[session.currentIdx];
+  const ex = Session.session.exercises[Session.session.currentIdx];
   if(i === 0){ setFocusTrap("varOverlay", null); document.getElementById("varOverlay").classList.remove("show"); return; } // mantener actual
   const v = getVariants(ex)[i-1];
   if(!v) return;
@@ -1914,9 +1754,9 @@ function attachEvents(){
       }).join("");
       const totalSets = dayEx.reduce((a,e)=>a+Number(e.series||3),0);
       const modal = document.createElement("div");
-      modal.className = "session-confirm-overlay";
+      modal.className = "Session.session-confirm-overlay";
       modal.innerHTML = `
-        <div class="session-confirm-card">
+        <div class="Session.session-confirm-card">
           <div class="sc-title">Entrenamiento del ${escapeHtml(day)}</div>
           <div class="sc-sub">${escapeHtml(dayEx.length)} ejercicios · ${escapeHtml(totalSets)} series</div>
           <div class="sc-list">${exList}</div>
@@ -1938,8 +1778,8 @@ function attachEvents(){
   /* Steppers: actualización in-place (sin parpadeo) + propagación de kg y reps a las siguientes */
   document.querySelectorAll("[data-kg-plus],[data-kg-minus],[data-reps-plus],[data-reps-minus]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      if(!session) return;
-      const ex = session.exercises[session.currentIdx];
+      if(!Session.session) return;
+      const ex = Session.session.exercises[Session.session.currentIdx];
       const si = parseInt(btn.dataset.kgPlus ?? btn.dataset.kgMinus ?? btn.dataset.repsPlus ?? btn.dataset.repsMinus);
       const set = ex.sets[si];
       if(btn.dataset.kgPlus) set.kg = +(set.kg+0.5).toFixed(1);
@@ -1965,8 +1805,8 @@ function attachEvents(){
   });
   document.querySelectorAll("[data-set-done]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      if(!session) return;
-      const ex = session.exercises[session.currentIdx];
+      if(!Session.session) return;
+      const ex = Session.session.exercises[Session.session.currentIdx];
       const si = parseInt(btn.dataset.setDone);
       const set = ex.sets[si];
       if(set.done) return;
@@ -1981,8 +1821,8 @@ function attachEvents(){
       } else {
         /* Última serie del ejercicio: descanso antes de pasar al siguiente */
         ex.completed = true;
-        if(session.currentIdx+1 < session.exercises.length){
-          session.currentIdx++;
+        if(Session.session.currentIdx+1 < Session.session.exercises.length){
+          Session.session.currentIdx++;
           EyeFit.RestTimer.startRest(ex.descanso_s); /* Descanso inter-ejercicio */
           renderMain();
         } else {
@@ -1996,11 +1836,11 @@ function attachEvents(){
   /* Eliminar una serie completada mediante swipe (confirmación visual) */
   let swipeDeleteSet = null;
   function askDeleteSet(si, rowEl){
-    if(!session) return;
+    if(!Session.session) return;
     swipeDeleteSet = si;
     const ov = document.getElementById("swipeConfirmOverlay");
     if(ov){
-      const ex = session.exercises[session.currentIdx];
+      const ex = Session.session.exercises[Session.session.currentIdx];
       const set = ex.sets[si];
       document.getElementById("swipeConfirmText").textContent =
         `¿Eliminar la serie ${si+1} (${set.kg}kg × ${set.reps})?`;
@@ -2095,8 +1935,8 @@ function attachEvents(){
     const ov = document.getElementById("swipeConfirmOverlay");
     ov.classList.remove("show");
     setFocusTrap("swipeConfirmOverlay", null);
-    if(!session || swipeDeleteSet === null) return;
-    const ex = session.exercises[session.currentIdx];
+    if(!Session.session || swipeDeleteSet === null) return;
+    const ex = Session.session.exercises[Session.session.currentIdx];
     if(ex.sets.length <= 1){
       showToast("⚠️ No puedes eliminar la única serie");
       document.querySelectorAll(".set-row.swiped").forEach(r=>{
@@ -2179,12 +2019,12 @@ function attachEvents(){
   /* Reordenar ejercicios pendientes */
   document.querySelectorAll("[data-move-up],[data-move-down]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      if(!session) return;
+      if(!Session.session) return;
       const idx = parseInt(btn.dataset.moveUp ?? btn.dataset.moveDown);
       const dir = btn.dataset.moveUp ? -1 : 1;
       const j = idx + dir;
-      if(j < 0 || j >= session.exercises.length) return;
-      const arr = session.exercises;
+      if(j < 0 || j >= Session.session.exercises.length) return;
+      const arr = Session.session.exercises;
       [arr[idx], arr[j]] = [arr[j], arr[idx]];
       /* Reasignar orden visual (1..n) */
       arr.forEach((e,i)=>{ e.orden = i+1; });
@@ -2195,8 +2035,8 @@ function attachEvents(){
   /* Añadir una serie extra */
   document.querySelectorAll("[data-add-set]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      if(!session) return;
-      const ex = session.exercises[session.currentIdx];
+      if(!Session.session) return;
+      const ex = Session.session.exercises[Session.session.currentIdx];
       const last = ex.sets[ex.sets.length-1] || { kg:parseFloat(ex.peso_kg)||0, reps:parseInt(ex.reps)||8 };
       ex.sets.push({ kg:last.kg, reps:last.reps, done:false });
       ex.completed = false;
@@ -2483,7 +2323,7 @@ function attachEvents(){
       if(fromEl.classList.contains("edit-ex-row"))
         return [scope.querySelectorAll(".edit-ex-row"), "edit-routine"];
       if(fromEl.classList.contains("up-row"))
-        return [scope.querySelectorAll(".up-row"), "session-up"];
+        return [scope.querySelectorAll(".up-row"), "Session.session-up"];
       return [ [], null ];
     }
 
@@ -2534,14 +2374,14 @@ function attachEvents(){
           return arr;
         });
         renderMain();
-      } else if(ctx === "session-up" && session){
-        const arr = session.exercises.slice();
-        const absFrom = session.currentIdx+1+fromIdx;
-        const absTo = session.currentIdx+1+toIdx;
+      } else if(ctx === "Session.session-up" && Session.session){
+        const arr = Session.session.exercises.slice();
+        const absFrom = Session.session.currentIdx+1+fromIdx;
+        const absTo = Session.session.currentIdx+1+toIdx;
         const [hit] = arr.splice(absFrom,1);
         arr.splice(absTo,0,hit);
-        session.exercises = arr;
-        session.exercises.forEach((ex,i)=>{ ex.orden = i+1; });
+        Session.session.exercises = arr;
+        Session.session.exercises.forEach((ex,i)=>{ ex.orden = i+1; });
         saveSessionState();
         renderMain();
       }
@@ -2606,7 +2446,7 @@ function attachEvents(){
 let numPadCtx = { idx:0, field:"kg" };
 function openNumPad(idx, field){
   numPadCtx = { idx, field };
-  const ex = session.exercises[session.currentIdx];
+  const ex = Session.session.exercises[Session.session.currentIdx];
   const set = ex.sets[idx];
   document.getElementById("numLabel").textContent = field==="kg" ? "Peso (kg)" : "Repeticiones";
   const input = document.getElementById("numInput");
@@ -2625,10 +2465,10 @@ function openNumPad(idx, field){
 }
 function closeNumPad(){ document.getElementById("numOverlay").classList.remove("show"); setFocusTrap("numOverlay", null); }
 function confirmNumPad(){
-  if(!session){ closeNumPad(); return; }
+  if(!Session.session){ closeNumPad(); return; }
   const val = parseFloat(document.getElementById("numInput").value);
   if(isNaN(val)){ closeNumPad(); return; }
-  const ex = session.exercises[session.currentIdx];
+  const ex = Session.session.exercises[Session.session.currentIdx];
   const set = ex.sets[numPadCtx.idx];
   if(numPadCtx.field==="kg"){
     set.kg = clampNum(val, 0, 500, 0);
@@ -2766,177 +2606,20 @@ document.getElementById("authSkip").addEventListener("click", ()=>{
 /* showToast / vibrate / setFocusTrap → src/modules/ui.js (issue #8) */
 
 /* Persistencia de sesión activa */
-function saveSessionState(){
-  if(!session) return;
-  session.restState = EyeFit.RestTimer.getRestState();
-  lsSet(K.session, session);
-  renderSessionProgressBar();
-  updateSessionHeader();
-}
-function clearSessionState(){
-  localStorage.removeItem(K.session); localStorage.removeItem(K.sets);
-  renderSessionProgressBar();
-  updateSessionHeader();
-}
+/* save/clearSessionState → src/modules/session.js (issue #16) */
+/* clearSessionState → src/modules/session.js (issue #16) */
 /* restoreRestState → src/modules/rest-timer.js (issue #15) */
-function restoreSession(){
-  const saved = lsGet(K.session, null);
-  if(saved && saved.exercises && Array.isArray(saved.exercises) && saved.exercises.length && !saved.saved){
-    session = rebaseElapsed(saved, Date.now());
-    EyeFit.RestTimer.stopRest();
-    EyeFit.RestTimer.restoreRestState(saved.restState || null);
-  }
-}
+/* restoreSession → src/modules/session.js (issue #16) */
 
 /* Busca en el historial la última vez que se hizo este ejercicio y devuelve
    los sets reales ({kg,reps}) de esa sesión — respeta las diferencias de
    peso/reps entre series. Si no hay historial, devuelve null. */
-function getLastExercisePerformance(ex){
-  const history = getHistory();
-  if(!history || history.length===0) return null;
-  /* F1-C2: buscar por el dataset original si se aplicó una variante */
-  const key = String(ex.datasetOriginal||ex.dataset||ex.nombre_es||"").trim().toLowerCase();
-  if(!key) return null;
-  const matches = [];
-  for(const h of history){
-    for(const e of (h.exercises||[])){
-      const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
-      if(eKey === key){
-        const done = (e.sets||[]).filter(s=>s.done);
-        if(done.length > 0) matches.push({ date:h.date, sets:done.map(s=>({ kg:s.kg, reps:s.reps })) });
-        break;
-      }
-    }
-  }
-  if(matches.length===0) return null;
-  matches.sort((a,b)=>new Date(b.date)-new Date(a.date));
-  return matches[0].sets;
-}
+/* getLastExercisePerformance → src/modules/session.js (issue #16) */
 
-function startSession(day){
-  const routine = getRoutine();
-  const dayEx = routine.filter(e=>e.dia===day).sort((a,b)=>(a.orden||0)-(b.orden||0));
-  if(dayEx.length===0) return;
-  sessionBestByEx = {};
-  const history = getHistory();
-  session = {
-    session_id: genUUID(),
-    day, startTime: Date.now(), elapsed: 0, baseElapsed: 0, currentIdx: 0,
-    exercises: dayEx.map(ex=>{
-      const lastPerf = getLastExercisePerformance(ex);
-      /* Aplicar progresión automática si hay historial */
-      const dec = computeProgressionDecision(ex, history);
-      let exercise = ex;
-      let sets;
-      if(dec && dec.peso_sugerido > 0){
-        exercise = { ...ex, peso_kg: dec.peso_sugerido };
-        sets = buildExerciseSets(exercise, lastPerf);
-      } else {
-        sets = buildExerciseSets(ex, lastPerf);
-      }
-      return { ...exercise, completed:false, currentSet:1, sets };
-    })
-  };
-  renderSessionProgressBar();
-  saveSessionState();
-  selectedDay = day;
-  setTab("sesion");
-}
+/* startSession → src/modules/session.js (issue #16) */
 
 /* ================================================================
-   HEADER DE SESIÓN: nombre del ejercicio + cronómetro + % + barra
-   ================================================================ */
-let sessionTimerInterval = null;
-
-function fmtDuration(secs){
-  const m = Math.floor(secs/60), s = Math.floor(secs%60);
-  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-}
-
-function getSessionElapsed(){
-  if(!session) return 0;
-  return Math.floor((Date.now()-session.startTime)/1000)+session.baseElapsed;
-}
-
-function updateSessionHeader(){
-  const exNameEl = document.getElementById("sessionExName");
-  const timerEl = document.getElementById("sessionTimer");
-  const pctEl = document.getElementById("sessPct");
-  const dayEl = document.getElementById("sessDay");
-  const wrapEl = document.getElementById("sessProgressWrap");
-
-  if(!session){
-    if(exNameEl){ exNameEl.style.display = "none"; exNameEl.textContent = ""; }
-    if(timerEl){ timerEl.style.display = "none"; timerEl.textContent = "00:00"; }
-    if(wrapEl){ wrapEl.style.display = "none"; }
-    if(pctEl) pctEl.textContent = "0%";
-    if(dayEl) dayEl.textContent = "";
-    if(sessionTimerInterval){ clearInterval(sessionTimerInterval); sessionTimerInterval = null; }
-    return;
-  }
-
-  /* Nombre del ejercicio actual en el header */
-  const ex = session.exercises[session.currentIdx];
-  if(exNameEl){
-    exNameEl.style.display = "block";
-    exNameEl.textContent = ex ? getApodo(ex) : "";
-  }
-  /* Cronómetro (siempre visible con sesión activa, en todas las pestañas) */
-  if(timerEl){
-    timerEl.style.display = "inline-block";
-  }
-  if(wrapEl) wrapEl.style.display = "block";
-  if(dayEl) dayEl.textContent = session.day || "";
-  if(pctEl){
-    const p = sessionProgress();
-    pctEl.textContent = p.pct + "%";
-  }
-  renderSessionProgressBar();
-
-  if(!sessionTimerInterval){
-    sessionTimerInterval = setInterval(()=>{
-      if(!session){
-        if(sessionTimerInterval){ clearInterval(sessionTimerInterval); sessionTimerInterval = null; }
-        return;
-      }
-      const t = document.getElementById("sessionTimer");
-      if(t) t.textContent = fmtDuration(getSessionElapsed());
-    }, 1000);
-  }
-  const t = document.getElementById("sessionTimer");
-  if(t) t.textContent = fmtDuration(getSessionElapsed());
-}
-
-function renderSessionProgressBar(){
-  const bar = document.getElementById("sessBar");
-  if(!bar) return;
-  if(!session){
-    bar.classList.remove("show");
-    bar.innerHTML = "";
-    return;
-  }
-  const totalSets = session.exercises.reduce((a,e)=>a+e.sets.length,0);
-  if(totalSets === 0){ bar.classList.remove("show"); return; }
-  bar.classList.add("show");
-  const segs = session.exercises.map(e=>{
-    const col = DAY_COLORS[session.day] || "#C8FF00";
-    const doneSets = e.sets.filter(s=>s.done).length;
-    const pct = e.sets.length ? Math.round((doneSets/e.sets.length)*100) : 0;
-    const marks = e.sets.map((_,si)=>`<span class="seg-mark" style="left:${(si+1)/e.sets.length*100}%"></span>`).join("");
-    return `<div class="sess-seg" style="flex:${escapeHtml(e.sets.length)};">
-      <div class="seg-fill" style="width:${escapeHtml(pct)}%;background:${escapeHtml(col)};"></div>
-      ${marks}
-      <span class="seg-label">${escapeHtml(e.sets.filter(s=>s.done).length)}/${escapeHtml(e.sets.length)}</span>
-    </div>`;
-  }).join("");
-  bar.innerHTML = segs;
-  /* Actualizar el % del header */
-  const pctEl = document.getElementById("sessPct");
-  if(pctEl){
-    const p = sessionProgress();
-    pctEl.textContent = p.pct + "%";
-  }
-}
+/* Header de sesión (fmtDuration/getSessionElapsed/updateSessionHeader/renderSessionProgressBar) → src/modules/session.js (issue #16) */
 
 /* ================================================================
    SELECTOR DE EJERCICIO (static handlers)
@@ -3119,7 +2802,7 @@ if('serviceWorker' in navigator){
             /* Activar la nueva versión: recarga automática no intrusiva.
                Si hay una sesión de entrenamiento en curso, esperamos a que el
                usuario termine (persistActiveSession guarda el estado en pagehide). */
-            if(!session){
+            if(!Session.session){
               setTimeout(()=>{ reg.waiting && reg.waiting.postMessage({ type: 'SKIP_WAITING' }); }, 500);
               /* controllerchange dispara window.location.reload() */
             }
@@ -3169,8 +2852,8 @@ window.addEventListener("online", async ()=>{
   }
 });
 function persistActiveSession(){
-  if(session && session.exercises && !session.saved){
-    session.elapsed = Math.floor((Date.now()-session.startTime)/1000)+session.baseElapsed;
+  if(Session.session && Session.session.exercises && !Session.session.saved){
+    Session.session.elapsed = Math.floor((Date.now()-session.startTime)/1000)+Session.session.baseElapsed;
     saveSessionState();
   }
 }

@@ -3,8 +3,8 @@
 //
 // Llamada (REST / POST), el CI la invoca tras cada deploy con solo el payload:
 //   {
-//     "title": "🔄 EyeFit actualizado",
-//     "body": "Nueva versión disponible. Toca para recargar.",
+//     "title": "V2.1.0 disponible",
+//     "body": "17/08/2026 12:30 · Toca para actualizar",
 //     "url": "./",
 //     "subscriptions": [ ... ]   // opcional: si se pasa, se usan estas; si no,
 //                                // se leen de la tabla push_subscriptions

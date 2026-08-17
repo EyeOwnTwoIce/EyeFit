@@ -165,23 +165,26 @@ jobs:
       # Notificar a los usuarios suscritos que la app se actualizó (Web Push real-time).
       # Se llama justo después del deploy a GitHub Pages: la Edge Function de Supabase
       # 'eyefit-push' lee las suscripciones de push_subscriptions y envía el push con VAPID.
+      # El título muestra la versión (leída de package.json) y el cuerpo la fecha/hora del
+      # release en hora de Madrid + "Toca para actualizar".
       # Requiere los secretos del repo: SUPABASE_PUSH_FN_URL (y SUPABASE_PUSH_FN_KEY si aplica).
       - name: Notify push update (Supabase Edge Function)
         if: success()
+        env:
+          TZ: Europe/Madrid
         run: |
           if [ -z "${{ secrets.SUPABASE_PUSH_FN_URL }}" ]; then
             echo "⚠️ SUPABASE_PUSH_FN_URL no configurado — salto notificación push."
             exit 0
           fi
+          VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+          RELEASE_TIME="$(date '+%d/%m/%Y %H:%M')"
+          PAYLOAD="$(printf '{"title":"V%s disponible","body":"%s · Toca para actualizar","url":"./"}' "$VERSION" "$RELEASE_TIME")"
           curl -sS -X POST "${{ secrets.SUPABASE_PUSH_FN_URL }}" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_PUSH_FN_KEY }}" \
-            -d '{
-              "title": "🔄 EyeFit actualizado",
-              "body": "Nueva versión disponible. Toca para recargar y ver las novedades.",
-              "url": "./"
-            }' \
-            && echo "Push enviado." || echo "El servicio push no respondió (no bloquea)."
+            -d "$PAYLOAD" \
+            && echo "Push enviado: V${VERSION} disponible" || echo "El servicio push no respondió (no bloquea)."
 
   # NOTA: el deploy se hace SOLO a GitHub Pages (el deploy-pages de arriba).
   # El aviso Web Push tras cada deploy lo hace el paso "Notify push update"

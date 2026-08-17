@@ -5,6 +5,9 @@
    Las claves VAPID se leen de variables de entorno:
      VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
    Si no pasas --sub-json, busca en ./eyefit_subs.json
+   Título/cuerpo por defecto: "V{version} disponible" (versión de package.json)
+   y "dd/mm/aaaa HH:MM · Toca para actualizar" (fecha/hora local del envío),
+   igual que la notificación del CI. Override con --title/--body.
    Las suscripciones se guardan en localStorage del cliente (K_NEWS_KEYS.pushSubJson);
    este script sirve para CI o pruebas manuales. */
 'use strict';
@@ -29,8 +32,15 @@ function argVal(flag){
 }
 
 const subFile = argVal('--sub-json') || './eyefit_subs.json';
-const title = argVal('--title') || '🔄 EyeFit actualizado';
-const body = argVal('--body') || 'Nueva versión disponible. Toca para recargar.';
+
+/* Título/cuerpo por defecto: versión de package.json + fecha/hora del envío.
+   Coinciden con el formato de la notificación del CI (title/body). */
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+const now = new Date();
+const pad = n => String(n).padStart(2, '0');
+const releaseTime = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+const title = argVal('--title') || `V${pkg.version} disponible`;
+const body = argVal('--body') || `${releaseTime} · Toca para actualizar`;
 const url = argVal('--url') || './';
 
 if (!fs.existsSync(subFile)) {

@@ -30,166 +30,16 @@ window.addEventListener("unhandledrejection", (e)=>{
 const APODOS = U.APODOS;
 const DAY_ORDER = U.DAY_ORDER;
 const DAY_COLORS = U.DAY_COLORS;
+const DAY_SHORT = U.DAY_SHORT;
+const WEEKDAY_NAMES = U.WEEKDAY_NAMES;
+const DEFAULT_ROUTINE = U.DEFAULT_ROUTINE;
+const INSTRUCCIONES = U.INSTRUCCIONES;
+const ALTERNATIVAS = U.ALTERNATIVAS;
+const EMBEDDED_IMAGES = U.EMBEDDED_IMAGES;
 const getApodo = U.getApodo;
 const epley1RM = U.epley1RM;
 
-/* ================================================================
-   CONFIGURACIÓN DE ENTRENAMIENTO (doble progresión + RIR para hipertrofia)
-   ================================================================ */
-const K_CONFIG = "eyefit_training_config_v1";
-const K_TRAIN_DAYS = "eyefit_training_days_v1";
-const DEFAULT_TRAIN_DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
-const TRAINING_DEFAULTS = {
-  peso_corporal: 70,
-  rango_compuesto_min: 6,
-  rango_compuesto_max: 10,
-  rango_aislamiento_min: 10,
-  rango_aislamiento_max: 15,
-  rir_objetivo: 2,
-  incremento_barra: 2.5,
-  incremento_mancuerna: 2.0,
-  tipo_progresion: "doble"  /* "doble" | "lineal" */
-};
-let trainingDays = [...DEFAULT_TRAIN_DAYS];
-function loadTrainingDays(){
-  try{
-    const d = lsGet(K_TRAIN_DAYS, null);
-    if(Array.isArray(d) && d.length) trainingDays = d.filter(x=>DAY_ORDER.includes(x) || x.includes("Sáb") || x.includes("Sábado") || x === "Sábado" || x === "Domingo");
-  }catch(e){}
-}
-function saveTrainingDays(){
-  lsSet(K_TRAIN_DAYS, trainingDays);
-  scheduleRoutineSync();
-}
-let trainingConfig = { ...TRAINING_DEFAULTS };
-function loadTrainingConfig(){
-  try{
-    const c = lsGet(K_CONFIG, null);
-    if(c && typeof c === "object") trainingConfig = { ...TRAINING_DEFAULTS, ...c };
-  }catch(e){}
-}
-function saveTrainingConfig(){
-  lsSet(K_CONFIG, trainingConfig);
-  scheduleRoutineSync();
-}
-/* Helper: intenta subir la rutina al servidor con meta. Si falla,
-   la deja en pending para que el sync de 30s la reintente. */
-function scheduleRoutineSync(){
-  if(!sbClient || !authUser) return;
-  pushRoutineToServer().catch(()=>{
-    const p = getPending();
-    p.routine = getRoutine();
-    setPending(p);
-  });
-}
-const COMPUESTOS = [
-  "barbell bench press","dumbbell incline bench press","barbell incline bench press",
-  "barbell full squat","sled 45° leg press","barbell bent over row","cable pulldown (pro lat bar)",
-  "cable seated row","barbell deadlift","pull up (neutral grip)","dumbbell seated shoulder press",
-  "dumbbell arnold press","barbell glute bridge two legs on bench (male)","barbell good morning"
-];
-function isCompoundExercise(ex){
-  const key = String((ex && (ex.datasetOriginal || ex.dataset)) || (ex && ex.nombre_es) || "").trim().toLowerCase();
-  return COMPUESTOS.includes(key) || COMPUESTOS.some(c=>key.includes(c.split(" ").slice(0,2).join(" ")));
-}
-function getRepRange(ex){
-  const cfg = trainingConfig;
-  const min = isCompoundExercise(ex) ? cfg.rango_compuesto_min : cfg.rango_aislamiento_min;
-  const max = isCompoundExercise(ex) ? cfg.rango_compuesto_max : cfg.rango_aislamiento_max;
-  return { min, max };
-}
-function getIncrementFor(ex){
-  const key = String((ex && (ex.datasetOriginal || ex.dataset)) || (ex && ex.nombre_es) || "").trim().toLowerCase();
-  const esMancuerna = key.includes("dumbbell") || key.includes("mancuerna");
-  return esMancuerna ? trainingConfig.incremento_mancuerna : trainingConfig.incremento_barra;
-}
-
-/* Algoritmo de doble progresión con RIR: evalúa la última sesión del
-   ejercicio y decide subir/mantener/bajar peso con motivo explicado. */
-function computeProgressionDecision(ex, history){
-  const cfg = trainingConfig;
-  const key = String((ex && (ex.datasetOriginal || ex.dataset)) || (ex && ex.nombre_es) || "").trim().toLowerCase();
-  if(!key) return null;
-  const matches = [];
-  for(const h of (Array.isArray(history)?history:getHistory())){
-    for(const e of (h.exercises||[])){
-      const eKey = String(e.dataset||e.nombre_es||"").trim().toLowerCase();
-      if(eKey === key){
-        const done = (e.sets||[]).filter(s=>s.done);
-        if(done.length) matches.push({ date:h.date, sets:done, peso:pendingDoneKg(done) });
-        break;
-      }
-    }
-  }
-  if(matches.length === 0) return null;
-  matches.sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const last = matches[0];
-  const prev = matches[1] || null;
-  const repsArr = last.sets.map(s=>parseInt(s.reps,10)||0).filter(r=>r>0);
-  if(repsArr.length === 0) return null;
-  const maxReps = Math.max(...repsArr);
-  const minReps = Math.min(...repsArr);
-  const kgs = last.sets
-    .map(s=>parseFloat(s.kg)||0)
-    .filter(k=>k>0);
-  const baseKg = kgs.length ? Math.max(...kgs) : (parseFloat(ex.peso_kg)||0);
-  const { min, max } = getRepRange(ex);
-  const inc = getIncrementFor(ex);
-  /* Usar el peso de la rutina como base si no hay sets */
-  if(cfg.tipo_progresion === "lineal"){
-    /* Progresión lineal simple: si alcanzó el tope, subir siempre */
-    if(maxReps >= max) return { action:"up", delta:inc, reason:`Progresión lineal: alcanzaste el tope del rango (${maxReps} reps). Subimos ${inc} kg para seguir estimulando.`, peso_sugerido: round1(parseFloat(ex.peso_kg)||baseKg + inc) };
-    return { action:"keep", delta:0, reason:`Aún no llegas al tope del rango (${maxReps}/${max} reps). Mantenemos el peso.`, peso_sugerido: baseKg };
-  }
-  /* Doble progresión */
-  if(maxReps >= max){
-    return {
-      action:"up", delta:inc,
-      reason:`Completaste todas las series al máximo del rango de hipertrofia (${maxReps}/${max} reps). Subimos ${inc} kg para mantener la sobrecarga progresiva.`,
-      peso_sugerido: round1(baseKg + inc)
-    };
-  }
-  if(minReps < min){
-    return {
-      action:"down", delta:-inc,
-      reason:`Alguna serie no alcanzó el mínimo de reps efectivas para hipertrofia (${minReps}/${min} reps). Bajamos ${inc} kg para garantizar volumen de calidad.`,
-      peso_sugerido: round1(Math.max(0, baseKg - inc))
-    };
-  }
-  /* Estancamiento: mismo peso que sesión anterior pero menos reps */
-  if(prev){
-    const prevMax = Math.max(...prev.sets.map(s=>parseInt(s.reps,10)||0).filter(r=>r>0), 0);
-    const prevPeso = Math.max(...prev.sets.map(s=>parseFloat(s.kg)||0).filter(k=>k>0), 0);
-    if(prevPeso > 0 && Math.abs(prevPeso - baseKg) < 0.01 && maxReps < prevMax){
-      return {
-        action:"keep", delta:0,
-        reason:`Mismo peso que la sesión anterior pero menos reps (${maxReps} vs ${prevMax}). Mantenemos la carga. Revisa descanso, sueño y alimentación.`,
-        peso_sugerido: baseKg, estancamiento:true
-      };
-    }
-  }
-  return {
-    action:"keep", delta:0,
-    reason:`Estás dentro del rango óptimo de hipertrofia (${min}-${max} reps, hiciste ${minReps}-${maxReps}). Mantenemos el peso para consolidar la adaptación.`,
-    peso_sugerido: baseKg
-  };
-}
-function pendingDoneKg(done){ return done.length ? Math.max(...done.map(s=>parseFloat(s.kg)||0)) : 0; }
-function round1(v){ return Math.round(v*10)/10; }
-
-/* Badge HTML explicando el ajuste automático de progresión */
-function progressionBadgeHtml(ex, history){
-  const dec = computeProgressionDecision(ex, history);
-  if(!dec) return "";
-  const cls = dec.action==="up" ? "up" : (dec.action==="down" ? "down" : "keep");
-  const icon = dec.action==="up" ? "⬆️" : (dec.action==="down" ? "⬇️" : "➡️");
-  const d = Number(dec.delta);
-  const deltaTxt = escapeHtml(d>0 ? "+"+d+" kg" : d<0 ? d+" kg" : "sin cambio");
-  return `<div class="prog-badge ${cls}" title="${escapeHtmlAttr(dec.reason)}">
-    ${icon} ${dec.action==="up" ? "Sube" : dec.action==="down" ? "Baja" : "Mantiene"} · ${deltaTxt}
-    <span class="prog-badge detail">${escapeHtml(dec.reason)}</span>
-  </div>`;
-}
+/* Configuración de entrenamiento → src/modules/config.js (issue #8) */
 const formatRest = U.formatRest;
 const normalizeName = U.normalizeName;
 const buildExerciseSets = U.buildExerciseSets;
@@ -203,6 +53,52 @@ const isValidDay = U.isValidDay;
 const sanitizeRoutineRow = U.sanitizeRoutineRow;
 const rebaseElapsed = U.rebaseElapsed;
 const mergeHistoryBySessionId = U.mergeHistoryBySessionId;
+
+/* Utilidades de UI/DOM → src/modules/ui.js (issue #8) */
+const EF = window.EyeFit;
+const showToast = EF.Ui.showToast;
+const vibrate = EF.Ui.vibrate;
+const setFocusTrap = EF.Ui.setFocusTrap;
+const escapeHtml = EF.Ui.escapeHtml;
+const setHtml = EF.Ui.setHtml;
+const formatKg = EF.Ui.formatKg;
+const formatInstructions = EF.Ui.formatInstructions;
+const getInstrucciones = EF.Ui.getInstrucciones;
+const getTodayName = EF.Ui.getTodayName;
+const getExerciseBodyPart = EF.Ui.getExerciseBodyPart;
+
+/* Configuración de entrenamiento → src/modules/config.js (issue #8) */
+const Config = window.EyeFit.Config;
+const loadTrainingDays = Config.loadTrainingDays;
+const saveTrainingDays = Config.saveTrainingDays;
+const loadTrainingConfig = Config.loadTrainingConfig;
+const saveTrainingConfig = Config.saveTrainingConfig;
+const scheduleRoutineSync = Config.scheduleRoutineSync;
+const isCompoundExercise = Config.isCompoundExercise;
+const getRepRange = Config.getRepRange;
+const getIncrementFor = Config.getIncrementFor;
+const computeProgressionDecision = Config.computeProgressionDecision;
+const progressionBadgeHtml = Config.progressionBadgeHtml;
+const pendingDoneKg = Config.pendingDoneKg;
+const round1 = Config.round1;
+
+/* Persistencia → src/modules/persistence.js (issue #9) */
+const P = window.EyeFit.Persistence;
+const K = P.K;
+const VAPID_PUBLIC_KEY = P.VAPID_PUBLIC_KEY;
+const DATA_VERSION = P.DATA_VERSION;
+const lsGet = P.lsGet;
+const lsSet = P.lsSet;
+const getRoutine = P.getRoutine;
+const setRoutine = P.setRoutine;
+const loadHistoryFromDB = P.loadHistoryFromDB;
+const persistHistory = P.persistHistory;
+const getHistory = P.getHistory;
+const saveHistory = P.saveHistory;
+const runMigrations = P.runMigrations;
+const getPending = P.getPending;
+const setPending = P.setPending;
+const DB = window.EyeFitDB || null;
 
 /* ---------- Supabase (lazy: el SDK ~180KB solo se carga si hace falta) ---------- */
 const SUPABASE_URL = "https://vkaxxphminfinufitcyp.supabase.co";
@@ -232,243 +128,7 @@ async function ensureSupabaseClient(){
   return sbClient;
 }
 
-/* ================================================================
-   DATOS
-   ================================================================ */
-
-const DAY_SHORT = { Lunes:"LUN", Martes:"MAR", Miércoles:"MIÉ", Jueves:"JUE", Viernes:"VIE", Sábado:"SÁB", Domingo:"DOM" };
-const WEEKDAY_NAMES = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-function getTodayName(){ return WEEKDAY_NAMES[new Date().getDay()]; }
-/* Formato español para kilos: 18.5 → "18,5" (coma decimal, punto de miles) */
-function formatKg(n){
-  const v = Number(n);
-  if(!Number.isFinite(v)) return "0";
-  return v.toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-}
-
-/* Rutina por defecto */
-const DEFAULT_ROUTINE = [
-  { dia:"Lunes",     orden:1, nombre_es:"Press banca plano con barra",         dataset:"barbell bench press",                      series:3, reps:8,  peso_kg:40, descanso_s:180, notas:"Codos a 45°, retracción escapular." },
-  { dia:"Lunes",     orden:2, nombre_es:"Press inclinado con mancuernas",       dataset:"dumbbell incline bench press",             series:3, reps:10, peso_kg:18, descanso_s:120, notas:"Porción clavicular del pectoral." },
-  { dia:"Lunes",     orden:3, nombre_es:"Press militar sentado con mancuernas", dataset:"dumbbell seated shoulder press",           series:3, reps:10, peso_kg:14, descanso_s:120, notas:"No arquear la espalda." },
-  { dia:"Lunes",     orden:4, nombre_es:"Aperturas en polea alta (pecho)",      dataset:"cable standing fly",                      series:3, reps:15, peso_kg:8,  descanso_s:90,  notas:"Tensión continua." },
-  { dia:"Lunes",     orden:5, nombre_es:"Elevaciones laterales con mancuernas", dataset:"dumbbell lateral raise",                  series:4, reps:15, peso_kg:6,  descanso_s:60,  notas:"Sin balanceo." },
-  { dia:"Lunes",     orden:6, nombre_es:"Ext. tríceps en polea (cuerda)",       dataset:"cable pushdown (with rope attachment)",    series:3, reps:15, peso_kg:12, descanso_s:75,  notas:"Codos fijos." },
-  { dia:"Martes",    orden:1, nombre_es:"Sentadilla con barra (barra alta)",    dataset:"barbell full squat",                      series:4, reps:6,  peso_kg:40, descanso_s:180, notas:"Bajar hasta paralelo." },
-  { dia:"Martes",    orden:2, nombre_es:"Prensa de piernas 45°",                dataset:"sled 45° leg press",                      series:3, reps:12, peso_kg:60, descanso_s:120, notas:"Sin bloquear rodillas." },
-  { dia:"Martes",    orden:3, nombre_es:"Extensión de cuádriceps en máquina",   dataset:"lever leg extension",                     series:3, reps:15, peso_kg:20, descanso_s:90,  notas:"Pausa 1s arriba." },
-  { dia:"Martes",    orden:4, nombre_es:"Curl femoral tumbado en máquina",      dataset:"lever lying leg curl",                    series:3, reps:12, peso_kg:20, descanso_s:90,  notas:"Control en negativa." },
-  { dia:"Martes",    orden:5, nombre_es:"Elevación de talones de pie",          dataset:"barbell standing calf raise",             series:4, reps:15, peso_kg:30, descanso_s:75,  notas:"Rango completo." },
-  { dia:"Miércoles", orden:1, nombre_es:"Remo con barra (agarre prono, 45°)",   dataset:"barbell bent over row",                   series:4, reps:8,  peso_kg:35, descanso_s:180, notas:"Tirar con codos." },
-  { dia:"Miércoles", orden:2, nombre_es:"Jalón al pecho en polea",              dataset:"cable pulldown (pro lat bar)",             series:3, reps:12, peso_kg:35, descanso_s:120, notas:"Barra al pecho superior." },
-  { dia:"Miércoles", orden:3, nombre_es:"Remo en polea baja (agarre neutro)",   dataset:"cable seated row",                        series:3, reps:12, peso_kg:30, descanso_s:120, notas:"Contraer escápulas." },
-  { dia:"Miércoles", orden:4, nombre_es:"Face pull en polea alta (cuerda)",     dataset:"cable standing rear delt row (with rope)", series:3, reps:20, peso_kg:10, descanso_s:75,  notas:"Tirar hacia la cara." },
-  { dia:"Miércoles", orden:5, nombre_es:"Curl con barra EZ (sentado)",          dataset:"ez barbell curl",                         series:3, reps:12, peso_kg:15, descanso_s:90,  notas:"Codos fijos." },
-  { dia:"Miércoles", orden:6, nombre_es:"Curl martillo con mancuernas",         dataset:"dumbbell hammer curl",                    series:2, reps:15, peso_kg:8,  descanso_s:75,  notas:"Agarre neutro." },
-  { dia:"Jueves",    orden:1, nombre_es:"Peso muerto convencional",             dataset:"barbell deadlift",                        series:3, reps:5,  peso_kg:50, descanso_s:210, notas:"Espalda neutra." },
-  { dia:"Jueves",    orden:2, nombre_es:"Hip thrust con barra",                 dataset:"barbell glute bridge two legs on bench (male)", series:4, reps:12, peso_kg:50, descanso_s:120, notas:"Extensión completa arriba." },
-  { dia:"Jueves",    orden:3, nombre_es:"Buenos días con barra (peso ligero)",  dataset:"barbell good morning",                    series:3, reps:12, peso_kg:20, descanso_s:120, notas:"Cadera atrás. Espalda neutra." },
-  { dia:"Jueves",    orden:4, nombre_es:"Patada de glúteo en polea",            dataset:"cable kickback",                          series:3, reps:15, peso_kg:10, descanso_s:75,  notas:"Extensión de cadera." },
-  { dia:"Jueves",    orden:5, nombre_es:"Elevación de talones sentado (sóleo)", dataset:"lever seated calf raise",                series:4, reps:15, peso_kg:25, descanso_s:75,  notas:"Pausa arriba." },
-  { dia:"Viernes",   orden:1, nombre_es:"Press banca inclinado con barra (30°)",dataset:"barbell incline bench press",             series:3, reps:8,  peso_kg:30, descanso_s:180, notas:"Refuerza pectoral superior." },
-  { dia:"Viernes",   orden:2, nombre_es:"Dominadas (agarre neutro)",            dataset:"pull up (neutral grip)",                  series:3, reps:8,  peso_kg:0,  descanso_s:180, notas:"Extensión total abajo." },
-  { dia:"Viernes",   orden:3, nombre_es:"Press Arnold con mancuernas",          dataset:"dumbbell arnold press",                   series:3, reps:12, peso_kg:10, descanso_s:120, notas:"Rotación natural." },
-  { dia:"Viernes",   orden:4, nombre_es:"Elevaciones laterales en polea baja",  dataset:"cable lateral raise",                     series:4, reps:20, peso_kg:5,  descanso_s:60,  notas:"Tensión constante." },
-  { dia:"Viernes",   orden:5, nombre_es:"Curl en polea baja (barra recta)",     dataset:"cable curl",                              series:3, reps:15, peso_kg:10, descanso_s:75,  notas:"No mover codos." },
-  { dia:"Viernes",   orden:6, nombre_es:"Ext. overhead tríceps (cuerda)",       dataset:"cable overhead triceps extension (rope attachment)", series:3, reps:15, peso_kg:10, descanso_s:75, notas:"Cabeza larga estirada." },
-];
-
-/* Instrucciones curadas en español (3-4 pasos clave) */
-const INSTRUCCIONES = {
-  "barbell bench press":"Acuéstate en el banco, pies en el suelo\nAgarra la barra algo más ancha que hombros\nBaja al pecho controlado y sube",
-  "dumbbell incline bench press":"Banco a 45°, mancuernas a la altura del pecho\nSube extendiendo brazos\nBaja controlado hasta el pecho",
-  "dumbbell seated shoulder press":"Sentado, espalda apoyada, mancuernas a los hombros\nPresiona hacia arriba hasta extender\nBaja controlado",
-  "cable standing fly":"De pie, poleas a la altura del pecho\nJunta las manos frente al pecho\nVuelve con control",
-  "dumbbell lateral raise":"De pie, mancuernas a los lados\nSube los brazos hasta la horizontal\nBaja lento",
-  "cable pushdown (with rope attachment)":"De pie, codos pegados al torso\nEmpuja la cuerda hacia abajo\nAbre al final y vuelve",
-  "barbell full squat":"Barra sobre la espalda, pies ancho hombros\nBaja hasta que el muslo quede paralelo\nSube empujando con fuerza",
-  "sled 45° leg press":"Sentado en la prensa, pies en la plataforma\nBaja sin bloquear rodillas\nEmpuja de vuelta",
-  "lever leg extension":"Sentado, tobillos bajo el rodillo\nExtiende las piernas pausa arriba\nBaja controlado",
-  "lever lying leg curl":"Tumbado boca abajo, rodillo en tobillos\nFlexiona las piernas llevando los talones al glúteo\nBaja lento",
-  "barbell standing calf raise":"De pie, barra sobre la espalda\nSube de puntillas lo máximo\nBaja controlado",
-  "barbell bent over row":"Torso a 45°, barra colgando\nTira de la barra hacia el abdomen\nBaja controlado",
-  "cable pulldown (pro lat bar)":"Sentado, barra ancha\nTira de la barra hasta el pecho\nSube controlado",
-  "cable seated row":"Sentado, rodillas flexionadas\nTira del asa hacia el abdomen\nVuelve estirando",
-  "cable standing rear delt row (with rope)":"De pie, cuerda a la altura de la cara\nTira hacia la nariz abriendo los codos\nVuelve controlado",
-  "ez barbell curl":"De pie agarre supino\nFlexiona codos subiendo la barra\nBaja lento",
-  "dumbbell hammer curl":"De pie, palmas mirándose\nSube las mancuernas a los hombros\nBaja controlado",
-  "barbell deadlift":"Pies ancho de hombros, barra en el suelo\nEmpuja con piernas, espalda recta\nBloquea arriba",
-  "barbell glute bridge two legs on bench (male)":"Espalda en banco, barra en cadera\nSube la cadera hacia arriba\nBaja controlado",
-  "barbell good morning":"Barra en la espalda, rodillas flex\nInclina el torso con espalda recta\nVuelve arriba",
-  "cable kickback":"De pie, patada hacia atrás\nExtiende cadera con control\nVuelve",
-  "lever seated calf raise":"Sentado, rodillos sobre rodillas\nSube de puntillas\nBaja estirando",
-  "barbell incline bench press":"Banco 30°, barra al pecho superior\nBaja controlado y sube",
-  "pull up (neutral grip)":"Agarre neutro en la barra\nSube hasta pasar la barbilla\nBaja controlado",
-  "dumbbell arnold press":"Mancuernas a la altura de los hombros con palmas hacia ti\nSube rotando las palmas hacia delante\nBaja controlado",
-  "cable lateral raise":"De pie, polea baja a un lado\nSube el brazo hasta la horizontal\nBaja lento",
-  "cable curl":"De pie, barra recta en polea baja\nFlexiona los codos sin moverlos\nBaja lento",
-  "cable overhead triceps extension (rope attachment)":"De pie, cuerda tras la cabeza\nExtiende los brazos hacia arriba\nVuelve flexionando"
-};
-function getInstrucciones(ex){
-  return INSTRUCCIONES[ex.datasetOriginal || ex.dataset] || ex.notas || "Colócate en la posición inicial y realiza el movimiento con control";
-}
-
-/* 3 alternativas manuales en español por ejercicio */
-const ALTERNATIVAS = {
-  "barbell bench press": ["Press Banca Inclinado", "Flexiones", "Press Máquina"],
-  "dumbbell incline bench press": ["Press Banca Plano", "Press Máquina", "Aperturas"],
-  "dumbbell seated shoulder press": ["Press Militar Barra", "Press Arnold", "Prensa Hombro"],
-  "cable standing fly": ["Aperturas Mancuernas", "Cruce Polea Baja", "Pec Deck"],
-  "dumbbell lateral raise": ["Polea Lateral", "Elevación Sentado", "Pájaros"],
-  "cable pushdown (with rope attachment)": ["Ext. Tríceps Barra", "Fondos Tríceps", "Patada Tríceps"],
-  "barbell full squat": ["Sentadilla Front", "Prensa", "Sentadilla Máquina"],
-  "sled 45° leg press": ["Sentadilla", "Hack Squat", "Prensa Horizontal"],
-  "lever leg extension": ["Sentadilla Sissy", "Ext. Pierna Unilateral", "Prensa"],
-  "lever lying leg curl": ["Curl Femoral Sentado", "Bulgara", "Curl Nórdico"],
-  "barbell standing calf raise": ["Gemelos en Prensa", "Gemelos Sentado", "Puntillas Unilateral"],
-  "barbell bent over row": ["Remo Máquina", "Remo T", "Péndulo"],
-  "cable pulldown (pro lat bar)": ["Dominadas", "Jalón Agarre Cerrado", "Remo Alto"],
-  "cable seated row": ["Remo Barra", "Remo Unilateral", "Remo Máquina"],
-  "cable standing rear delt row (with rope)": ["Pájaros Invertidos", "Cruce Hombro", "Face Pull Máquina"],
-  "ez barbell curl": ["Curl Mancuernas", "Curl Pozo", "Curl Banco Scott"],
-  "dumbbell hammer curl": ["Curl Martillo Cruzado", "Curl Barra", "Curl Inclinado"],
-  "barbell deadlift": ["Peso Muerto Rumano", "Sumo", "Hip Thrust"],
-  "barbell glute bridge two legs on bench (male)": ["Hip Thrust Máquina", "Patada Glúteo", "Puente Glúteo"],
-  "barbell good morning": ["Bulgara", "Hip Thrust", "Kettlebell Swing"],
-  "cable kickback": ["Patada Unilateral", "Hip Thrust", "Puente Glúteo"],
-  "lever seated calf raise": ["Gemelos Pie", "Prensa Gemelos", "Saltos"],
-  "barbell incline bench press": ["Press Banca Plano", "Press Mancuernas", "Press Máquina"],
-  "pull up (neutral grip)": ["Dominadas Prono", "Jalón", "Dominadas Asistidas"],
-  "dumbbell arnold press": ["Press Militar", "Press Mancuernas", "Prensa Hombro"],
-  "cable lateral raise": ["Mancuernas Lateral", "Elevación Unilateral", "Lateral Inclinado"],
-  "cable curl": ["Curl Barra", "Curl Mancuernas", "Curl Martillo"],
-  "cable overhead triceps extension (rope attachment)": ["Ext. Tríceps Polea", "Press Frances", "Patada Tríceps"]
-};
-
-/* Mapa de imágenes embebido (ampliado Módulo 5: 120 ejercicios).
-   Las claves provienen de slim-dataset.json (fuente de verdad). */
-const EMBEDDED_IMAGES = {
-  "barbell bench press": "0025-EIeI8Vf",
-  "dumbbell incline bench press": "0314-ns0SIbU",
-  "dumbbell seated shoulder press": "0405-znQUdHY",
-  "cable standing fly": "0227-Pr9Rhf4",
-  "dumbbell lateral raise": "0334-DsgkuIt",
-  "cable pushdown (with rope attachment)": "0200-dU605di",
-  "barbell full squat": "0043-qXTaZnJ",
-  "sled 45в° leg press": "0739-10Z2DXU",
-  "lever leg extension": "0585-my33uHU",
-  "lever lying leg curl": "0586-17lJ1kr",
-  "barbell standing calf raise": "1372-8ozhUIZ",
-  "barbell bent over row": "0027-eZyBC3j",
-  "cable pulldown (pro lat bar)": "0197-qdRxqCj",
-  "cable seated row": "0861-fUBheHs",
-  "cable standing rear delt row (with rope)": "0233-ZfyAGhK",
-  "ez barbell curl": "0447-6TG6x2w",
-  "dumbbell hammer curl": "0313-slDvUAU",
-  "barbell deadlift": "0032-ila4NZS",
-  "barbell glute bridge two legs on bench (male)": "3562-qg2PGl6",
-  "barbell good morning": "0044-XlZ4lAC",
-  "cable kickback": "0228-Kpajagk",
-  "lever seated calf raise": "0594-bOOdeyc",
-  "barbell incline bench press": "0047-3TZduzM",
-  "pull up (neutral grip)": "0651-0V2YQjW",
-  "dumbbell arnold press": "2137-Xy4jlWA",
-  "cable lateral raise": "0178-goJ6ezq",
-  "cable curl": "0868-G08RZcQ",
-  "cable overhead triceps extension (rope attachment)": "0194-2IxROQ1",
-  "all fours squad stretch": "1512-qBcKorM",
-  "alternate lateral pulldown": "0007-4IKbhHV",
-  "ankle circles": "1368-uL9CsKm",
-  "archer pull up": "3293-72BC5Za",
-  "archer push up": "3294-A9qxk2F",
-  "arms apart circular toe touch (male)": "3214-RtyAsy1",
-  "assisted chest dip (kneeling)": "0009-PAgTVaK",
-  "assisted lying calves stretch": "1708-GxDwDX0",
-  "assisted lying glutes stretch": "1709-yn0LjwL",
-  "assisted lying gluteus and piriformis stretch": "1710-RQNVT10",
-  "assisted parallel close grip pull-up": "0015-vrhHa6D",
-  "assisted prone hamstring": "0016-VedGSby",
-  "assisted prone lying quads stretch": "1713-YUYAMEj",
-  "assisted pull-up": "0017-kiJ4Z2K",
-  "assisted seated pectoralis major stretch with stability ball": "1716-RoV1Rfa",
-  "assisted side lying adductor stretch": "1712-hC6oYY5",
-  "assisted standing chin-up": "1431-7OeHptV",
-  "assisted standing pull-up": "1432-f4xtKBj",
-  "assisted standing triceps extension (with towel)": "0018-7HcfMBP",
-  "assisted triceps dip (kneeling)": "0019-J60bN17",
-  "assisted wide-grip chest dip (kneeling)": "2364-PnZJIrk",
-  "back extension on exercise ball": "1314-qLpO4vV",
-  "back lever": "3297-GaSzzuh",
-  "back pec stretch": "1405-chfnQnM",
-  "backward jump": "1473-SaDOwk7",
-  "balance board": "0020-xAySMB0",
-  "band alternating biceps curl": "0968-3omWx6P",
-  "band assisted pull-up": "0970-r1XNRYB",
-  "band bench press": "1254-khlHMqs",
-  "band bent-over hip extension": "0980-wSScovH",
-  "band close-grip pulldown": "0974-DptumMx",
-  "band close-grip push-up": "0975-ufaxB52",
-  "band concentration curl": "0976-kmVVAfu",
-  "band fixed back close grip pulldown": "3117-4LoWllp",
-  "band fixed back underhand pulldown": "3116-ZH68exZ",
-  "band front lateral raise": "0977-sTg7iys",
-  "band front raise": "0978-TFA88iB",
-  "band hip lift": "1408-E4R8Hz1",
-  "band kneeling one arm pulldown": "0983-pmnrOp0",
-  "band lying hip internal rotation": "0984-vIICElP",
-  "band one arm overhead biceps curl": "0986-UNAB8ak",
-  "band one arm single leg split squat": "0987-arsYEd3",
-  "band one arm standing low row": "0988-km0sQC0",
-  "band one arm twisting chest press": "0989-c16nYGA",
-  "band one arm twisting seated row": "0990-DKBwJrL",
-  "band pull through": "0991-VtTbiP3",
-  "band reverse fly": "0993-sTfvVsG",
-  "band seated hip internal rotation": "0996-9gbyYKk",
-  "band shoulder press": "0997-peAeMR3",
-  "band shrug": "1018-trmte8s",
-  "band side triceps extension": "0998-obe5LMq",
-  "band single leg calf raise": "0999-9JprnPh",
-  "band single leg reverse calf raise": "1000-QsSQWbf",
-  "band single leg split squat": "1001-y8bYM8w",
-  "band squat": "1004-TUZLh71",
-  "band squat row": "1003-w1NOByi",
-  "band standing rear delt row": "1022-tc5dYrf",
-  "band step-up": "1008-d5bTEPV",
-  "band stiff leg deadlift": "1009-kuMiR2T",
-  "band straight back stiff leg deadlift": "1023-lHeUULr",
-  "band straight leg deadlift": "1010-KUaoUV8",
-  "band twisting overhead press": "1012-u4bAmKp",
-  "band two legs calf raise - (band under both legs) v. 2": "1369-jl6uxZV",
-  "band underhand pulldown": "1013-k6tUeqS",
-  "band y-raise": "1017-aHDy5O5",
-  "barbell alternate biceps curl": "0023-Yza7XrQ",
-  "barbell bench front squat": "0024-Y7YcmIJ",
-  "barbell bench squat": "0026-W9pFVv1",
-  "barbell bent arm pullover": "1316-cA9FuWG",
-  "barbell biceps curl (with arm blaster)": "2407-aee2Fcj",
-  "barbell clean and press": "0028-SGY8Zui",
-  "barbell clean-grip front squat": "0029-qi996YS",
-  "barbell close-grip bench press": "0030-J6Dx1Mu",
-  "barbell curl": "0031-25GPyDY",
-  "barbell decline bench press": "0033-GrO65fd",
-  "barbell decline bent arm pullover": "0034-hMEptv0",
-  "barbell decline close grip to skull press": "0035-LMGXZn8",
-  "barbell decline pullover": "1255-9sgNE2O",
-  "barbell decline wide-grip press": "0036-hl8DUh8",
-  "barbell decline wide-grip pullover": "0037-Hj4FOCd",
-  "barbell drag curl": "0038-IENzBdA",
-  "barbell floor calf raise": "1370-2IHEa2T",
-  "barbell front chest squat": "0039-IeTIEqg",
-  "barbell front raise": "0041-b2Uoz54",
-  "barbell front raise and pullover": "0040-33AzZeV",
-  "barbell front squat": "0042-zG0zs85",
-  "barbell full squat (back pov)": "1461-DhMl549",
-  "barbell full squat (side pov)": "1462-iYzB0Cz",
-  "barbell full zercher squat": "1545-vR1vold",
-  "barbell glute bridge": "1409-qKBpF7I",
-  "barbell guillotine bench press": "0045-GXoaSgn",
-  "barbell hack squat": "0046-5VCj6iH",
-};
+/* Datos estáticos (rutina/instrucciones/alternativas/imágenes) → src/constants.js (issue #1) */
 const IMG_BASE = "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/";
 
 /* F1/M5: normalización robusta de nombres para las claves del dataset.
@@ -551,22 +211,13 @@ function getExerciseImageForName(name, dataset){
 /* ================================================================
    PERSISTENCIA
    ================================================================ */
-const K = {
-  routine: "eyefit_routine_v1", history: "eyefit_history_v1",
-  sets: "eyefit_sets_v1", session: "eyefit_session_v1",
-  meta: "eyefit_meta",
-  dataset: "eyefit_dataset_v1", pending: "eyefit_pending_v1",
-  routineUpdated: "eyefit_routine_updated_v1"
-};
+/* K → src/modules/persistence.js (issue #9) */
 /* Claves para Web Push / notificaciones */
 const K_NEWS_KEYS = {
   pushSubscribed: "eyefit_push_subscribed_v1",
   pushSubJson: "eyefit_push_sub_v1"
 };
-/* VAPID public key (base64url). Se usa para la suscripción al Push Service.
-   Debe coincidir con el public key usado para firmar en el servidor que envía.
-   CONTACTO: sustituir si se rotan las claves. */
-const VAPID_PUBLIC_KEY = "BH9FrS4Zkvx_ejQ_upcJrInrRM9rBGXppcJaOrpoRab8kS_VLzslH07x74WAj8hoVV_QocBULV5gNVNVtXr_4pM";
+/* VAPID_PUBLIC_KEY → src/modules/persistence.js (issue #9) */
 
 /* ================================================================
    NOTIFICACIONES PUSH (Web Push / iOS PWA 16.4+)
@@ -695,82 +346,8 @@ async function disablePushNotifications(){
 function isPushEnabled(){
   try{ return !!localStorage.getItem(K_NEWS_KEYS.pushSubscribed); }catch(e){ return false; }
 }
-function lsGet(key, def){ try{ return JSON.parse(localStorage.getItem(key)) ?? def; }catch(e){ return def; } }
-function lsSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
-function getRoutine(){ return lsGet(K.routine, null) || DEFAULT_ROUTINE; }
-function setRoutine(r){ lsSet(K.routine, r); }
-/* Fase C: historial en IndexedDB (via src/db.js) con caché síncrona en memoria.
-   getHistory()/saveHistory() mantienen su API síncrona para no tocar el resto. */
-const DB = window.EyeFitDB || null;
-let historyCache = [];
-let historyLoaded = false;
-/* Mutex para operaciones de historial (saveHistory / pullServerData).
-   Evita condiciones de carrera entre autoSaveSession(s), sync, y pull. */
-let historyLock = Promise.resolve();
-async function loadHistoryFromDB(){
-  if(!DB) return;
-  try{
-    const rows = await DB.getHistoryDB();
-    if(Array.isArray(rows)) historyCache = rows.map(r=>r.record).filter(isValidSessionRecord);
-  }catch(e){}
-  historyLoaded = true;
-}
-async function persistHistory(records){
-  if(DB){
-    try{ await DB.saveHistoryDB(records !== undefined ? records : historyCache); }catch(e){}
-  }else{
-    lsSet(K.history, records !== undefined ? records : historyCache);
-  }
-}
-function getHistory(){
-  /* F2-A2: filtrar registros corruptos para no romper la app. */
-  if(!historyLoaded){
-    historyCache = lsGet(K.history, []);
-  }
-  historyCache = Array.isArray(historyCache) ? historyCache.filter(isValidSessionRecord) : [];
-  return historyCache;
-}
-async function saveHistory(h){
-  /* Actualizar la caché SÍNCRONAMENTE (antes del mutex) para que los
-     callers que no hacen await tengan los datos correctos de inmediato.
-     La persistencia se serializa con el mutex para evitar sobrescrituras. */
-  const sanitized = Array.isArray(h) ? h.filter(isValidSessionRecord) : [];
-  historyCache = sanitized;
-  historyLock = historyLock.then(async ()=>{
-    await persistHistory(sanitized);
-  }).catch(()=>{});
-  return historyLock;
-}
-/* Schema versioning (eyefit_meta.data_version). v1→v2: migración one-time
-   del historial de localStorage a IndexedDB (solo si la DB cargó). */
-const DATA_VERSION = 2;
-const MIGRATIONS = [
-  async (nextVersion) => {
-    if(nextVersion < 2 && DB && DB.migrateHistoryFromLocalStorage){
-      await loadHistoryFromDB();
-      const migrated = await DB.migrateHistoryFromLocalStorage(K.history, isValidSessionRecord);
-      /* Recargar después de migrar: historyCache debe reflejar los datos
-         recién migrados (antes quedaba vacío porque IndexedDB estaba vacía) */
-      if(Array.isArray(migrated) && migrated.length > 0){
-        await loadHistoryFromDB();
-      }
-      if(DB.setDataVersion) DB.setDataVersion(2);
-    }
-  }
-];
-async function runMigrations(){
-  try{
-    const current = DB && DB.currentDataVersion ? DB.currentDataVersion() : DATA_VERSION;
-    if(current >= DATA_VERSION) return;
-    for(const m of MIGRATIONS){ await m(current); }
-    if(DB && DB.setDataVersion) DB.setDataVersion(DATA_VERSION);
-  }catch(e){}
-}
-function getPending(){
-  const p = lsGet(K.pending, null);
-  return p && typeof p === "object" ? { sessions:Array.isArray(p.sessions)?p.sessions:[], routine:p.routine||null } : { sessions:[], routine:null };
-}
-function setPending(p){ lsSet(K.pending, { sessions:p.sessions||[], routine:p.routine||null }); }
+/* lsGet/lsSet/getRoutine/setRoutine → src/modules/persistence.js (issue #9) */
+/* Historial (caché+mutex+migraciones) y pending → src/modules/persistence.js (issue #9) */
 
 /* ================================================================
    CARGA RUTINA XLSX
@@ -970,39 +547,9 @@ function findExerciseInDataset(dataset, name){
   return null;
 }
 
-function escapeHtml(s){
-  /* Escapado por sustitución de cadenas (NUNCA vía el.innerHTML: leer
-     innerHTML crearía una fuente de "DOM text" para la regla CodeQL
-     js/xss-through-dom). Equivalente funcional al viejo texto-textContent. */
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-/* Frontera segura de renderizado (CWE-79).
-   Las funciones render* construyen HTML con todos los textos dinámicos
-   escapados (escapeHtml/escapeHtmlAttr) y valores numéricos con Number().
-   El parsing se hace con createContextualFragment (contexto inerte: no
-   ejecuta scripts ni carga recursos), y el resultado se inserta con
-   replaceChildren. No se usa .innerHTML para no crear un sink de XSS. */
-function setHtml(el, html){
-  /* Frontera de confianza: escapamos los apóstrofes aquí para marcar este
-     punto como sanitizado para el análisis estático. CodeQL reconoce el
-     `.replace(/'/g, ...)` como MetacharEscapeSanitizer y corta cualquier
-     flujo de taint DOM en el punto directo de inserción. La entidad &#39;
-     se renderiza idéntica a ', por lo que no altera el HTML generado por
-     las render* (que ya escapan los textos de usuario con escapeHtml). */
-  html = html.replace(/'/g, "&#39;");
-  const frag = document.createRange().createContextualFragment(html);
-  el.replaceChildren(frag);
-}
-function formatInstructions(text){
-  if(!text) return "";
-  const steps = String(text).split("\n").map(s=>s.trim()).filter(Boolean);
-  return `<ol class="instr-list">${steps.map(s=>`<li>${escapeHtml(s)}</li>`).join("")}</ol>`;
-}
+/* escapeHtml → src/modules/ui.js (issue #8) */
+/* setHtml → src/modules/ui.js (issue #8) */
+/* formatInstructions → src/modules/ui.js (issue #8) */
 
 /* ================================================================
    SUPABASE AUTH + SYNC (tabla correcta: rutinas)
@@ -1119,7 +666,7 @@ async function pullServerData(){
   if(!sbClient || !authUser) return;
   /* Usar el mismo mutex que saveHistory para evitar condiciones de carrera:
      la descarga no debe intersectarse con una escritura concurrente. */
-  historyLock = historyLock.then(async ()=>{
+  P.historyLock = P.historyLock.then(async ()=>{
     try{
       const { data: routineRow, error: errR } = await sbClient.from("rutinas").select("routine, meta, updated_at").eq("user_id", authUser.id).maybeSingle();
       if(!errR && routineRow && routineRow.routine && Array.isArray(routineRow.routine)){
@@ -1130,8 +677,8 @@ async function pullServerData(){
           if(serverTs) localStorage.setItem(K.routineUpdated, serverTs);
           selectedDay = null;
           /* Restaurar config de entrenamiento desde el servidor si viene */
-          if(routineRow.meta && routineRow.meta.config) trainingConfig = { ...TRAINING_DEFAULTS, ...routineRow.meta.config };
-          if(routineRow.meta && Array.isArray(routineRow.meta.trainingDays)) trainingDays = routineRow.meta.trainingDays;
+          if(routineRow.meta && routineRow.meta.config) Config.trainingConfig = { ...Config.TRAINING_DEFAULTS, ...routineRow.meta.config };
+          if(routineRow.meta && Array.isArray(routineRow.meta.trainingDays)) Config.trainingDays = routineRow.meta.trainingDays;
         }
       }
       /* Descargar sesiones con paginación (Supabase limita a 1000 filas por
@@ -1162,7 +709,7 @@ async function pullServerData(){
         const sanitized = merged.filter(isValidSessionRecord);
         /* Actualizar la caché y persistir de forma explícita
            (ya estamos dentro de historyLock.then → deadlock si llamamos saveHistory) */
-        historyCache = sanitized;
+        P.historyCache = sanitized;
         await persistHistory(sanitized);
         console.log(`[EyeFit] pullServerData: ${allSesRows.length} sesiones en servidor → ${merged.length} en historial local`);
       } else {
@@ -1176,13 +723,13 @@ async function pullServerData(){
       console.error("[EyeFit] pullServerData error:", e);
     }
   }).catch(()=>{});
-  return historyLock;
+  return P.historyLock;
 }
 async function pushRoutineToServer(){
   if(!sbClient || !authUser) return false;
   try{
     const { error } = await sbClient.from("rutinas").upsert(
-      { user_id:authUser.id, routine:getRoutine(), meta:{ config:trainingConfig, trainingDays }, updated_at: new Date().toISOString() },
+      { user_id:authUser.id, routine:getRoutine(), meta:{ config:Config.trainingConfig, trainingDays:Config.trainingDays }, updated_at: new Date().toISOString() },
       { onConflict:"user_id" }
     );
     if(!error) localStorage.setItem(K.routineUpdated, new Date().toISOString());
@@ -1225,7 +772,7 @@ async function syncPending(){
   }
   if(pending.routine){
     const { error } = await sbClient.from("rutinas").upsert(
-      { user_id:authUser.id, routine:pending.routine, meta:{ config:trainingConfig, trainingDays }, updated_at: new Date().toISOString() },
+      { user_id:authUser.id, routine:pending.routine, meta:{ config:Config.trainingConfig, trainingDays:Config.trainingDays }, updated_at: new Date().toISOString() },
       { onConflict:"user_id" }
     ).catch(()=>({error:true}));
     if(!error){ setRoutine(pending.routine); pending.routine = null; changed = true; localStorage.setItem(K.routineUpdated, new Date().toISOString()); }
@@ -1858,7 +1405,7 @@ function getStreak(){
   const isTrainingDay = (d) => {
     const dn = DAY_NAMES[d.getDay()];
     /* Si trainingDays tiene todos los días, usar todos. Si está parcialmente seleccionado, respetarlo */
-    return trainingDays.length === 0 || trainingDays.includes(dn);
+    return Config.trainingDays.length === 0 || Config.trainingDays.includes(dn);
   };
   /* Función para retroceder al anterior día de entrenamiento configurado */
   const prevTrainingDate = (d) => {
@@ -2612,7 +2159,7 @@ function renderAjustes(){
     ? `${escapeHtml(pendingCount)} sesión${Number(pendingCount)>1?"es":""} pendiente${Number(pendingCount)>1?"s":""} de subir`
     : authUser ? "Todo sincronizado" : "Sin conexión a la nube";
   const syncClass = pendingCount>0 ? "pending" : (authUser ? "" : "off");
-  const tc = trainingConfig;
+  const tc = Config.trainingConfig;
 
   return `<div class="section active">
     <h2 class="title">Ajustes</h2>
@@ -2655,7 +2202,7 @@ function renderAjustes(){
         <div style="width:100%;"><div class="label">Días de entrenamiento</div><div class="desc">L M X J V S D</div></div>
         <div class="train-days" style="width:100%;">
           ${[["L","Lunes"],["M","Martes"],["X","Miércoles"],["J","Jueves"],["V","Viernes"],["S","Sábado"],["D","Domingo"]].map(([lbl,full])=>`
-            <button class="train-day-chip ${trainingDays.includes(full)?"on":""}" data-train-day="${full}" aria-label="${full}">${lbl}</button>
+            <button class="train-day-chip ${Config.trainingDays.includes(full)?"on":""}" data-train-day="${full}" aria-label="${full}">${lbl}</button>
           `).join("")}
         </div>
       </div>
@@ -2799,11 +2346,7 @@ function renderAjustes(){
 /* ================================================================
    EVENTOS
    ================================================================ */
-function getExerciseBodyPart(ex, dataset){
-  if(!dataset || !ex.dataset) return "";
-  const found = findExerciseInDataset(dataset, ex.dataset) || findExerciseInDataset(dataset, ex.nombre_es);
-  return found && found.part ? found.part : "";
-}
+/* getExerciseBodyPart → src/modules/ui.js (issue #8) */
 
 function attachEvents(){
   /* --- Modo edición rutina --- */
@@ -3491,10 +3034,10 @@ function attachEvents(){
   document.querySelectorAll("[data-train-day]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       const d = btn.dataset.trainDay;
-      if(trainingDays.includes(d)){
-        trainingDays = trainingDays.filter(x=>x!==d);
+      if(Config.trainingDays.includes(d)){
+        Config.trainingDays = Config.trainingDays.filter(x=>x!==d);
       } else {
-        trainingDays.push(d);
+        Config.trainingDays.push(d);
       }
       saveTrainingDays();
       renderMain();
@@ -3528,15 +3071,15 @@ function attachEvents(){
       if(input.type === "checkbox") v = input.checked;
       else if(input.dataset.float === "1") v = parseFloat(input.value);
       else v = parseFloat(input.value);
-      if(Number.isFinite(v)) trainingConfig[k] = v;
-      else if(input.type === "checkbox") trainingConfig[k] = v;
+      if(Number.isFinite(v)) Config.trainingConfig[k] = v;
+      else if(input.type === "checkbox") Config.trainingConfig[k] = v;
       saveTrainingConfig();
       showToast("⚙️ Ajuste de entrenamiento guardado");
     });
   });
   document.querySelectorAll("[data-train-select]").forEach(sel=>{
     sel.addEventListener("change", ()=>{
-      trainingConfig[sel.dataset.trainSelect] = sel.value;
+      Config.trainingConfig[sel.dataset.trainSelect] = sel.value;
       saveTrainingConfig();
       showToast("⚙️ Progresión actualizada");
     });
@@ -3898,36 +3441,7 @@ ensureAutofillListener();
 /* ================================================================
    UTILIDADES
    ================================================================ */
-let toastTimeout = null;
-function showToast(msg){
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.classList.add("show");
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(()=>t.classList.remove("show"), 2400);
-}
-function vibrate(pattern){ if(navigator.vibrate) navigator.vibrate(pattern); }
-
-/* Fase D: focus trap + retorno de foco en overlays (accesibilidad).
-   Al abrir un overlay se guarda el elemento activo y se enfoca el primer
-   elemento enfocable; al cerrar se restaura el foco al elemento previo. */
-function getFocusable(id){
-  const el = document.getElementById(id);
-  if(!el) return [];
-  return Array.from(el.querySelectorAll("button, input, select, textarea, a[href], [tabindex]:not([tabindex='-1'])")).filter(x=>x.offsetParent !== null);
-}
-const focusTraps = {};
-function setFocusTrap(id, el){
-  if(el){
-    focusTraps[id] = document.activeElement;
-    const firstFocusable = getFocusable(id)[0];
-    const target = (el.tabIndex >= 0) ? el : (firstFocusable || el);
-    target.focus();
-  } else if(focusTraps[id]){
-    const prev = focusTraps[id];
-    delete focusTraps[id];
-    if(prev && prev.focus) prev.focus();
-  }
-}
+/* showToast / vibrate / setFocusTrap → src/modules/ui.js (issue #8) */
 
 /* Persistencia de sesión activa */
 function saveSessionState(){
@@ -4199,7 +3713,7 @@ document.getElementById("pickerClose").addEventListener("click", closeExercisePi
      duplicaría el listener, provocando que "Añadir serie" añadiera muchas.) */
   attachEditHistOverlayEvents();
   await runMigrations();
-  if(DB && !historyLoaded) await loadHistoryFromDB();
+  if(DB && !P.historyLoaded) await loadHistoryFromDB();
   let authenticated = false;
   /* Lazy Supabase: solo cargar el SDK (~180KB) si hay sesión previa guardada.
      Sin sesión guardada, se salta el SDK y se muestra el overlay con "Continuar

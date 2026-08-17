@@ -3,8 +3,8 @@
    - offline fallback shell en vez de respuesta vacía
    - Background Sync: navigator.sync → notifica a la app para scheduleSync
    - SheetJS NO está en CORE_ASSETS (carga dinámica solo al importar/exportar) */
-const CACHE = "eyefit-vmswzlleg"; // build inyecta CACHE versionado (tools/build.js)
-const CORE_ASSETS = ["./","./index.html","./styles.a7cb4cb1.css","./app.df016356.js","./manifest.json","./constants.js","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png","./modules/rest-timer.js"]; // build inyecta los assets hasheados
+const CACHE = "eyefit-vmsx01szl"; // build inyecta CACHE versionado (tools/build.js)
+const CORE_ASSETS = ["./","./index.html","./styles.a7cb4cb1.css","./app.51e762b9.js","./manifest.json","./constants.js","./utils.js","./db.js","./supabase.js","./rutina.xlsx","./slim-dataset.json","./exercise-meta.json","./icons/icon-192.png","./icons/icon-512.png","./icons/icon-180.png","./modules/config.js","./modules/persistence.js","./modules/rest-timer.js","./modules/ui.js"]; // build inyecta los assets hasheados
 
 /* Shell offline: página mínima para un cold-load sin red */
 const OFFLINE_SHELL = `<!DOCTYPE html>

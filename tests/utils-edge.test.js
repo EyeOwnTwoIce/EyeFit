@@ -228,8 +228,13 @@ test('constantes: INSTRUCCIONES ordenadas por dataset coinciden con las claves d
   const instrKeys = Object.keys(INSTRUCCIONES).sort();
   const imgKeys = Object.keys(EMBEDDED_IMAGES).sort();
   const altKeys = Object.keys(ALTERNATIVAS).sort();
-  assert.deepEqual(instrKeys, imgKeys, 'INSTRUCCIONES y EMBEDDED_IMAGES tienen las mismas claves');
   assert.deepEqual(instrKeys, altKeys, 'INSTRUCCIONES y ALTERNATIVAS tienen las mismas claves');
+  /* EMBEDDED_IMAGES es un SUPERSET (ampliado Módulo 5: 120 imágenes de slim-dataset.json).
+     Cubre al menos todas las claves curadas de INSTRUCCIONES/ALTERNATIVAS. */
+  for (const k of instrKeys) {
+    assert.ok(imgKeys.includes(k), `EMBEDDED_IMAGES cubre la clave ${k}`);
+  }
+  assert.ok(imgKeys.length >= instrKeys.length, 'EMBEDDED_IMAGES tiene >= claves que INSTRUCCIONES');
 });
 
 /* ============ mergeHistoryBySessionId: edge cases adicionales ============ */

@@ -2,7 +2,7 @@
   /* ===== Summary screen (guardado automático) ===== */
   .summary-overlay{
     position:fixed; inset:0; z-index:350; background:var(--bg);
-    display:none; flex-direction:column; width:100%; margin:0 auto; padding:calc(env(safe-area-inset-top) + 20px) 20px 20px; overflow-y:auto;
+    display:none; flex-direction:column; width:100%; margin:0 auto; padding:20px; overflow-y:auto;
   }
   .summary-overlay.show{ display:flex; }
   .sum-title{ font-size:22px; font-weight:900; text-align:center; margin:10px 0 4px; }

@@ -1,6 +1,6 @@
 {
   "name": "eyefit",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "EyeFit — App de entrenamiento privada y offline (iPhone 15)",
   "main": "dist/index.html",
   "scripts": {

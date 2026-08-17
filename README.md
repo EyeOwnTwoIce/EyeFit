@@ -196,7 +196,7 @@ EyeFit/
 - **SheetJS** ([SheetJS Community Edition](https://sheetjs.com/)) para leer/escribir .xlsx
 - **exercises-dataset** ([GitHub](https://github.com/hasaneyldrm/exercises-dataset)) — CC-BY-4.0, 1.324 ejercicios con imágenes e instrucciones multilingües
 - **PWA**: manifest.json estático + Service Worker con offline shell y Background Sync
-- **Diseño iOS dark**: botonera al ras del borde inferior, safe-areas, tema oscuro
+- **Diseño iOS dark**: botonera al ras del borde inferior, tema oscuro
 
 ---
 

@@ -147,6 +147,20 @@
     }
   });
 
+  /* Botón STOP de sesión: muestra el resumen si hay sesión activa */
+  document.getElementById("stopSessionBtn").addEventListener("click", ()=>{
+    if(Session().session) VS().showSummary();
+  });
+  /* "Vale por hoy": cerrar el resumen, limpiar la sesión y volver a la Rutina */
+  document.getElementById("sumDoneToday").addEventListener("click", ()=>{
+    Ui().setFocusTrap("summaryOverlay", null);
+    document.getElementById("summaryOverlay").classList.remove("show");
+    Session().session = null;
+    Session().clearSessionState();
+    Router().setTab("rutina");
+    Ui().showToast("👍 ¡Buen entrenamiento!");
+  });
+
   /* Auth overlay — listeners estáticos (funciones → src/modules/auth.js, issue #11) */
   document.querySelectorAll("[data-auth-tab]").forEach(btn=>{
     btn.addEventListener("click", ()=>{

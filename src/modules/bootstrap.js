@@ -169,6 +169,21 @@ function persistActiveSession(){
   }
 }
 window.addEventListener("pagehide", persistActiveSession);
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "hidden"){
+    persistActiveSession();
+  } else if(document.visibilityState === "visible"){
+    /* Al volver a la app: recalcular el descanso con el tiempo real */
+    if(RT().restActive && !RT().restPaused){
+      RT().recomputeRestRemaining();
+      if(RT().restRemaining <= 0){
+        RT().restFinished();
+      } else {
+        RT().renderRestTime();
+      }
+    }
+  }
+});
 document.addEventListener("keydown", (e)=>{
   if(e.key === "Escape"){
     for(const id of ["numOverlay","varOverlay","authOverlay","summaryOverlay","imgZoomOverlay","swipeConfirmOverlay"]){

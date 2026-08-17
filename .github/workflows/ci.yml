@@ -140,10 +140,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-test
     if: github.ref == 'refs/heads/main'
+    # GitHub Pages admite UN solo deployment activo a la vez. Si se empujan dos
+    # commits seguidos, dos runs pueden llegar aquí casi a la vez y el segundo
+    # falla ("Deployment request failed ... due to in progress deployment").
+    # Con este grupo de concurrencia por rama, los deploys se SERIALIZAN: el
+    # segundo job espera a que termine el primero (no se cancela nada).
+    concurrency:
+      group: deploy-pages-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
       contents: read
       pages: write
       id-token: write
+      actions: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -155,6 +164,27 @@ jobs:
         with:
           name: dist-build
           path: dist
+      # Limpiar artefactos 'github-pages' de intentos/re-runs previos: deploy-pages@v4
+      # falla con "Multiple artifacts named github-pages" si encuentra 2 artefactos
+      # con el mismo nombre (cada re-run sube uno nuevo sin borrar el anterior).
+      - name: Limpiar artefactos github-pages previos
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+              name: 'github-pages',
+            });
+            for (const a of data.artifacts) {
+              console.log(`Borrando artefacto github-pages ${a.id} (${a.size_in_bytes} B)`);
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: a.id,
+              });
+            }
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

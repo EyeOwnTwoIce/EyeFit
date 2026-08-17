@@ -154,16 +154,33 @@
     return `${y}-${m}-${day}`;
   }
 
-  /** Genera un UUID v4 con crypto.randomUUID o fallback manual. */
+  let _uuidSeq = 0; /* contador para el último recurso sin Web Crypto */
+
+  /** Genera un UUID v4 con Web Crypto (randomUUID o getRandomValues).
+      El último recurso (sin Web Crypto) usa timestamp+contador: único dentro
+      del runtime y sin randomness predecible. */
   function genUUID() {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
+    const c = (typeof globalThis !== "undefined" && globalThis.crypto) ||
+              (typeof crypto !== "undefined" ? crypto : undefined);
+    if (c && typeof c.randomUUID === "function") return c.randomUUID();
+    if (c && typeof c.getRandomValues === "function") {
+      const b = c.getRandomValues(new Uint8Array(16));
+      b[6] = (b[6] & 0x0f) | 0x40; /* versión 4 */
+      b[8] = (b[8] & 0x3f) | 0x80; /* variante RFC 4122 */
+      const h = Array.from(b, x => x.toString(16).padStart(2, "0"));
+      return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
     }
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
-      const r = Math.random() * 16 | 0;
-      const v = c === "x" ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
+    /* Sin Web Crypto (entornos legacy): UUID v4 determinista timestamp+contador. */
+    const t = Date.now();
+    const seq = (_uuidSeq = (_uuidSeq + 1) & 0xffff);
+    const hex = (n, len) => n.toString(16).padStart(len, "0");
+    const raw = hex(t, 16) + hex(seq, 8) + hex(seq ^ (t & 0xffff), 8);
+    const arr = [];
+    for (let i = 0; i < raw.length; i += 2) arr.push(parseInt(raw.slice(i, i + 2), 16));
+    arr[6] = (arr[6] & 0x0f) | 0x40;
+    arr[8] = (arr[8] & 0x3f) | 0x80;
+    const h = arr.map(x => x.toString(16).padStart(2, "0"));
+    return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
   }
 
   /** Limita un número a un rango; si no es finito, usa fallback. */

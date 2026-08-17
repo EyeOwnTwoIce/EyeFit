@@ -177,6 +177,25 @@ test('genUUID: genera valores únicos', () => {
   assert.notEqual(a, b);
 });
 
+/* Los session_id van a Supabase (upsert onConflict), así que genUUID debe
+   seguir generando v4 válidos y únicos incluso sin crypto.randomUUID
+   (p. ej. en contextos no seguros): usa crypto.getRandomValues (CSPRNG). */
+test('genUUID: fallback con crypto.getRandomValues sigue siendo v4 válido y único', () => {
+  const original = crypto.randomUUID;
+  try {
+    crypto.randomUUID = undefined; /* fuerza la ruta getRandomValues */
+    const seen = new Set();
+    for (let i = 0; i < 50; i++) {
+      const u = genUUID();
+      assert.match(u, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      seen.add(u);
+    }
+    assert.equal(seen.size, 50);
+  } finally {
+    crypto.randomUUID = original;
+  }
+});
+
 /* ============ clampNum ============ */
 test('clampNum: limita dentro del rango', () => {
   assert.equal(clampNum(250, 0, 200, 0), 200);

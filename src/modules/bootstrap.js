@@ -91,6 +91,10 @@ setInterval(()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('sw.js').then(reg=>{
+      /* Forzar la comprobación de actualización al arrancar (iOS/PWA solo
+         comprueba el SW en navegación): si hay una versión nueva desplegada,
+         `updatefound`/SKIP_WAITING la activan y recarga automáticamente. */
+      if(reg && typeof reg.update === "function") reg.update().catch(()=>{});
       /* Web Push: si ya suscrito y hay permiso, mantener/normalizar y PERSISTIR
          la suscripción (localStorage + Supabase). Sin persistir, el CI no tiene
          el endpoint y la notificación push nunca llega con la app cerrada. */

@@ -34,9 +34,14 @@ function isSupabaseUrl(url) {
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE)
-      .then(cache => cache.addAll(CORE_ASSETS))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE).then(cache =>
+      /* Resiliente a fallos puntuales de red/incidentes: cache.addAll fallaría
+         la instalación COMPLETA si un solo asset no se descarga, dejando la app
+         atascada en la versión vieja (GIFs rotos, etc.). Con allSettled el SW
+         nuevo se instala igualmente y los assets fallidos se sirven bajo demanda
+         (el fetch handler los cachea al primer uso). */
+      Promise.allSettled(CORE_ASSETS.map(url => cache.add(url)))
+    ).then(() => self.skipWaiting())
   );
 });
 

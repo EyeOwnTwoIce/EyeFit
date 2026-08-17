@@ -17,17 +17,19 @@
   "devDependencies": {
     "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.62.1",
-    "esbuild": "^0.28.1",
-    "fake-indexeddb": "^5.0.2",
+    "esbuild": "^0.28.2",
+    "fake-indexeddb": "^6.2.5",
     "http-server": "^14.1.1",
     "web-push": "^3.6.7"
   },
   "overrides": {
     "tmp": "0.2.7",
     "cookie": "0.7.0",
-    "uuid": "11.1.1"
+    "uuid": "11.1.1",
+    "lighthouse": "13.4.1"
   },
   "allowScripts": {
-    "esbuild@0.28.1": true
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.2": true
   }
 }

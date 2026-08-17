@@ -20,5 +20,9 @@ npm-error.log*
 # Supabase CLI local
 supabase/.temp/
 supabase/config.toml
+
+# Build (generado por `npm run build`; el CI lo regenera y despliega vía artefacto)
+dist/
+
 # Added by code-review-graph
 .code-review-graph/

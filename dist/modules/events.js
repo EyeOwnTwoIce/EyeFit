@@ -971,6 +971,11 @@ if(authForm){
   });
 }
 /* B3: continuar sin conexión esconde el overlay y deja usar la app en local */
+document.getElementById("authSkip").addEventListener("click", ()=>{
+  S().authUser = null;
+  Auth().showAuthOverlay(false);
+  Router().renderMain();
+});
 /* ================================================================
    SELECTOR DE EJERCICIO (static handlers)
    ================================================================ */

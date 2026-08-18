@@ -157,7 +157,12 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Historial completo (incl. tags): el paso de notificación lee el último tag de
+      # release creado por auto-tag.yml (git tag --points-at HEAD) para anunciar la
+      # versión REAL, no la de package.json (que el release automático no actualiza).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: '0'
       # Reutilizar el dist ya generado en build-test (sin re-descargar node_modules ni re-buildear)
       - name: Download dist build
         uses: actions/download-artifact@v4
@@ -195,8 +200,10 @@ jobs:
       # Notificar a los usuarios suscritos que la app se actualizó (Web Push real-time).
       # Se llama justo después del deploy a GitHub Pages: la Edge Function de Supabase
       # 'eyefit-push' lee las suscripciones de push_subscriptions y envía el push con VAPID.
-      # El título muestra la versión (leída de package.json) y el cuerpo la fecha/hora del
-      # release en hora de Madrid + "Toca para actualizar".
+      # El título muestra la versión del RELEASE real: el tag que auto-tag.yml crea sobre el
+      # commit desplegado (p.ej. v2.2.2). package.json NO se actualiza en el release
+      # automático, así que no se usa como fuente (solo como fallback si no hay tag).
+      # El cuerpo: fecha/hora del release en hora de Madrid + "Toca para actualizar".
       # Requiere los secretos del repo: SUPABASE_PUSH_FN_URL (y SUPABASE_PUSH_FN_KEY si aplica).
       - name: Notify push update (Supabase Edge Function)
         if: success()
@@ -207,7 +214,19 @@ jobs:
             echo "⚠️ SUPABASE_PUSH_FN_URL no configurado — salto notificación push."
             exit 0
           fi
-          VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+          # Espera (máx ~60 s) a que auto-tag.yml etiquete el commit desplegado; si no
+          # hay tag de release, cae a la versión de package.json.
+          VERSION=""
+          for i in $(seq 1 12); do
+            git fetch --tags --force --quiet 2>/dev/null || true
+            VERSION="$(git tag --points-at HEAD 2>/dev/null | grep -E '^v[0-9]' | sort -V | tail -1 | sed 's/^v//')"
+            [ -n "$VERSION" ] && break
+            sleep 5
+          done
+          if [ -z "$VERSION" ]; then
+            VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+            echo "⚠️ Sin tag de release para este commit; uso versión de package.json (${VERSION})."
+          fi
           RELEASE_TIME="$(date '+%d/%m/%Y %H:%M')"
           PAYLOAD="$(printf '{"title":"V%s disponible","body":"%s · Toca para actualizar","url":"./"}' "$VERSION" "$RELEASE_TIME")"
           curl -sS -X POST "${{ secrets.SUPABASE_PUSH_FN_URL }}" \

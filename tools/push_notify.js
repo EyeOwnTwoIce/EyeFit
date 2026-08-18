@@ -5,8 +5,9 @@
    Las claves VAPID se leen de variables de entorno:
      VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
    Si no pasas --sub-json, busca en ./eyefit_subs.json
-   Título/cuerpo por defecto: "V{version} disponible" (versión de package.json)
-   y "dd/mm/aaaa HH:MM · Toca para actualizar" (fecha/hora local del envío),
+   Título/cuerpo por defecto: "V{version} disponible" (último tag de release vX.Y.Z
+   creado por auto-tag.yml, con fallback a la versión de package.json) y
+   "dd/mm/aaaa HH:MM · Toca para actualizar" (fecha/hora local del envío),
    igual que la notificación del CI. Override con --title/--body.
    Las suscripciones se guardan en localStorage del cliente (K_NEWS_KEYS.pushSubJson);
    este script sirve para CI o pruebas manuales. */
@@ -36,10 +37,25 @@ const subFile = argVal('--sub-json') || './eyefit_subs.json';
 /* Título/cuerpo por defecto: versión de package.json + fecha/hora del envío.
    Coinciden con el formato de la notificación del CI (title/body). */
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+
+/* Versión por defecto: último tag de release vX.Y.Z creado por auto-tag.yml en el
+   commit actual (git tag --points-at HEAD); fallback a package.json si no hay git/tag. */
+function currentVersion() {
+  try {
+    const { execSync } = require('child_process');
+    const tag = execSync(
+      'git tag --points-at HEAD 2>/dev/null | grep -E "^v[0-9]" | sort -V | tail -1 | sed "s/^v//"',
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    ).trim();
+    if (tag) return tag;
+  } catch (_) { /* sin repositorio git o sin tags */ }
+  return pkg.version;
+}
+
 const now = new Date();
 const pad = n => String(n).padStart(2, '0');
 const releaseTime = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-const title = argVal('--title') || `V${pkg.version} disponible`;
+const title = argVal('--title') || `V${currentVersion()} disponible`;
 const body = argVal('--body') || `${releaseTime} · Toca para actualizar`;
 const url = argVal('--url') || './';
 

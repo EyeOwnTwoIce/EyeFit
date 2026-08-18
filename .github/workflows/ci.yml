@@ -47,6 +47,23 @@ jobs:
       - if: ${{ steps.npm-cache.outputs.cache-hit != 'true' }}
         run: npm ci
       - run: npm test
+      # Resolver la versión del release (el tag que crea auto-tag.yml sobre este commit)
+      # y pasarla al build para que Ajustes → Acerca de muestre la versión real.
+      # Espera (máx ~60 s) a que el tag exista; si no, cae a la versión de package.json.
+      - name: Resolver versión del release
+        run: |
+          VERSION=""
+          for i in $(seq 1 12); do
+            git fetch --tags --force --quiet 2>/dev/null || true
+            VERSION="$(git tag --points-at HEAD 2>/dev/null | grep -E '^v[0-9]' | sort -V | tail -1 | sed 's/^v//')"
+            [ -n "$VERSION" ] && break
+            sleep 5
+          done
+          if [ -z "$VERSION" ]; then
+            VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+            echo "⚠️ Sin tag de release; uso versión de package.json (${VERSION})."
+          fi
+          echo "EYEFIT_VERSION=${VERSION}" >> "$GITHUB_ENV"
       - name: Build (genera dist)
         run: npm run build
       - name: Upload dist artefacto para deploy

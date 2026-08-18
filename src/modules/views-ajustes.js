@@ -193,7 +193,7 @@ function renderAjustes(){
             </details>
             <details>
               <summary>Versión</summary>
-              <div class="about-body">v2.1.0 · PWA sincronizada en la nube</div>
+              <div class="about-body">v__EYEFIT_VERSION__ · PWA sincronizada en la nube</div>
             </details>
             <details>
               <summary>Referencias</summary>

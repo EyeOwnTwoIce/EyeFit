@@ -1,7 +1,9 @@
 "use strict";
 /* ════════════════════════════════════════════════════════════════
-   EyeFit v2.1.0 — bootstrap: valida las utilidades compartidas y
+   EyeFit — bootstrap: valida las utilidades compartidas y
    arranca la app. Toda la lógica vive en src/modules/.
+   La versión visible (Ajustes → Acerca de) se inyecta en el build
+   (tools/current_version.js): env EYEFIT_VERSION > tag vX.Y.Z > package.json.
    ════════════════════════════════════════════════════════════════ */
 
 /* F1-C1: las funciones puras viven en utils.js y se exponen en

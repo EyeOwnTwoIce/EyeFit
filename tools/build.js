@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { build } = require('esbuild');
+const { currentVersion } = require('./current_version');
 
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
@@ -18,6 +19,7 @@ const DIST = path.join(ROOT, 'dist');
 const PUBLIC = path.join(ROOT, 'public');
 const DATA = path.join(ROOT, 'data');
 const VENDOR = path.join(ROOT, 'vendor');
+const APP_VERSION = currentVersion(); // env EYEFIT_VERSION > tag vX.Y.Z de auto-tag > package.json
 
 /* Origen de cada arquivo que se copia tal cual a dist/ */
 const STATIC_SOURCES = [
@@ -84,6 +86,19 @@ function copyStatic() {
   // Módulos EyeFit (src/modules/) → dist/modules/
   if (fs.existsSync(MODULES_DIR)) {
     fs.cpSync(MODULES_DIR, path.join(DIST, 'modules'), { recursive: true });
+    // Inyectar la versión del release en los módulos que la muestran (p.ej. Ajustes →
+    // "vX.Y.Z · PWA..."). El placeholder __EYEFIT_VERSION__ se reemplaza por la versión
+    // resuelta (EYEFIT_VERSION env > último tag vX.Y.Z de auto-tag > package.json).
+    const distModules = path.join(DIST, 'modules');
+    for (const f of fs.readdirSync(distModules)) {
+      if (!f.endsWith('.js')) continue;
+      const fp = path.join(distModules, f);
+      let content = fs.readFileSync(fp, 'utf8');
+      if (content.includes('__EYEFIT_VERSION__')) {
+        content = content.split('__EYEFIT_VERSION__').join(APP_VERSION);
+        fs.writeFileSync(fp, content);
+      }
+    }
   }
   // Directorios: icons vive en public/ y se copia a la raíz de dist/ (como dist/icons)
   for (const src of STATIC_DIRS) {
@@ -172,5 +187,5 @@ function buildSw(coreAssets) {
     './slim-dataset.json', './exercise-meta.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',
     ...moduleAssets];
   buildSw(coreAssets);
-  console.log(`✔ Build OK → dist/ (${cssName}, ${jsName}, critical ${criticalCss.length} bytes)`);
+  console.log(`✔ Build OK → dist/ (v${APP_VERSION}, ${cssName}, ${jsName}, critical ${criticalCss.length} bytes)`);
 })();

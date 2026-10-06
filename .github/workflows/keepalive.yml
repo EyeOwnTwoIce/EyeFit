@@ -1,0 +1,42 @@
+name: Keep-alive (evita el auto-pause de Supabase)
+
+# Los proyectos del plan gratuito de Supabase se PAUSAN tras ~7 días sin actividad.
+# Al pausarse, el subdominio del proyecto deja de resolver (NXDOMAIN) y la app
+# falla al iniciar sesión / sincronizar (ERR_NAME_NOT_RESOLVED → "Failed to fetch").
+# Este workflow hace una petición ligera al proyecto cada 3 días para mantenerlo
+# activo y evitar la pausa.
+
+on:
+  schedule:
+    # Lunes y jueves a las 06:17 UTC (se evita el minuto 0, muy congestionado en Actions).
+    - cron: '17 6 * * 1,4'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping a la REST API de Supabase
+        env:
+          # Mismos valores públicos que usa la app (la anon/publishable key es pública).
+          SUPABASE_URL: https://vkaxxphminufitcyp.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_9mIRx8rfkAtHv9w57cbCKw_P_btyOou
+        run: |
+          # Petición ligera a PostgREST: cuenta como actividad del proyecto.
+          # 200/206 = OK · 401 = key inválida · 5xx/000 = proyecto caído o pausado.
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/")"
+          echo "EyeFit keep-alive → HTTP $code"
+          if [ "$code" = "000" ] || [ "${code:0:1}" = "5" ]; then
+            echo "::error::No se pudo contactar con el proyecto Supabase (posible PAUSA o caída). Restáuralo en el Dashboard de Supabase."
+            exit 1
+          fi
+          echo "✔ Proyecto activo (HTTP $code)"

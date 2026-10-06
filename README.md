@@ -25,15 +25,20 @@ App de entrenamiento **privada** para iPhone 15 (estándar) y Android, en españ
 
 ### 1. Abrir la app
 
-Sirve la carpeta con un servidor local:
+La app vive en `src/`, pero el `index.html` de `src/` no se ejecuta directamente
+(el build inyecta el CSS/JS hasheado). Genera el build y sirve la carpeta `dist/`:
 
 ```bash
-# Opción rápida — servidor local Python
-python3 -m http.server 8000
+npm install
+npm run build
+# Opción rápida — servidor local sobre dist/
+npx http-server dist -p 8000 -c-1
 # Luego abre http://localhost:8000
 ```
 
-> ⚠️ La app usa Supabase y el Service Worker; para probar registro/sincronización es recomendable servirla por HTTPS o localhost.
+> ⚠️ La app usa Supabase y el Service Worker; para probar registro/sincronización es
+> recomendable servirla por HTTPS o localhost (el Service Worker solo se registra en
+> contextos seguros).
 
 ### 2. Instalar en iPhone / Android
 
@@ -87,7 +92,7 @@ Abre `rutina.xlsx` en **Excel**, **Numbers** o **Google Sheets** y edita las fil
 
 ### Requisitos
 
-- **Node.js 18+**
+- **Node.js** (el CI compila y testea con **Node 24**)
 - npm
 
 ### Instalar dependencias
@@ -141,8 +146,8 @@ Function `eyefit-push`, que lee los endpoints de `push_subscriptions` y envía e
   Respuesta esperada: `{"ok":true,"sent":1,"results":[{"ok":true,...}]}`. Un `ok:false` con
   `error` 401 = claves VAPID no coinciden; 404/410 = suscripción expirada (se limpia sola).
 - **Re-desplegar y notificar a todos**: `Actions` → `CI` → `Run workflow` (o push a `main`).
-- **VAPID**: la `VAPID_PUBLIC_KEY` del cliente (`src/app.js`) debe coincidir con las secretas
-  de la Edge Function (`VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` en Supabase).
+- **VAPID**: la `VAPID_PUBLIC_KEY` del cliente (`src/modules/push.js`) debe coincidir con las
+  secretas de la Edge Function (`VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` en Supabase).
 
 ---
 
@@ -152,8 +157,26 @@ Function `eyefit-push`, que lee los endpoints de `push_subscriptions` y envía e
 EyeFit/
 ├── src/                    ★ Fuentes de la app
 │   ├── index.html          Plantilla HTML (build inyecta CSS/JS hasheados)
-│   ├── app.js              Lógica principal de la app
-│   ├── styles.css          Estilos (tema iOS dark)
+│   ├── app.js              Bootstrap mínimo (valida utils y arranca la app)
+│   ├── modules/            Lógica de la app, un módulo por dominio
+│   │   ├── auth.js         Auth Supabase (login/registro, autofill)
+│   │   ├── supabase.js     Cliente Supabase + sync (pull/push, mutex)
+│   │   ├── bootstrap.js    Arranque, auth lazy, Service Worker, onboarding
+│   │   ├── config.js       Config de entrenamiento (progresión, racha)
+│   │   ├── persistence.js  Persistencia (localStorage + migraciones)
+│   │   ├── dataset.js      Carga del dataset/metadatos de ejercicios
+│   │   ├── session.js      Estado de la sesión de entrenamiento
+│   │   ├── rest-timer.js   Temporizador de descanso
+│   │   ├── router.js       Navegación entre pestañas/vistas
+│   │   ├── ui.js           Helpers de UI (toast, focus trap, escape)
+│   │   ├── push.js         Web Push (suscripción + VAPID público)
+│   │   ├── xlsx-io.js      Import/export .xlsx (SheetJS)
+│   │   ├── views-*.js      Render de vistas (rutina, sesión, historial, ajustes)
+│   │   └── events-*.js     Handlers de eventos por dominio (+ events.js)
+│   ├── styles/             CSS modular (se concatena en el build)
+│   │   ├── variables.css · reset.css · layout.css
+│   │   ├── components.css · views.css
+│   │   └── rest-timer.css · edit-drag.css
 │   ├── db.js               Persistencia IndexedDB
 │   ├── sw.js               Service Worker (caché offline + Background Sync)
 │   └── utils.js            Utilidades puras compartidas (navegador + tests)
@@ -164,25 +187,29 @@ EyeFit/
 │   ├── sitemap.xml
 │   └── icons/              Iconos PNG
 ├── data/                   Datasets y plantillas
-│   ├── slim-dataset.json   Dataset de ejercicios (1.080)
+│   ├── slim-dataset.json   Dataset de ejercicios (1.080, bundle slim)
 │   ├── exercise-meta.json  Metadatos (músculo, equipamiento)
-│   └── supabase_email_template.html
+│   ├── supabase_email_template.html
+│   └── videos/             GIFs de ejercicios auto-alojados
 ├── vendor/                 Librerías de terceros
 │   ├── xlsx.full.min.js    SheetJS
 │   └── supabase.js         SDK de Supabase
 ├── tools/                  Scripts de build y utilidades CLI
 │   ├── build.js            Pipeline esbuild → dist/
+│   ├── current_version.js  Resuelve la versión (env > tag > package.json)
 │   ├── generate_rutina.js  Regenera public/rutina.xlsx
 │   ├── generate_icons.js   Regenera los iconos PNG
 │   ├── generate_slim_dataset.js
+│   ├── generate_vapid.js   Genera el par de claves VAPID
+│   ├── push_notify.js      Envía un Web Push manual
 │   └── enrich_dataset.js
 ├── supabase/               Config del backend
-│   └── setup.sql           Setup SQL (tablas, RLS, triggers)
+│   ├── setup.sql           Setup SQL (tablas, RLS, triggers)
+│   └── functions/eyefit-push/  Edge Function de Web Push (Deno)
 ├── tests/                  Tests unitarios (node:test → `npm test`)
 │   └── e2e/                Tests end-to-end (Playwright)
-├── dist/                   Build output (generado por `npm run build`)
-├── .github/workflows/ci.yml
-├── CHANGELOG.md            Registro de cambios
+├── dist/                   Build output (generado por `npm run build`, no versionado)
+├── .github/workflows/      ci.yml (tests+build+deploy) · auto-tag.yml · keepalive.yml
 └── README.md               Esta documentación
 ```
 
@@ -194,7 +221,7 @@ EyeFit/
 - **Tests unitarios** con `node:test` (ejecuta `npm test`)
 - **Supabase** para auth (email + contraseña) y sincronización de rutina/historial
 - **SheetJS** ([SheetJS Community Edition](https://sheetjs.com/)) para leer/escribir .xlsx
-- **exercises-dataset** ([GitHub](https://github.com/hasaneyldrm/exercises-dataset)) — CC-BY-4.0, 1.324 ejercicios con imágenes e instrucciones multilingües
+- **exercises-dataset** ([GitHub](https://github.com/hasaneyldrm/exercises-dataset)) — CC-BY-4.0, 1.324 ejercicios; el bundle slim empaquetado incluye 1.080
 - **PWA**: manifest.json estático + Service Worker con offline shell y Background Sync
 - **Diseño iOS dark**: botonera al ras del borde inferior, tema oscuro
 
@@ -214,6 +241,8 @@ EyeFit/
 
 ## 📦 Versiones
 
-Ver [CHANGELOG.md](CHANGELOG.md) para el historial completo de versiones.
+Ver la página de [Releases](https://github.com/EyeOwnTwoIce/EyeFit/releases) para el historial
+de versiones (los tags `vX.Y.Z` y su changelog se generan automáticamente con
+`.github/workflows/auto-tag.yml` en cada push a `main`).
 
 *Hecho con 💪 para el gimnasio · Local y sincronizado en la nube*

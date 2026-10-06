@@ -35,3 +35,25 @@ jobs:
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           # Aquí inyectamos el changelog generado en el paso anterior
           body: ${{ steps.tag_version.outputs.changelog }}
+
+      # Mantiene package.json sincronizado con el tag recién creado.
+      # La versión de release se calcula a partir del TAG (no de package.json),
+      # así que sin este paso package.json se queda congelado en su versión inicial.
+      # El push va con GITHUB_TOKEN (no dispara nuevos workflows) y con [skip ci].
+      - name: Sincronizar package.json con el tag
+        if: ${{ steps.tag_version.outputs.new_tag != '' }}
+        env:
+          NEW_TAG: ${{ steps.tag_version.outputs.new_tag }}
+        run: |
+          VERSION="${NEW_TAG#v}"
+          CURRENT="$(node -p "require('./package.json').version")"
+          if [ "$VERSION" = "$CURRENT" ]; then
+            echo "package.json ya está en $VERSION; nada que hacer."
+            exit 0
+          fi
+          npm version "$VERSION" --no-git-tag-version --allow-same-version >/dev/null
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore(release): sincronizar package.json a ${NEW_TAG} [skip ci]"
+          git push origin HEAD:main

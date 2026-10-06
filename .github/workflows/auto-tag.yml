@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  # Disparo manual: permite crear un release sin tocar código (p.ej. si un push
+  # se saltó el CI con [skip ci]). Coherente con el workflow_dispatch de ci.yml.
+  workflow_dispatch:
 
 jobs:
   release:

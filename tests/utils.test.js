@@ -6,9 +6,30 @@ const assert = require('node:assert/strict');
 
 const {
   getApodo, epley1RM, formatRest, normalizeName,
-  buildExerciseSets, sortRoutine, escapeHtmlAttr,
+  buildExerciseSets, applySuggestedKg, sortRoutine, escapeHtmlAttr,
   localDateKey, genUUID, clampNum, isValidDay
 } = require('../src/utils.js');
+
+/* ============ applySuggestedKg ============ */
+test('applySuggestedKg: aplica el peso sugerido a todas las series sin mutar', () => {
+  const sets = [{ kg: 50, reps: 10, done: false }, { kg: 50, reps: 9, done: true }];
+  const out = applySuggestedKg(sets, 52.5);
+  assert.deepEqual(out, [{ kg: 52.5, reps: 10, done: false }, { kg: 52.5, reps: 9, done: true }]);
+  assert.equal(sets[0].kg, 50, 'no debe mutar la entrada');
+});
+
+test('applySuggestedKg: ignora pesos inválidos y devuelve la misma lista', () => {
+  const sets = [{ kg: 50, reps: 10, done: false }];
+  assert.equal(applySuggestedKg(sets, 0), sets);
+  assert.equal(applySuggestedKg(sets, NaN), sets);
+  assert.equal(applySuggestedKg(null, 50), null);
+});
+
+test('applySuggestedKg: corrige la regresión de progresión (última sesión 50, sugerido 52.5)', () => {
+  const base = buildExerciseSets({ series: 3, peso_kg: 52.5, reps: 8 }, [{ kg: 50, reps: 10 }]);
+  assert.deepEqual(base.map(s => s.kg), [50, 50, 50]);
+  assert.deepEqual(applySuggestedKg(base, 52.5).map(s => s.kg), [52.5, 52.5, 52.5]);
+});
 
 /* ============ getApodo ============ */
 test('getApodo: devuelve apodo mapeado', () => {

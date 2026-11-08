@@ -17,6 +17,7 @@
   const DAY_COLORS = global.DAY_COLORS || {};
   const DAY_SHORT = global.DAY_SHORT || {};
   const P = () => EyeFit.Persistence || {};
+  const S = () => EyeFit.Supabase || {};
   const C = () => EyeFit.Config || {};
   const D = () => EyeFit.Dataset || {};
   const Ui = () => EyeFit.Ui || {};

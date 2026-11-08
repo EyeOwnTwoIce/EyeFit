@@ -21,12 +21,12 @@ if(!U){
 const showToast = (window.EyeFit.Ui || {}).showToast || ((m)=>{ console.error("[EyeFit]", m); });
 window.addEventListener("error", (e)=>{
   console.error("[EyeFit]", e.message || e.error);
-  showToast("⚠️ Error inesperado: " + (e.message || "desconocido"));
+  showToast("⚠️ Error inesperado. Recarga la página si persiste.");
 });
 window.addEventListener("unhandledrejection", (e)=>{
   const err = e && e.reason ? (e.reason.message || e.reason) : "desconocido";
   console.error("[EyeFit] unhandledrejection", err);
-  showToast("⚠️ Error inesperado: " + err);
+  showToast("⚠️ Error inesperado. Recarga la página si persiste.");
 });
 
 /* Arranque de la app (config, migraciones, auth lazy, dataset, sesión,

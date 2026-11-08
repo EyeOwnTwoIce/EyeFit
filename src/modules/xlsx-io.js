@@ -39,7 +39,7 @@
       await loadXLSX();
     }catch(e){
       Ui().showToast("⏳ No se pudo cargar SheetJS. Comprueba la conexión");
-      throw new Error("xlsx no disponible");
+      throw new Error("xlsx no disponible", { cause: e });
     }
     const XLSX = window.XLSX;
     const wb = XLSX.read(data, { type:"array" });

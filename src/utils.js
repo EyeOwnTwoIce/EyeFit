@@ -90,6 +90,16 @@
   }
 
   /**
+   * Aplica un peso sugerido por el algoritmo de progresión a todos los sets.
+   * No muta la entrada; ignora pesos inválidos (NaN, <= 0).
+   */
+  function applySuggestedKg(sets, kg) {
+    const n = parseFloat(kg);
+    if (!Array.isArray(sets) || !Number.isFinite(n) || n <= 0) return sets;
+    return sets.map(s => ({ ...s, kg: n }));
+  }
+
+  /**
    * Valida que un registro de sesión del historial tenga el schema mínimo.
    * Protege contra datos corruptos en localStorage/nube (F2-A2).
    */
@@ -338,7 +348,7 @@
     APODOS, DAY_ORDER, DAY_COLORS, DAY_SHORT, WEEKDAY_NAMES,
     DEFAULT_ROUTINE, INSTRUCCIONES, ALTERNATIVAS, EMBEDDED_IMAGES,
     getApodo, epley1RM, formatRest, normalizeName,
-    buildExerciseSets, isValidSessionRecord, computeRemainingSessions, sortRoutine,
+    buildExerciseSets, applySuggestedKg, isValidSessionRecord, computeRemainingSessions, sortRoutine,
     escapeHtmlAttr, localDateKey, weekdayNameOf, isSuspectShortSession, dayMismatchLabel,
     sessionKeyOf, filterDeletedServerRecords,
     genUUID, clampNum, isValidDay, sanitizeRoutineRow,
@@ -364,6 +374,4 @@
     global.EMBEDDED_IMAGES = global.EMBEDDED_IMAGES || EMBEDDED_IMAGES;
   }
 
-})(typeof window !== "undefined" ? window :
-   typeof globalThis !== "undefined" ? globalThis :
-   typeof global !== "undefined" ? global : this);
+})(typeof window !== "undefined" ? window : globalThis);

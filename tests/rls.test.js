@@ -71,9 +71,9 @@ test('RLS: índice sesiones_user_idx en user_id', () => {
 });
 
 test('RLS: user_id referencia auth.users con on delete cascade', () => {
-  /* Dos lugares: rutinas.user_id y sesiones.user_id */
+  /* rutinas + sesiones + push_subscriptions (create + migración) */
   const refs = SQL.match(/references auth\.users\(id\) on delete cascade/g) || [];
-  assert.equal(refs.length, 2, 'debe haber 2 referencias a auth.users (rutinas + sesiones)');
+  assert.equal(refs.length, 4, 'debe haber 4 referencias a auth.users (rutinas, sesiones y push x2)');
 });
 
 test('RLS: user_id NOT NULL y UNIQUE en rutinas (1 fila por usuario)', () => {
@@ -105,12 +105,14 @@ test('RLS: RLS habilitado en push_subscriptions', () => {
   assert.match(SQL, /alter table public\.push_subscriptions enable row level security/i);
 });
 
-test('RLS: políticas push_subscriptions (select/insert/update/delete para upsert)', () => {
-  assert.match(SQL, /create policy "push_subscriptions_upsert"/i);
-  assert.match(SQL, /create policy "push_subscriptions_delete"/i);
-  assert.match(SQL, /create policy "push_subscriptions_select"/i);
-  assert.match(SQL, /create policy "push_subscriptions_update"/i);
-  assert.match(SQL, /drop policy if exists "push_subscriptions_upsert"/i);
-  assert.match(SQL, /drop policy if exists "push_subscriptions_delete"/i);
-  assert.match(SQL, /to anon, authenticated/i);
+test('RLS: push_subscriptions scopada por user_id (no abierta a anon)', () => {
+  assert.match(SQL, /create table if not exists public\.push_subscriptions[\s\S]*?user_id\s+uuid references auth\.users\(id\) on delete cascade/i);
+  assert.match(SQL, /add column if not exists user_id uuid references auth\.users\(id\) on delete cascade/i);
+  assert.match(SQL, /create index if not exists push_subscriptions_user_idx/i);
+  for (const op of ['select', 'insert', 'update', 'delete']) {
+    assert.match(SQL, new RegExp('create policy "?push_subscriptions_' + op + '_own'), 'falta política push_subscriptions_' + op + '_own');
+  }
+  assert.match(SQL, /create policy "push_subscriptions_select_own"[\s\S]*?to authenticated\s+using \(\(select auth\.uid\(\)\) = user_id\)/i);
+  /* Defensa contra regresión: ninguna política push puede quedar con using(true) */
+  assert.doesNotMatch(SQL, /create policy "push_subscriptions_[^"]+"[\s\S]*?using \(true\)/i);
 });

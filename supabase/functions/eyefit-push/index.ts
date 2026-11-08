@@ -12,10 +12,13 @@
 //
 // Despliega:
 //   supabase functions deploy eyefit-push --no-verify-jwt
+//   (la función exige un Bearer secreto propio; sin él devuelve 401)
 //
 // Secretos:
-//   supabase secrets set VAPID_SUBJECT=mailto:admin@eyefit.app VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=...
+//   supabase secrets set PUSH_FN_KEY=<token-largo-aleatorio> \
+//     VAPID_SUBJECT=mailto:admin@eyefit.app VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=...
 //   (SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY ya los inyecta Supabase en runtime)
+//   El workflow de deploy usa el mismo valor en el secret SUPABASE_PUSH_FN_KEY.
 import { serve } from 'https://deno.land/std@0.216.0/http/server.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import * as webpush from 'npm:web-push@3.6.7'
@@ -25,15 +28,31 @@ const VAPID_PUBLIC  = Deno.env.get('VAPID_PUBLIC_KEY') || ''
 const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY') || ''
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL') || ''
 const SERVICE_ROLE  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const PUSH_FN_KEY   = Deno.env.get('PUSH_FN_KEY') || ''
+const APP_ORIGIN    = Deno.env.get('APP_ORIGIN') || 'https://eyeowntwoice.github.io'
 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE)
 }
 
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': APP_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+/* Solo aceptamos URLs del origen público de la app: evita que un push
+   (aunque venga autenticado) abra un dominio de phishing. */
+function safeUrl(raw: unknown): string {
+  const fallback = './'
+  if (typeof raw !== 'string' || !raw.trim()) return fallback
+  try {
+    const u = new URL(raw, APP_ORIGIN + '/EyeFit/')
+    if (u.origin !== APP_ORIGIN) return fallback
+    return u.href
+  } catch {
+    return fallback
+  }
 }
 
 // Lee todas las suscripciones guardadas en la tabla (service_role bypassa RLS)
@@ -63,11 +82,21 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: CORS })
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: CORS })
 
+  /* Autenticación por token compartido: la función se despliega con
+     --no-verify-jwt, así que sin esta comprobación cualquiera podría
+     lanzar un push masivo a todos los suscriptores. */
+  const auth = req.headers.get('authorization') || ''
+  if (!PUSH_FN_KEY || auth !== 'Bearer ' + PUSH_FN_KEY) {
+    return new Response(JSON.stringify({ ok: false, error: 'Unauthorized' }), {
+      status: 401, headers: { ...CORS, 'Content-Type': 'application/json' }
+    })
+  }
+
   try {
     const body = await req.json()
     const title = body.title || 'EyeFit'
     const message = body.body || 'Nueva versión disponible'
-    const url = body.url || './'
+    const url = safeUrl(body.url)
 
     // 1. Suscripciones: del body o de la base de datos
     let subscriptions = Array.isArray(body.subscriptions) ? body.subscriptions : null

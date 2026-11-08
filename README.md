@@ -101,10 +101,11 @@ Abre `rutina.xlsx` en **Excel**, **Numbers** o **Google Sheets** y edita las fil
 npm install
 ```
 
-### Ejecutar tests
+### Ejecutar tests y lint
 
 ```bash
 npm test
+npm run lint
 ```
 
 ### Build de producción
@@ -219,6 +220,7 @@ EyeFit/
 
 - **100% HTML + CSS + JavaScript** (vanilla, sin frameworks)
 - **Tests unitarios** con `node:test` (ejecuta `npm test`)
+- **ESLint 10** (flat config) para errores reales (ejecuta `npm run lint`)
 - **Supabase** para auth (email + contraseña) y sincronización de rutina/historial
 - **SheetJS** ([SheetJS Community Edition](https://sheetjs.com/)) para leer/escribir .xlsx
 - **exercises-dataset** ([GitHub](https://github.com/hasaneyldrm/exercises-dataset)) — CC-BY-4.0, 1.324 ejercicios; el bundle slim empaquetado incluye 1.080

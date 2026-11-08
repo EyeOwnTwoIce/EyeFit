@@ -10,17 +10,20 @@
     "gen:vapid": "node tools/generate_vapid.js",
     "push:notify": "node tools/push_notify.js",
     "test": "node --test tests/*.test.js",
+    "lint": "eslint .",
     "test:e2e": "npm run build && playwright test",
     "lighthouse": "npm run build && npx http-server dist -p 4173 -c-1 & lhci autorun"
   },
-  "dependencies": {},
   "devDependencies": {
-    "@lhci/cli": "^0.15.1",
-    "@playwright/test": "^1.62.1",
+    "@eslint/js": "^10.0.1",
+    "@lhci/cli": "^0.16.0",
+    "@playwright/test": "^1.65.0",
     "esbuild": "^0.28.2",
-    "fake-indexeddb": "^6.2.5",
+    "eslint": "^10.14.0",
+    "fake-indexeddb": "^6.2.8",
+    "globals": "^17.14.0",
     "http-server": "^14.1.1",
-    "web-push": "^3.6.7"
+    "web-push": "^4.0.0"
   },
   "overrides": {
     "tmp": "0.2.7",

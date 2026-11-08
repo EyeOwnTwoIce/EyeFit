@@ -47,6 +47,7 @@ jobs:
       - if: ${{ steps.npm-cache.outputs.cache-hit != 'true' }}
         run: npm ci
       - run: npm test
+      - run: npm run lint
       # Resolver la versión del release (el tag que crea auto-tag.yml sobre este commit)
       # y pasarla al build para que Ajustes → Acerca de muestre la versión real.
       # Espera (máx ~60 s) a que el tag exista; si no, cae a la versión de package.json.

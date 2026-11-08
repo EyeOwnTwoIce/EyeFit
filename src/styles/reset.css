@@ -24,7 +24,7 @@
     -webkit-overflow-scrolling:touch;
     scrollbar-width:none; -ms-overflow-style:none;
     /* La tabbar está pegada al borde inferior: padding fijo para no tapar contenido */
-    padding:12px 14px 70px;
+    padding:12px 14px calc(70px + env(safe-area-inset-bottom));
   }
   main::-webkit-scrollbar{ display:none; }
   main.no-scroll{ overflow:hidden; }

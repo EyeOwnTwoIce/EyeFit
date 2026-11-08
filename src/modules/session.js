@@ -10,6 +10,7 @@
   const EyeFit = global.EyeFit = global.EyeFit || {};
   const U = global.EyeFitUtils || {};
   const buildExerciseSets = U.buildExerciseSets;
+  const applySuggestedKg = U.applySuggestedKg;
   const genUUID = U.genUUID;
   const rebaseElapsed = U.rebaseElapsed;
   const getApodo = U.getApodo;
@@ -52,6 +53,7 @@
     if(!anyDone) return;
     session.elapsed = Math.floor((Date.now()-session.startTime)/1000)+session.baseElapsed;
     const nowIso = new Date().toISOString();
+    const history = P().getHistory();
     const record = {
       session_id: session.session_id || genUUID(),
       date: nowIso,
@@ -59,7 +61,7 @@
       duration: session.elapsed,
       updated_at: nowIso,
       exercises: session.exercises.map(e=>{
-        const decid = C().computeProgressionDecision(e, []);
+        const decid = C().computeProgressionDecision(e, history);
         return {
           nombre_es: e.nombre_es, dataset: e.dataset, datasetOriginal: e.datasetOriginal, orden: e.orden, completed: e.completed,
           sets: e.sets.map(s=>({ kg:s.kg, reps:s.reps, done:s.done })),
@@ -67,7 +69,6 @@
         };
       })
     };
-    const history = P().getHistory();
     const dupeIdx = history.findIndex(h=>h.session_id && h.session_id === record.session_id);
     if(dupeIdx !== -1) history.splice(dupeIdx, 1);
     history.push(record);
@@ -151,14 +152,13 @@
         const lastPerf = getLastExercisePerformance(ex);
         /* Aplicar progresión automática si hay historial */
         const dec = C().computeProgressionDecision(ex, history);
-        let exercise = ex;
-        let sets;
-        if(dec && dec.peso_sugerido > 0){
-          exercise = { ...ex, peso_kg: dec.peso_sugerido };
-          sets = buildExerciseSets(exercise, lastPerf);
-        } else {
-          sets = buildExerciseSets(ex, lastPerf);
-        }
+        const suggestedKg = (dec && dec.peso_sugerido > 0) ? dec.peso_sugerido : null;
+        const exercise = suggestedKg ? { ...ex, peso_kg: suggestedKg } : ex;
+        let sets = buildExerciseSets(ex, lastPerf);
+        /* buildExerciseSets prioriza los kg de la última sesión; si el algoritmo
+           de progresión propone un peso nuevo, hay que aplicarlo explícitamente
+           (si no, la progresión solo se veía en el badge). */
+        if(suggestedKg) sets = applySuggestedKg(sets, suggestedKg);
         return { ...exercise, completed:false, currentSet:1, sets };
       })
     };

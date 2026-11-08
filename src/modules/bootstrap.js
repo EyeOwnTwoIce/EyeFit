@@ -99,7 +99,7 @@ if('serviceWorker' in navigator){
          la suscripción (localStorage + Supabase). Sin persistir, el CI no tiene
          el endpoint y la notificación push nunca llega con la app cerrada. */
       window.__swReg = reg;
-      if(Notification && Notification.permission === 'granted'){
+      if('Notification' in window && Notification.permission === 'granted'){
         Push().ensurePushSubscription(reg).then(sub => {
           if(sub && sub.endpoint) Push().persistPushSubscription(sub);
         });
@@ -257,7 +257,7 @@ function closeOnboarding(){
   Ui().setFocusTrap("onboardOverlay", null);
   const fp = deviceFingerprint();
   try{
-    const seen = JSON.parse(localStorage.getItem(ONBOARD_KEY) || "[]");
+    let seen = JSON.parse(localStorage.getItem(ONBOARD_KEY) || "[]");
     if(!Array.isArray(seen)) seen = [];
     if(!seen.includes(fp)) seen.push(fp);
     localStorage.setItem(ONBOARD_KEY, JSON.stringify(seen));

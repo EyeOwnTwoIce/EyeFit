@@ -2,7 +2,7 @@
   "name": "EyeFit",
   "short_name": "EyeFit",
   "description": "Entrenamiento Lunes-Viernes sincronizado en la nube",
-  "id": "/",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

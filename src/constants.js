@@ -293,7 +293,5 @@
     global.EMBEDDED_IMAGES = global.EMBEDDED_IMAGES || EMBEDDED_IMAGES;
   }
 
-})(typeof window !== "undefined" ? window :
-   typeof globalThis !== "undefined" ? globalThis :
-   typeof global !== "undefined" ? global : this);
+})(typeof window !== "undefined" ? window : globalThis);
 

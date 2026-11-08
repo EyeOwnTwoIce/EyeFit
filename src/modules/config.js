@@ -119,7 +119,7 @@
     /* Usar el peso de la rutina como base si no hay sets */
     if(cfg.tipo_progresion === "lineal"){
       /* Progresión lineal simple: si alcanzó el tope, subir siempre */
-      if(maxReps >= max) return { action:"up", delta:inc, reason:`Progresión lineal: alcanzaste el tope del rango (${maxReps} reps). Subimos ${inc} kg para seguir estimulando.`, peso_sugerido: round1(parseFloat(ex.peso_kg)||baseKg + inc) };
+      if(maxReps >= max) return { action:"up", delta:inc, reason:`Progresión lineal: alcanzaste el tope del rango (${maxReps} reps). Subimos ${inc} kg para seguir estimulando.`, peso_sugerido: round1((parseFloat(ex.peso_kg) || baseKg) + inc) };
       return { action:"keep", delta:0, reason:`Aún no llegas al tope del rango (${maxReps}/${max} reps). Mantenemos el peso.`, peso_sugerido: baseKg };
     }
     /* Doble progresión */

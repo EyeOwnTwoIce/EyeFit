@@ -62,9 +62,13 @@
         localStorage.setItem(K_NEWS_KEYS.pushSubJson, JSON.stringify(json));
         /* Subir el endpoint a Supabase para que la Edge Function eyefit-push
            lo use al acabar cada deploy (flush separado, no bloquea al caller). */
-        if(S().sbClient && json && json.endpoint){
+        /* Solo se sube con usuario autenticado: la tabla tiene RLS por
+           user_id (auth.uid()). Si aún no hay sesión, la suscripción queda
+           en localStorage y se reintenta al arrancar con sesión. */
+        if(S().sbClient && S().authUser && json && json.endpoint){
           S().sbClient.from("push_subscriptions").upsert({
             endpoint: json.endpoint,
+            user_id: S().authUser.id,
             keys: json.keys || {}
           }, { onConflict: "endpoint" }).then(({error})=>{
             if(error) console.warn("[EyeFit] push sub upsert error:", error.message);

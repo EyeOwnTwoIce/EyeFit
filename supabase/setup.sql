@@ -134,48 +134,68 @@ drop table if exists public.routinas;
 --    Una fila por dispositivo suscrito. La app hace upsert de su endpoint
 --    y la Edge Function eyefit-push las lee (con service_role) para
 --    enviar notificaciones al acabar cada deploy.
---    RLS: permitimos a anon/authenticated SELECT+INSERT+UPDATE+DELETE
---    su endpoint. IMPORTANTE: el upsert usa ON CONFLICT DO UPDATE, que
---    exige políticas SELECT (visibilidad de la fila en conflicto) y
---    UPDATE. Sin ellas el registro falla en silencio (tabla vacía).
+--    SEGURIDAD: la tabla está acotada por user_id. Sin user_id, cualquier
+--    portador de la anon/publishable key podría leer TODOS los endpoints
+--    y claves push, borrarlos o inyectar suscripciones. El endpoint + las
+--    claves (p256dh/auth) permiten enviar notificaciones al dispositivo.
+--    El upsert usa ON CONFLICT DO UPDATE y necesita SELECT + UPDATE.
 -- ════════════════════════════════════════════════════════════════
 create table if not exists public.push_subscriptions (
   endpoint  text primary key,
+  user_id   uuid references auth.users(id) on delete cascade,
   keys      jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+-- Migración para proyectos ya creados antes de scopear por usuario.
+alter table public.push_subscriptions
+  add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
+create index if not exists push_subscriptions_user_idx
+  on public.push_subscriptions(user_id);
+
 alter table public.push_subscriptions enable row level security;
 
--- Select: necesario para que el ON CONFLICT DO UPDATE del upsert funcione
+-- Políticas acotadas al usuario dueño de la suscripción.
+-- (select auth.uid()) evita reevaluar auth.uid() por fila.
 drop policy if exists "push_subscriptions_select" on public.push_subscriptions;
-create policy "push_subscriptions_select"
-  on public.push_subscriptions for select
-  to anon, authenticated
-  using (true);
-
--- Insert/upsert: el dispositivo registra/se actualiza su endpoint
 drop policy if exists "push_subscriptions_upsert" on public.push_subscriptions;
-create policy "push_subscriptions_upsert"
+drop policy if exists "push_subscriptions_update" on public.push_subscriptions;
+drop policy if exists "push_subscriptions_delete" on public.push_subscriptions;
+drop policy if exists "push_subscriptions_select_own" on public.push_subscriptions;
+drop policy if exists "push_subscriptions_insert_own" on public.push_subscriptions;
+drop policy if exists "push_subscriptions_update_own" on public.push_subscriptions;
+drop policy if exists "push_subscriptions_delete_own" on public.push_subscriptions;
+
+-- Select: necesario para que el ON CONFLICT DO UPDATE del upsert funcione
+create policy "push_subscriptions_select_own"
+  on public.push_subscriptions for select
+  to authenticated
+  using ((select auth.uid()) = user_id);
+
+-- Insert/upsert: el dispositivo registra su endpoint
+create policy "push_subscriptions_insert_own"
   on public.push_subscriptions for insert
-  to anon, authenticated
-  with check (true);
+  to authenticated
+  with check ((select auth.uid()) = user_id);
 
 -- Update: la re-suscripción (mismo endpoint) ejecuta ON CONFLICT DO UPDATE
-drop policy if exists "push_subscriptions_update" on public.push_subscriptions;
-create policy "push_subscriptions_update"
+create policy "push_subscriptions_update_own"
   on public.push_subscriptions for update
-  to anon, authenticated
-  using (true)
-  with check (true);
+  to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 -- Delete: el dispositivo elimina su endpoint al desuscribirse
-drop policy if exists "push_subscriptions_delete" on public.push_subscriptions;
-create policy "push_subscriptions_delete"
+create policy "push_subscriptions_delete_own"
   on public.push_subscriptions for delete
-  to anon, authenticated
-  using (true);
+  to authenticated
+  using ((select auth.uid()) = user_id);
+
+-- Las filas antiguas sin dueño no se pueden reclamar por endpoint (evita que
+-- un usuario se apropie de la suscripción de otro). Se limpian una vez.
+delete from public.push_subscriptions where user_id is null;
 
 -- ════════════════════════════════════════════════════════════════
 -- 7) Auth: habilitar leaked password protection (HaveIBeenPwned)

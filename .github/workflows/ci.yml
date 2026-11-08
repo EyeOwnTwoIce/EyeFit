@@ -247,11 +247,20 @@ jobs:
           fi
           RELEASE_TIME="$(date '+%d/%m/%Y %H:%M')"
           PAYLOAD="$(printf '{"title":"V%s disponible","body":"%s · Toca para actualizar","url":"./"}' "$VERSION" "$RELEASE_TIME")"
-          curl -sS -X POST "${{ secrets.SUPABASE_PUSH_FN_URL }}" \
+          RESP_FILE="$(mktemp)"
+          CODE="$(curl -sS -o "$RESP_FILE" -w '%{http_code}' -X POST "${{ secrets.SUPABASE_PUSH_FN_URL }}" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_PUSH_FN_KEY }}" \
-            -d "$PAYLOAD" \
-            && echo "Push enviado: V${VERSION} disponible" || echo "El servicio push no respondió (no bloquea)."
+            -d "$PAYLOAD")" || CODE="000"
+          BODY="$(cat "$RESP_FILE" 2>/dev/null || true)"
+          rm -f "$RESP_FILE"
+          # La respuesta incluye los endpoints; no se imprime el body completo.
+          SENT="$(printf '%s' "$BODY" | tr -d '\n' | sed -n 's/.*"sent"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p')"
+          if [ "$CODE" = "200" ] && [ "${SENT:-0}" -gt 0 ] && printf '%s' "$BODY" | grep -q '"ok":true'; then
+            echo "Push enviado a ${SENT} dispositivo(s): V${VERSION} disponible"
+          else
+            echo "::warning::Push no enviado (HTTP $CODE, sent=${SENT:-0}). El deploy continúa."
+          fi
 
   # NOTA: el deploy se hace SOLO a GitHub Pages (el deploy-pages de arriba).
   # El aviso Web Push tras cada deploy lo hace el paso "Notify push update"

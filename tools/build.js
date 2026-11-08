@@ -9,8 +9,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const { build } = require('esbuild');
+const nodeCrypto = require('crypto');
+const { build, transform } = require('esbuild');
 const { currentVersion } = require('./current_version');
 
 const ROOT = path.join(__dirname, '..');
@@ -61,7 +61,7 @@ const MODULES_DIR = path.join(SRC, 'modules');
 const STATIC_DIRS = ['public/icons', 'data/videos'];
 
 function hashSum(buf) {
-  return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 8);
+  return nodeCrypto.createHash('sha256').update(buf).digest('hex').slice(0, 8);
 }
 
 function rmDist() {
@@ -83,23 +83,7 @@ function copyStatic() {
     if (!fs.existsSync(from)) continue;
     fs.copyFileSync(from, path.join(DIST, f));
   }
-  // Módulos EyeFit (src/modules/) → dist/modules/
-  if (fs.existsSync(MODULES_DIR)) {
-    fs.cpSync(MODULES_DIR, path.join(DIST, 'modules'), { recursive: true });
-    // Inyectar la versión del release en los módulos que la muestran (p.ej. Ajustes →
-    // "vX.Y.Z · PWA..."). El placeholder __EYEFIT_VERSION__ se reemplaza por la versión
-    // resuelta (EYEFIT_VERSION env > último tag vX.Y.Z de auto-tag > package.json).
-    const distModules = path.join(DIST, 'modules');
-    for (const f of fs.readdirSync(distModules)) {
-      if (!f.endsWith('.js')) continue;
-      const fp = path.join(distModules, f);
-      let content = fs.readFileSync(fp, 'utf8');
-      if (content.includes('__EYEFIT_VERSION__')) {
-        content = content.split('__EYEFIT_VERSION__').join(APP_VERSION);
-        fs.writeFileSync(fp, content);
-      }
-    }
-  }
+  // Los módulos EyeFit se compilan/hashean aparte en buildModules().
   // Directorios: icons vive en public/ y se copia a la raíz de dist/ (como dist/icons)
   for (const src of STATIC_DIRS) {
     const fromDir = path.join(ROOT, src);
@@ -157,11 +141,37 @@ async function buildJs() {
   return name;
 }
 
-function buildHtml(cssName, jsName, criticalCss) {
+/* Compila y hashea src/modules/*.js → dist/modules/<name>.<hash>.js.
+   Antes se copiaban tal cual (sin hash y sin minificar): un deploy podía
+   dejar módulos viejos en la caché HTTP (max-age=600) y servirlos para
+   siempre desde la caché versionada del SW. */
+async function buildModules() {
+  const map = {};
+  if (!fs.existsSync(MODULES_DIR)) return map;
+  const outDir = path.join(DIST, 'modules');
+  fs.mkdirSync(outDir, { recursive: true });
+  const files = fs.readdirSync(MODULES_DIR).filter(f => f.endsWith('.js')).sort();
+  for (const f of files) {
+    let code = fs.readFileSync(path.join(MODULES_DIR, f), 'utf8');
+    // La versión del release se inyecta antes de minificar.
+    code = code.split('__EYEFIT_VERSION__').join(APP_VERSION);
+    const min = await transform(code, { loader: 'js', minify: true, legalComments: 'none' });
+    const name = `${path.basename(f, '.js')}.${hashSum(Buffer.from(min.code))}.js`;
+    fs.writeFileSync(path.join(outDir, name), min.code);
+    map[f] = `modules/${name}`;
+  }
+  return map;
+}
+
+function buildHtml(cssName, jsName, criticalCss, moduleMap) {
   let html = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
   html = html.replace('/*EYEFIT_CRITICAL_CSS*/', criticalCss);
   /* Reemplazar TODAS las ocurrencias del CSS filename (link + noscript) */
   html = html.split('<!--EYEFIT_CSS-->').join(cssName);
+  /* Reescribir las referencias a módulos por sus nombres hasheados. */
+  for (const [orig, hashed] of Object.entries(moduleMap)) {
+    html = html.split(`modules/${orig}`).join(hashed);
+  }
   html = html.replace('<!--EYEFIT_APP_JS-->', `<script src="${jsName}" defer></script>`);
   fs.writeFileSync(path.join(DIST, 'index.html'), html);
 }
@@ -177,11 +187,10 @@ function buildSw(coreAssets) {
 (async () => {
   rmDist();
   copyStatic();
+  const moduleMap = await buildModules();
   const [cssName, jsName, criticalCss] = await Promise.all([buildCss(), buildJs(), buildCriticalCss()]);
-  buildHtml(cssName, jsName, criticalCss);
-  const moduleAssets = fs.existsSync(MODULES_DIR)
-    ? fs.readdirSync(MODULES_DIR).filter(f => f.endsWith('.js')).map(f => `./modules/${f}`)
-    : [];
+  buildHtml(cssName, jsName, criticalCss, moduleMap);
+  const moduleAssets = Object.values(moduleMap).map(p => `./${p}`);
   const coreAssets = ['./', './index.html', `./${cssName}`, `./${jsName}`,
     './manifest.json', './constants.js', './utils.js', './db.js', './supabase.js', './rutina.xlsx',
     './slim-dataset.json', './exercise-meta.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png',

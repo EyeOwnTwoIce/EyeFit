@@ -40,7 +40,14 @@ self.addEventListener('install', event => {
          atascada en la versión vieja (GIFs rotos, etc.). Con allSettled el SW
          nuevo se instala igualmente y los assets fallidos se sirven bajo demanda
          (el fetch handler los cachea al primer uso). */
-      Promise.allSettled(CORE_ASSETS.map(url => cache.add(url)))
+      Promise.allSettled(CORE_ASSETS.map(url =>
+        /* cache:'reload' evita quedarnos con una copia vieja de la caché HTTP
+           (GitHub Pages sirve max-age=600) y luego servirla indefinidamente
+           desde la caché versionada del SW. */
+        fetch(new Request(url, { cache: 'reload' })).then(response => {
+          if (response && response.ok) return cache.put(url, response);
+        })
+      ))
     ).then(() => self.skipWaiting())
   );
 });
@@ -131,7 +138,15 @@ self.addEventListener('push', event => {
    actualización del SW recarga al detectar la nueva versión.) */
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || './';
+  let targetUrl = (event.notification.data && event.notification.data.url) || './';
+  /* Defensa en profundidad: un push mal formado no debe abrir un dominio
+     externo. Solo navegamos dentro del origen de la app. */
+  try {
+    const u = new URL(targetUrl, self.registration.scope);
+    targetUrl = u.origin === self.location.origin ? (u.pathname + u.search + u.hash) : './';
+  } catch (_) {
+    targetUrl = './';
+  }
   event.waitUntil((async () => {
     const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     if (allClients.length) {

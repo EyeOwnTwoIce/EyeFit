@@ -27,17 +27,22 @@ jobs:
       - name: Ping a la REST API de Supabase
         env:
           # Mismos valores públicos que usa la app (la anon/publishable key es pública).
-          SUPABASE_URL: https://vkaxxphminufitcyp.supabase.co
+          SUPABASE_URL: https://vkaxxphminfinufitcyp.supabase.co
           SUPABASE_ANON_KEY: sb_publishable_9mIRx8rfkAtHv9w57cbCKw_P_btyOou
         run: |
-          # Petición ligera a PostgREST: cuenta como actividad del proyecto.
-          # 200/206 = OK · 401 = key inválida · 5xx/000 = proyecto caído o pausado.
-          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+          # Consulta real a una tabla (no la raíz de PostgREST, que exige
+          # secret key desde 2025 y devuelve 401 incluso con el proyecto sano).
+          # 200 = proyecto + key OK · 401/403 = key inválida · 5xx/000 = caído/pausado.
+          code="$(curl -s -o /tmp/keepalive-body -w '%{http_code}' --max-time 30 \
             -H "apikey: $SUPABASE_ANON_KEY" \
-            "$SUPABASE_URL/rest/v1/")"
+            "$SUPABASE_URL/rest/v1/rutinas?select=id&limit=1")"
           echo "EyeFit keep-alive → HTTP $code"
           if [ "$code" = "000" ] || [ "${code:0:1}" = "5" ]; then
             echo "::error::No se pudo contactar con el proyecto Supabase (posible PAUSA o caída). Restáuralo en el Dashboard de Supabase."
+            exit 1
+          fi
+          if [ "$code" = "401" ] || [ "$code" = "403" ]; then
+            echo "::error::Supabase responde pero rechaza la publishable key (401/403). Revisa la key en Settings → API."
             exit 1
           fi
           echo "✔ Proyecto activo (HTTP $code)"

@@ -17,7 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const URL = 'https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/data/exercises.json';
+const DATASET_URL = 'https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/data/exercises.json';
 const OUT = path.join(__dirname, '..', 'slim-dataset.json');
 
 // Normalización idéntica a utils.normalizeName
@@ -31,7 +31,7 @@ function normalizeName(s) {
 
 async function main() {
   console.log('⬇️  Descargando dataset completo…');
-  const resp = await fetch(URL);
+  const resp = await fetch(DATASET_URL);
   if (!resp.ok) throw new Error('fetch failed: ' + resp.status);
   const full = await resp.json();
   console.log(`   ${full.length} ejercicios en total`);
